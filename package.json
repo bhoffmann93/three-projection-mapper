@@ -1,0 +1,61 @@
+{
+  "name": "three-projection-mapping",
+  "version": "1.0.0",
+  "description": "A projection mapping library for Three.js with interactive warp grid control",
+  "type": "module",
+  "main": "dist/lib.js",
+  "module": "dist/lib.js",
+  "types": "dist/lib.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/lib.js",
+      "types": "./dist/lib.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "glsl"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:lib": "vite build --config vite.lib.config.ts",
+    "test": "vitest",
+    "preview": "vite preview",
+    "start": "npm run dev"
+  },
+  "keywords": [
+    "threejs",
+    "three.js",
+    "projection-mapping",
+    "webgl",
+    "warp",
+    "mesh-warping"
+  ],
+  "author": "",
+  "license": "AGPL-3.0-or-later",
+  "peerDependencies": {
+    "three": ">=0.150.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@tweakpane/core": "^2.0.5",
+    "@types/three": "^0.181.0",
+    "@typescript-eslint/eslint-plugin": "^8.46.4",
+    "@typescript-eslint/parser": "^8.46.4",
+    "@vitest/ui": "^3.2.4",
+    "eslint": "^9.39.1",
+    "globals": "^16.5.0",
+        "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.4",
+    "vite": "^7.2.2",
+    "vite-plugin-glsl": "^1.5.4",
+    "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "convex-hull": "^1.0.3",
+    "three": "^0.181.1",
+    "tweakpane": "^4.0.5"
+  }
+}

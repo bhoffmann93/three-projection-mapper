@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx vite build:*)",
+      "Bash(wc:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run build:lib:*)",
+      "Bash(# Check static folder ls -la /Users/bernhardhoffmann/Web_Projects/three-projection-mapping/static/ || echo \"\"No static folder\"\" find /Users/bernhardhoffmann/Web_Projects/three-projection-mapping/static -type f)",
+      "Bash(npm test:*)"
+    ]
+  }
+}
