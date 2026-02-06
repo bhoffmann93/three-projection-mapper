@@ -61,7 +61,7 @@ export class ProjectionMapperGUI {
     this.pane.addBlade({
       view: 'text',
       label: '[G] GUI',
-      value: '[T] Warp UI',
+      value: '[H] Warp UI',
       parse: (v: string) => v,
       disabled: true,
     } as Record<string, unknown>);
@@ -119,7 +119,7 @@ export class ProjectionMapperGUI {
     // Visibility
     const visFolder = this.pane.addFolder({ title: 'Warp UI', expanded: true });
 
-    visFolder.addButton({ title: 'Toggle' }).on('click', () => this.toggleWarpingUiElements());
+    visFolder.addButton({ title: 'Toggle' }).on('click', () => this.toggleWarpUI());
 
     visFolder.addButton({ title: 'Show All' }).on('click', () => {
       this.settings.showGridPoints = true;
@@ -170,7 +170,7 @@ export class ProjectionMapperGUI {
     this.mapper.setShowControlLines(this.settings.showControlLines);
   }
 
-  public toggleWarpingUiElements(): void {
+  public toggleWarpUI(): void {
     const anyVisible =
       this.settings.showGridPoints ||
       this.settings.showCornerPoints ||
