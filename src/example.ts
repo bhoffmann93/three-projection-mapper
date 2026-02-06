@@ -19,15 +19,17 @@ renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setClearColor(0x000000);
 document.body.appendChild(renderer.domElement);
 
-// Create a render target to render your content into
-const renderTarget = new THREE.WebGLRenderTarget(
-  window.innerWidth * window.devicePixelRatio,
-  window.innerHeight * window.devicePixelRatio,
-);
+// World units use aspect ratio, pixel resolution only for textures/renderer
+const projectionResolution = { width: 1920, height: 1080 };
+const aspect = projectionResolution.width / projectionResolution.height;
+const planeSize = { width: 16, height: 16 / aspect }; // 16 x 9 world units
+
+// Create a render target at full pixel resolution
+const renderTarget = new THREE.WebGLRenderTarget(projectionResolution.width, projectionResolution.height);
 
 // Your custom scene and camera (what you want to project)
 const contentScene = new THREE.Scene();
-const contentCamera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+const contentCamera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
 contentCamera.position.z = 5;
 
 // Add some content to your scene (example: rotating cube)
@@ -42,10 +44,10 @@ light.position.set(1, 1, 1);
 contentScene.add(light);
 contentScene.add(new THREE.AmbientLight(0x404040));
 
-// Create the projection mapper with your render target's texture
+// Create the projection mapper with aspect-ratio-based world units
 const mapper = new ProjectionMapper(renderer, renderTarget.texture, {
-  width: 60,
-  height: 60,
+  width: planeSize.width,
+  height: planeSize.height,
   gridControlPoints: { x: 5, y: 5 },
 });
 
@@ -68,15 +70,14 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-// Handle resize
+// Handle resize - render target stays at fixed projection resolution
 window.addEventListener('resize', () => {
   const width = window.innerWidth;
   const height = window.innerHeight;
 
   renderer.setSize(width, height);
-  renderTarget.setSize(width * window.devicePixelRatio, height * window.devicePixelRatio);
 
-  contentCamera.aspect = width / height;
+  contentCamera.aspect = aspect;
   contentCamera.updateProjectionMatrix();
 
   mapper.resize(width, height);

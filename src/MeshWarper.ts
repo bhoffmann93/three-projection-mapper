@@ -168,7 +168,7 @@ export class MeshWarper {
       const y = gridControlPointPositions[i * 3 + 1];
 
       const object = new THREE.Mesh(boxGeometry, new THREE.MeshBasicMaterial({ color: 'rgba(200, 200, 200, 1)' }));
-      object.scale.setScalar(1.0);
+      object.scale.setScalar(0.3);
       object.position.set(x, y, 0);
       object.userData.group = 'grid';
 
@@ -196,7 +196,7 @@ export class MeshWarper {
       const y = quadCorners[i + 1];
 
       const object = new THREE.Mesh(boxGeometry, new THREE.MeshBasicMaterial({ color: 'orange' }));
-      object.scale.setScalar(1.2);
+      object.scale.setScalar(0.4);
       object.position.set(x, y, 0);
       object.userData.group = 'corner';
       object.userData.lastValidPosition = object.position.clone();
@@ -218,7 +218,7 @@ export class MeshWarper {
 
     const lineMaterial = new LineMaterial({
       color: 'orange',
-      linewidth: 2,
+      linewidth: 4,
     });
 
     const line = new Line2(outlineGeometry, lineMaterial);
