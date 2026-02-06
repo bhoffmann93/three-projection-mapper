@@ -78,7 +78,7 @@ export class ProjectionMapperGUI {
       });
 
     // Warp Mode
-    const warpBlade = settingsFolder
+    settingsFolder
       .addBlade({
         view: 'list',
         label: 'Warp Mode',
@@ -88,9 +88,10 @@ export class ProjectionMapperGUI {
         ],
         value: this.settings.warpMode,
       })
-      .on('change', (e: unknown) => {
-        this.settings.warpMode = e.value;
-        this.mapper.getWarper().setWarpMode(e.value);
+      //@ts-ignore
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        this.settings.warpMode = e.value as WARP_MODE;
+        this.mapper.getWarper().setWarpMode(e.value as WARP_MODE);
         this.saveSettings();
       });
 
