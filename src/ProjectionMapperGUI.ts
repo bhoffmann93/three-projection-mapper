@@ -59,7 +59,7 @@ export class ProjectionMapperGUI {
       });
 
     // Grid size controls
-    const gridFolder = this.pane.addFolder({ title: 'Grid Settings', expanded: false });
+    const gridFolder = this.pane.addFolder({ title: 'Grid Settings', expanded: true });
 
     gridFolder
       .addBinding(this.settings, 'gridSizeX', { label: 'Grid X', min: 2, max: 10, step: 1 })
@@ -76,7 +76,7 @@ export class ProjectionMapperGUI {
       });
 
     // Visibility controls
-    const visibilityFolder = this.pane.addFolder({ title: 'Visibility', expanded: false });
+    const visibilityFolder = this.pane.addFolder({ title: 'Visibility', expanded: true });
 
     visibilityFolder
       .addBinding(this.settings, 'showAllControls', { label: 'Show All' })

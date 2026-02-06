@@ -149,12 +149,6 @@ export class ProjectionMapper {
 
   render(): void {
     this.uniforms.uTime.value = this.clock.getElapsedTime();
-
-    // Update warp plane size based on current corners
-    const dimensions = this.meshWarper.averageDimensions;
-    this.uniforms.uWarpPlaneSize.value.set(dimensions.width, dimensions.height);
-
-    // Render to screen
     this.renderer.setRenderTarget(null);
     this.renderer.render(this.scene, this.camera);
     this.composer.render();
@@ -208,6 +202,7 @@ export class ProjectionMapper {
   }
 
   setControlsVisible(visible: boolean): void {
+    this.setShowControlLines(visible);
     this.meshWarper.setAllControlsVisible(visible);
   }
 

@@ -265,8 +265,9 @@ export class MeshWarper {
     this.updateLine();
 
     this.averageDimensions = this.getAverageDimensions();
-    (this.material.uniforms.uWarpPlaneSize.value as THREE.Vector2).setX(this.averageDimensions.width);
-    (this.material.uniforms.uWarpPlaneSize.value as THREE.Vector2).setX(this.averageDimensions.height);
+    if (this.material.uniforms.uWarpPlaneSize) {
+      this.material.uniforms.uWarpPlaneSize.value.set(this.averageDimensions.width, this.averageDimensions.height);
+    }
   }
 
   perspectiveTransformControlPoints(
@@ -526,6 +527,7 @@ export class MeshWarper {
       // Update visuals
       this.updateLine();
       this.averageDimensions = this.getAverageDimensions();
+      this.material.uniforms.uWarpPlaneSize.value.set(this.averageDimensions.width, this.averageDimensions.height);
 
       console.log('Loaded control points from localStorage');
     } catch (e) {
