@@ -34,6 +34,8 @@ export interface MeshWarperConfig {
 const STORAGE_KEY = 'warp-grid-control-points';
 
 interface StoredControlPoints {
+  /** Grid dimensions at time of save, used for validation on load */
+  gridSize?: { x: number; y: number };
   corners: { x: number; y: number; z: number }[];
   grid: { x: number; y: number; z: number }[];
   referenceGrid: { x: number; y: number; z: number }[];
@@ -572,8 +574,8 @@ export class MeshWarper {
     this.material.uniforms.uGridSizeY.value = y;
     this.material.needsUpdate = true;
 
-    // Clear stored positions since grid changed
-    localStorage.removeItem(STORAGE_KEY);
+    // Save new grid layout (loadFromStorage handles size mismatches gracefully)
+    this.saveToStorage();
 
     console.log(`Grid resized to ${x}x${y}`);
   }
@@ -581,6 +583,7 @@ export class MeshWarper {
   // LocalStorage persistence
   private saveToStorage(): void {
     const data: StoredControlPoints = {
+      gridSize: { x: this.xControlPointAmount, y: this.yControlPointAmount },
       corners: this.dragCornerControlPoints.map((p) => ({ x: p.x, y: p.y, z: p.z })),
       grid: this.dragGridControlPoints.map((p) => ({ x: p.x, y: p.y, z: p.z })),
       referenceGrid: this.referenceGridControlPoints.map((p) => ({ x: p.x, y: p.y, z: p.z })),
@@ -608,8 +611,17 @@ export class MeshWarper {
         });
       }
 
-      // Load grid only if size matches current configuration
-      if (data.grid.length === this.dragGridControlPoints.length) {
+      // Validate grid dimensions using stored gridSize metadata
+      const expectedCount = this.xControlPointAmount * this.yControlPointAmount;
+      const gridSizeMatches =
+        data.gridSize?.x === this.xControlPointAmount &&
+        data.gridSize?.y === this.yControlPointAmount;
+
+      if (
+        gridSizeMatches &&
+        data.grid.length === expectedCount &&
+        data.referenceGrid?.length === expectedCount
+      ) {
         data.grid.forEach((pos, i) => this.dragGridControlPoints[i].set(pos.x, pos.y, pos.z));
         data.referenceGrid.forEach((pos, i) => this.referenceGridControlPoints[i].set(pos.x, pos.y, pos.z));
       } else {
