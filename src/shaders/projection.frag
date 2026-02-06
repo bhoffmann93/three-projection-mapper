@@ -217,7 +217,7 @@ vec3 testCard(vec2 vUv, vec2 dimensions, float time) {
 float drawControlLines(vec2 uv, vec2 gridSize) {
     vec2 fw = fwidth(uv);
 
-    float thicknessInPixel = 20.0;
+    float thicknessInPixel = 10.0;
     vec2 lineThickness = fw * thicknessInPixel * 0.5;
     vec2 tileCount = vec2(gridSize.x - 1.0, gridSize.y - 1.0);
     vec2 tileSize = 1.0 / gridSize;

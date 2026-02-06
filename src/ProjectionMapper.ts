@@ -4,6 +4,8 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import projectionFragmentShader from './shaders/projection.frag';
+import { calculateGridPoints } from './geometry';
+import { GUI_STORAGE_KEY } from './ProjectionMapperGUI';
 
 export interface ProjectionMapperConfig {
   /** Projection resolution in pixels (default: { width: 1920, height: 1080 }) */
@@ -71,21 +73,10 @@ export class ProjectionMapper {
     this.worldHeight = 10;
     this.worldWidth = 10 * aspectRatio;
 
-    // Auto-calculate grid points if not provided: min 5 on short side, proportional on long side
-    let gridControlPoints = config.gridControlPoints;
-    if (!gridControlPoints) {
-      const minPoints = 5;
-      if (aspectRatio >= 1) {
-        gridControlPoints = { x: Math.max(minPoints, Math.round(minPoints * aspectRatio)), y: minPoints };
-      } else {
-        gridControlPoints = { x: minPoints, y: Math.max(minPoints, Math.round(minPoints / aspectRatio)) };
-      }
-    }
-
     // Apply defaults
     this.config = {
       segments: config.segments ?? 50,
-      gridControlPoints,
+      gridControlPoints: config.gridControlPoints ?? calculateGridPoints(aspectRatio),
       antialias: config.antialias ?? true,
       planeFill: config.planeFill ?? 0.9,
     };
@@ -126,7 +117,7 @@ export class ProjectionMapper {
       },
       uTime: { value: 0 },
       uShowTestCard: { value: false },
-      uShowControlLines: { value: false },
+      uShowControlLines: { value: true },
     };
 
     // Setup mesh warper using normalized world units
@@ -238,6 +229,8 @@ export class ProjectionMapper {
 
   reset(): void {
     this.meshWarper.resetToDefault();
+    // Clear GUI settings so visibility and grid size reset on reload
+    localStorage.removeItem(GUI_STORAGE_KEY);
   }
 
   getScene(): THREE.Scene {

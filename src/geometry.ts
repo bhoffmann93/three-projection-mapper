@@ -17,6 +17,13 @@ export const isQuadConcave = (corners: number[]) => {
   return isConcave;
 };
 
+export const calculateGridPoints = (aspectRatio: number, minPoints = 5): { x: number; y: number } => {
+  if (aspectRatio >= 1) {
+    return { x: Math.max(minPoints, Math.round(minPoints * aspectRatio)), y: minPoints };
+  }
+  return { x: minPoints, y: Math.max(minPoints, Math.round(minPoints / aspectRatio)) };
+};
+
 // uv [0,1] range
 // u horizontal position parameter left -> right [0.0,1.0]
 // v vertical position parameter top -> bottom [0.0,1.0]
@@ -24,6 +31,7 @@ export const isQuadConcave = (corners: number[]) => {
 // |          |
 // |          |
 // C2 ------- C3     (bottom edge)
+
 export const bilinearInterpolateCorners = (u: number, v: number, inputCorners: number[]) => {
   const corners = toTuples(inputCorners);
   const topLeft = corners[0];

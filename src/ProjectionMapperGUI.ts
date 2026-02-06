@@ -12,12 +12,14 @@ export interface ProjectionMapperGUISettings {
   showOutline: boolean;
 }
 
+export const GUI_STORAGE_KEY = 'projection-mapper-gui-settings';
+
 export class ProjectionMapperGUI {
   private mapper: ProjectionMapper;
   private pane: Pane;
   private settings: ProjectionMapperGUISettings;
 
-  private readonly STORAGE_KEY = 'projection-mapper-gui-settings';
+  private readonly STORAGE_KEY = GUI_STORAGE_KEY;
 
   constructor(mapper: ProjectionMapper, title = 'Projection Mapper') {
     this.mapper = mapper;

@@ -1,3 +1,4 @@
 export { ProjectionMapper, type ProjectionMapperConfig } from './ProjectionMapper';
-export { ProjectionMapperGUI, type ProjectionMapperGUISettings } from './ProjectionMapperGUI';
+export { ProjectionMapperGUI, GUI_STORAGE_KEY, type ProjectionMapperGUISettings } from './ProjectionMapperGUI';
 export { MeshWarper, type MeshWarperConfig } from './MeshWarper';
+export { calculateGridPoints } from './geometry';
