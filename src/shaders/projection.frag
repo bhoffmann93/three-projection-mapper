@@ -155,16 +155,6 @@ vec3 testCard(vec2 vUv, vec2 dimensions, float time) {
         color = barColor;
     }
 
-    // Grey gradient
-    if(vUv.y > 0.25 && vUv.y < 0.75 && vUv.x > tileSize.x / 2.0 && vUv.x < tileSize.x * 1.5) {
-        color = mix(BLACK, WHITE, y);
-    }
-
-    // RGB gradient
-    if(vUv.y > 0.25 && vUv.y < 0.75 && vUv.x > 1.0 - tileSize.x * 1.5 && vUv.x < 1.0 - tileSize.x / 2.0) {
-        color = 0.5 + 0.5 * cos((TAU * y - time) + vec3(0.0, 2.094, 4.188));
-    }
-
     // Grey gradient steps
     if(1.0 - vUv.y < tileSize.y * 0.75 && vUv.x > 0.25 && vUv.x < 0.75) {
         color = mix(BLACK, WHITE, floor(x * 8.0) / 7.0);
@@ -198,6 +188,16 @@ vec3 testCard(vec2 vUv, vec2 dimensions, float time) {
 
     color = mix(color, WHITE, max(leftLine, rightLine));
     color = mix(color, WHITE, max(bottomLine, topLine));
+
+        // Grey gradient
+    if(vUv.y > 0.25 && vUv.y < 0.75 && vUv.x > tileSize.x / 2.0 && vUv.x < tileSize.x * 1.5) {
+        color = mix(BLACK, WHITE, y);
+    }
+
+    // RGB gradient
+    if(vUv.y > 0.25 && vUv.y < 0.75 && vUv.x > 1.0 - tileSize.x * 1.5 && vUv.x < 1.0 - tileSize.x / 2.0) {
+        color = 0.5 + 0.5 * cos((TAU * y - time) + vec3(0.0, 2.094, 4.188));
+    }
 
     // Red corners
     float cornerSize = 1.0 / tileCount.y * 0.5;

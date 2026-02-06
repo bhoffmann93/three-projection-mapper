@@ -259,6 +259,24 @@ export class ProjectionMapper {
     return this.meshWarper.getShouldWarp();
   }
 
+  setPlaneScale(scale: number): void {
+    this.config.planeScale = scale;
+    this.updateCameraFrustum();
+  }
+
+  getPlaneScale(): number {
+    return this.config.planeScale;
+  }
+
+  setCameraOffset(x: number, y: number): void {
+    this.camera.position.x = x;
+    this.camera.position.y = y;
+  }
+
+  getCameraOffset(): { x: number; y: number } {
+    return { x: this.camera.position.x, y: this.camera.position.y };
+  }
+
   reset(): void {
     this.meshWarper.resetToDefault();
     // Clear GUI settings so visibility and grid size reset on reload

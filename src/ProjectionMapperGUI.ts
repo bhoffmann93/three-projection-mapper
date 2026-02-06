@@ -7,6 +7,7 @@ export interface ProjectionMapperGUISettings {
   showControlLines: boolean;
   warpMode: WARP_MODE;
   gridSize: { x: number; y: number };
+  zoom: number;
   showGridPoints: boolean;
   showCornerPoints: boolean;
   showOutline: boolean;
@@ -38,6 +39,7 @@ export class ProjectionMapperGUI {
         x: mapper.getWarper().getGridSizeX(),
         y: mapper.getWarper().getGridSizeY(),
       },
+      zoom: mapper.getPlaneScale(),
       showGridPoints: true,
       showCornerPoints: true,
       showOutline: true,
@@ -90,6 +92,13 @@ export class ProjectionMapperGUI {
         } else {
           this.toggleWarpUI(true);
         }
+      });
+
+    settingsFolder
+      .addBinding(this.settings, 'zoom', { label: 'Zoom', min: 0.5, max: 1.0, step: 0.01 })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        this.mapper.setPlaneScale(e.value as number);
+        this.saveSettings();
       });
 
     // Warp UI
@@ -243,6 +252,7 @@ export class ProjectionMapperGUI {
       this.mapper.setGridSize(this.settings.gridSize.x, this.settings.gridSize.y);
     }
     this.mapper.getWarper().setWarpMode(this.settings.warpMode);
+    this.mapper.setPlaneScale(this.settings.zoom);
     this.applyVisibility();
   }
 
