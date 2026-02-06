@@ -2,6 +2,11 @@ import { FolderApi, Pane, TpChangeEvent } from 'tweakpane';
 import { ProjectionMapper } from './ProjectionMapper';
 import { WARP_MODE } from './MeshWarper';
 
+export const enum GUI_ANCHOR {
+  LEFT = 'left',
+  RIGHT = 'right',
+}
+
 export interface ProjectionMapperGUISettings {
   showTestcard: boolean;
   showControlLines: boolean;
@@ -28,7 +33,7 @@ export class ProjectionMapperGUI {
 
   private readonly STORAGE_KEY = GUI_STORAGE_KEY;
 
-  constructor(mapper: ProjectionMapper, title = 'Projection Mapper') {
+  constructor(mapper: ProjectionMapper, title = 'Projection Mapper', anchor: GUI_ANCHOR = GUI_ANCHOR.RIGHT) {
     this.mapper = mapper;
 
     this.settings = {
@@ -49,6 +54,15 @@ export class ProjectionMapperGUI {
     this.applySettings();
 
     this.pane = new Pane({ title });
+
+    if (anchor === GUI_ANCHOR.LEFT) {
+      const wrapper = document.querySelector('.tp-dfwv') as HTMLElement;
+      if (wrapper) {
+        wrapper.style.right = 'auto';
+        wrapper.style.left = '8px';
+      }
+    }
+
     this.initPane();
   }
 

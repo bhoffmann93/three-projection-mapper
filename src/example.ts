@@ -7,7 +7,7 @@
 
 import * as THREE from 'three';
 import { ProjectionMapper } from './ProjectionMapper';
-import { ProjectionMapperGUI } from './ProjectionMapperGUI';
+import { ProjectionMapperGUI, GUI_ANCHOR as PROJECTION_GUI_POSITION } from './ProjectionMapperGUI';
 
 // Create renderer
 const renderer = new THREE.WebGLRenderer({
@@ -52,7 +52,7 @@ const mapper = new ProjectionMapper(renderer, renderTarget.texture, {
   resolution: projectionResolution,
 });
 
-const gui = new ProjectionMapperGUI(mapper);
+const gui = new ProjectionMapperGUI(mapper, 'Projection Mapper', PROJECTION_GUI_POSITION.LEFT);
 window.addEventListener('keydown', (e) => {
   if (e.key === 'g' || e.key === 'p') gui.toggle();
   if (e.key === 't') gui.toggleTestCard();
