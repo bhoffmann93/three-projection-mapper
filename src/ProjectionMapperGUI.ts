@@ -211,33 +211,6 @@ export class ProjectionMapperGUI {
     this.saveSettings(); // Im LocalStorage merken
   }
 
-  private saveSettings(): void {
-    try {
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.settings));
-    } catch (error) {
-      console.warn('Failed to save GUI settings:', error);
-    }
-  }
-
-  private loadSettings(): void {
-    try {
-      const saved = localStorage.getItem(this.STORAGE_KEY);
-      if (!saved) return;
-
-      const loaded = JSON.parse(saved) as Partial<ProjectionMapperGUISettings>;
-
-      // Migrate old gridSizeX/gridSizeY format
-      const legacy = loaded as Record<string, unknown>;
-      if ('gridSizeX' in legacy && 'gridSizeY' in legacy && !loaded.gridSize) {
-        loaded.gridSize = { x: legacy.gridSizeX as number, y: legacy.gridSizeY as number };
-      }
-
-      Object.assign(this.settings, loaded);
-    } catch (error) {
-      console.warn('Failed to load GUI settings:', error);
-    }
-  }
-
   private applySettings(): void {
     this.mapper.setShowTestCard(this.settings.showTestcard);
     this.mapper.setGridSize(this.settings.gridSize.x, this.settings.gridSize.y);
@@ -266,6 +239,26 @@ export class ProjectionMapperGUI {
 
   dispose(): void {
     this.pane.dispose();
+  }
+
+  private saveSettings(): void {
+    try {
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.settings));
+    } catch (error) {
+      console.warn('Failed to save GUI settings:', error);
+    }
+  }
+
+  private loadSettings(): void {
+    try {
+      const saved = localStorage.getItem(this.STORAGE_KEY);
+      if (!saved) return;
+
+      const loaded = JSON.parse(saved) as Partial<ProjectionMapperGUISettings>;
+      Object.assign(this.settings, loaded);
+    } catch (error) {
+      console.warn('Failed to load GUI settings:', error);
+    }
   }
 }
 

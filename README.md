@@ -151,3 +151,5 @@ AGPL-3.0-or-later
 The bicubic warp algorithm is adapted from [Omnidome](https://github.com/WilstonOreo/omnidome) by Michael Winkelmann, licensed under AGPL.
 
 Perspective Transform adapted from https://github.com/jlouthan/perspective-transform
+
+Loading is inspired by https://github.com/jdeboi/p5.mapper/blob/main/src/ProjectionMapper.ts
