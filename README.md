@@ -31,7 +31,7 @@ document.body.appendChild(renderer.domElement);
 // Create a render target for your content
 const renderTarget = new THREE.WebGLRenderTarget(
   window.innerWidth * devicePixelRatio,
-  window.innerHeight * devicePixelRatio
+  window.innerHeight * devicePixelRatio,
 );
 
 // Your scene (what you want to project)
@@ -39,10 +39,7 @@ const myScene = new THREE.Scene();
 const myCamera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 
 // Add content to your scene...
-const cube = new THREE.Mesh(
-  new THREE.BoxGeometry(),
-  new THREE.MeshNormalMaterial()
-);
+const cube = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshNormalMaterial());
 myScene.add(cube);
 
 // Create the projection mapper
@@ -79,6 +76,7 @@ new ProjectionMapper(renderer: THREE.WebGLRenderer, inputTexture: THREE.Texture,
 ```
 
 **Config Options:**
+
 - `width` - Width of projection surface in world units (default: 60)
 - `height` - Height of projection surface (default: 60)
 - `segments` - Mesh segments for smooth warping (default: 50)
@@ -89,21 +87,21 @@ new ProjectionMapper(renderer: THREE.WebGLRenderer, inputTexture: THREE.Texture,
 
 #### Methods
 
-| Method | Description |
-|--------|-------------|
-| `render()` | Render the projection mapped output |
-| `setTexture(texture)` | Change the input texture |
-| `setShowTestCard(show)` | Toggle testcard display |
-| `resize(width, height)` | Handle window resize |
-| `setControlsVisible(visible)` | Show/hide all control points |
-| `setGridPointsVisible(visible)` | Show/hide grid points |
-| `setCornerPointsVisible(visible)` | Show/hide corner points |
-| `setOutlineVisible(visible)` | Show/hide outline |
-| `setGridLinesVisible(visible)` | Show/hide grid lines |
-| `setGridSize(x, y)` | Change grid control point density (2-10) |
-| `reset()` | Reset warp to default |
-| `getWarper()` | Get the internal MeshWarper |
-| `dispose()` | Clean up resources |
+| Method                            | Description                              |
+| --------------------------------- | ---------------------------------------- |
+| `render()`                        | Render the projection mapped output      |
+| `setTexture(texture)`             | Change the input texture                 |
+| `setShowTestCard(show)`           | Toggle testcard display                  |
+| `resize(width, height)`           | Handle window resize                     |
+| `setControlsVisible(visible)`     | Show/hide all control points             |
+| `setGridPointsVisible(visible)`   | Show/hide grid points                    |
+| `setCornerPointsVisible(visible)` | Show/hide corner points                  |
+| `setOutlineVisible(visible)`      | Show/hide outline                        |
+| `setGridLinesVisible(visible)`    | Show/hide grid lines                     |
+| `setGridSize(x, y)`               | Change grid control point density (2-10) |
+| `reset()`                         | Reset warp to default                    |
+| `getWarper()`                     | Get the internal MeshWarper              |
+| `dispose()`                       | Clean up resources                       |
 
 ### ProjectionMapperGUI
 
@@ -112,20 +110,20 @@ Optional GUI for calibration.
 ```typescript
 const gui = new ProjectionMapperGUI(mapper, 'My Projection');
 
-gui.toggle();  // Toggle visibility
-gui.show();    // Show GUI
-gui.hide();    // Hide GUI
+gui.toggle(); // Toggle visibility
+gui.show(); // Show GUI
+gui.hide(); // Hide GUI
 gui.dispose(); // Clean up
 ```
 
 ## Keyboard Shortcuts (Example)
 
-| Key | Action |
-|-----|--------|
-| G/P | Toggle GUI |
-| T | Toggle testcard |
-| H | Hide controls |
-| S | Show controls |
+| Key | Action          |
+| --- | --------------- |
+| G/P | Toggle GUI      |
+| T   | Toggle testcard |
+| H   | Hide controls   |
+| S   | Show controls   |
 
 ## Development
 
@@ -151,3 +149,7 @@ The library uses a deformable mesh with bicubic interpolation to warp any textur
 AGPL-3.0-or-later
 
 The bicubic warp algorithm is adapted from [Omnidome](https://github.com/WilstonOreo/omnidome) by Michael Winkelmann, licensed under AGPL.
+
+Perspective Transform adapted from https://github.com/jlouthan/perspective-transform
+
+Loading is inspired by https://github.com/jdeboi/p5.mapper/blob/main/src/ProjectionMapper.ts

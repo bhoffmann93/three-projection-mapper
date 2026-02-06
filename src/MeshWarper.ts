@@ -34,6 +34,8 @@ export interface MeshWarperConfig {
 const STORAGE_KEY = 'warp-grid-control-points';
 
 interface StoredControlPoints {
+  /** Grid dimensions at time of save, used for validation on load */
+  gridSize?: { x: number; y: number };
   corners: { x: number; y: number; z: number }[];
   grid: { x: number; y: number; z: number }[];
   referenceGrid: { x: number; y: number; z: number }[];
@@ -491,75 +493,6 @@ export class MeshWarper {
     this.setOutlineVisible(visible);
   }
 
-  // LocalStorage persistence
-  private saveToStorage(): void {
-    const data: StoredControlPoints = {
-      corners: this.dragCornerControlPoints.map((p) => ({ x: p.x, y: p.y, z: p.z })),
-      grid: this.dragGridControlPoints.map((p) => ({ x: p.x, y: p.y, z: p.z })),
-      referenceGrid: this.referenceGridControlPoints.map((p) => ({ x: p.x, y: p.y, z: p.z })),
-    };
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    } catch (e) {
-      console.warn('Failed to save control points to localStorage:', e);
-    }
-  }
-
-  private loadFromStorage(): void {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (!stored) return;
-
-      const data: StoredControlPoints = JSON.parse(stored);
-
-      // Validate data matches current grid configuration
-      if (
-        data.corners.length !== this.dragCornerControlPoints.length ||
-        data.grid.length !== this.dragGridControlPoints.length
-      ) {
-        console.warn('Stored control points do not match current configuration, ignoring');
-        return;
-      }
-
-      // Apply stored positions
-      data.corners.forEach((pos, i) => {
-        this.dragCornerControlPoints[i].set(pos.x, pos.y, pos.z);
-        this.cornerObjects[i].position.set(pos.x, pos.y, pos.z);
-        this.cornerObjects[i].userData.lastValidPosition = this.cornerObjects[i].position.clone();
-      });
-
-      data.grid.forEach((pos, i) => {
-        this.dragGridControlPoints[i].set(pos.x, pos.y, pos.z);
-      });
-
-      data.referenceGrid.forEach((pos, i) => {
-        this.referenceGridControlPoints[i].set(pos.x, pos.y, pos.z);
-      });
-
-      // Update grid objects positions (they reference dragGridControlPoints but order may differ)
-      this.gridObjects.forEach((obj) => {
-        const idx = this.dragGridControlPoints.findIndex((p) => p === obj.position);
-        if (idx !== -1) {
-          // Position is already a reference, just need to sync visual
-        }
-      });
-
-      // Update visuals
-      this.updateLine();
-      this.averageDimensions = this.getAverageDimensions();
-      this.material.uniforms.uWarpPlaneSize.value.set(this.averageDimensions.width, this.averageDimensions.height);
-
-      console.log('Loaded control points from localStorage');
-    } catch (e) {
-      console.warn('Failed to load control points from localStorage:', e);
-    }
-  }
-
-  public resetToDefault(): void {
-    localStorage.removeItem(STORAGE_KEY);
-    console.log('Control points reset - reload page to apply');
-  }
-
   // Grid size getters
   public getGridSizeX(): number {
     return this.xControlPointAmount;
@@ -641,9 +574,72 @@ export class MeshWarper {
     this.material.uniforms.uGridSizeY.value = y;
     this.material.needsUpdate = true;
 
-    // Clear stored positions since grid changed
-    localStorage.removeItem(STORAGE_KEY);
+    // Save new grid layout (loadFromStorage handles size mismatches gracefully)
+    this.saveToStorage();
 
     console.log(`Grid resized to ${x}x${y}`);
+  }
+
+  // LocalStorage persistence
+  private saveToStorage(): void {
+    const data: StoredControlPoints = {
+      gridSize: { x: this.xControlPointAmount, y: this.yControlPointAmount },
+      corners: this.dragCornerControlPoints.map((p) => ({ x: p.x, y: p.y, z: p.z })),
+      grid: this.dragGridControlPoints.map((p) => ({ x: p.x, y: p.y, z: p.z })),
+      referenceGrid: this.referenceGridControlPoints.map((p) => ({ x: p.x, y: p.y, z: p.z })),
+    };
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.warn('Failed to save control points to localStorage:', e);
+    }
+  }
+
+  private loadFromStorage(): void {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (!stored) return;
+
+      const data: StoredControlPoints = JSON.parse(stored);
+
+      // Always load corners if valid (always 4)
+      if (data.corners && data.corners.length === 4) {
+        data.corners.forEach((pos, i) => {
+          this.dragCornerControlPoints[i].set(pos.x, pos.y, pos.z);
+          this.cornerObjects[i].position.set(pos.x, pos.y, pos.z);
+          this.cornerObjects[i].userData.lastValidPosition = this.cornerObjects[i].position.clone();
+        });
+      }
+
+      // Validate grid dimensions using stored gridSize metadata
+      const expectedCount = this.xControlPointAmount * this.yControlPointAmount;
+      const gridSizeMatches =
+        data.gridSize?.x === this.xControlPointAmount &&
+        data.gridSize?.y === this.yControlPointAmount;
+
+      if (
+        gridSizeMatches &&
+        data.grid.length === expectedCount &&
+        data.referenceGrid?.length === expectedCount
+      ) {
+        data.grid.forEach((pos, i) => this.dragGridControlPoints[i].set(pos.x, pos.y, pos.z));
+        data.referenceGrid.forEach((pos, i) => this.referenceGridControlPoints[i].set(pos.x, pos.y, pos.z));
+      } else {
+        // Grid size changed: recompute grid positions from loaded corners
+        const corners = this.dragCornerControlPoints.flatMap((p) => [p.x, p.y]);
+        this.perspectiveTransformControlPoints(corners, new THREE.Vector3(), 'corner');
+      }
+
+      this.updateLine();
+      this.averageDimensions = this.getAverageDimensions();
+      this.material.uniforms.uWarpPlaneSize.value.set(this.averageDimensions.width, this.averageDimensions.height);
+    } catch (e) {
+      console.warn('Failed to load control points from localStorage:', e);
+    }
+  }
+
+  public resetToDefault(): void {
+    localStorage.removeItem(STORAGE_KEY);
+    console.log('Control points reset - reload page to apply');
   }
 }

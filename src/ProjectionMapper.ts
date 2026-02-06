@@ -17,7 +17,7 @@ export interface ProjectionMapperConfig {
   /** Enable anti-aliasing (default: true) */
   antialias?: boolean;
   /** Scale factor for how much of the window the plane fills (default: 0.9 = 90%) */
-  planeFill?: number;
+  planeScale?: number;
 }
 
 /**
@@ -73,13 +73,33 @@ export class ProjectionMapper {
     this.worldHeight = 10;
     this.worldWidth = 10 * aspectRatio;
 
+    //defaults
     const minGridWarpPoints = 3;
-    // Apply defaults
+    const planeScale = 0.7;
+
+    // Use saved grid size from GUI settings if available, so MeshWarper
+    // is created with the correct grid size before loading stored control points
+    let gridControlPoints = config.gridControlPoints;
+    if (!gridControlPoints) {
+      try {
+        const savedGui = localStorage.getItem(GUI_STORAGE_KEY);
+        if (savedGui) {
+          const parsed = JSON.parse(savedGui);
+          if (parsed.gridSize?.x && parsed.gridSize?.y) {
+            gridControlPoints = { x: Math.floor(parsed.gridSize.x), y: Math.floor(parsed.gridSize.y) };
+          }
+        }
+      } catch {
+        // ignore parse errors
+      }
+      gridControlPoints = gridControlPoints ?? calculateGridPoints(aspectRatio, minGridWarpPoints);
+    }
+
     this.config = {
       segments: config.segments ?? 50,
-      gridControlPoints: config.gridControlPoints ?? calculateGridPoints(aspectRatio, minGridWarpPoints),
+      gridControlPoints,
       antialias: config.antialias ?? true,
-      planeFill: config.planeFill ?? 0.9,
+      planeScale: config.planeScale ?? planeScale,
     };
 
     // Setup scene
@@ -89,7 +109,7 @@ export class ProjectionMapper {
     const windowAspect = window.innerWidth / window.innerHeight;
     const planeAspect = this.worldWidth / this.worldHeight;
 
-    const scale = 1 / this.config.planeFill;
+    const scale = 1 / this.config.planeScale;
     let left, right, top, bottom;
     if (windowAspect > planeAspect) {
       top = (this.worldHeight / 2) * scale;
@@ -179,7 +199,7 @@ export class ProjectionMapper {
   resize(width: number, height: number): void {
     const windowAspect = width / height;
     const planeAspect = this.worldWidth / this.worldHeight;
-    const scale = 1 / this.config.planeFill;
+    const scale = 1 / this.config.planeScale;
 
     if (windowAspect > planeAspect) {
       // Window is wider than plane -> height is the limiting factor

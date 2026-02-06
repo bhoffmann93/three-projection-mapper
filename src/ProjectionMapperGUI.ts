@@ -61,7 +61,7 @@ export class ProjectionMapperGUI {
     this.pane.addBlade({
       view: 'text',
       label: '[G] GUI',
-      value: '[T] Warp UI',
+      value: '[H] Warp UI  [T] Test',
       parse: (v: string) => v,
       disabled: true,
     } as Record<string, unknown>);
@@ -119,7 +119,7 @@ export class ProjectionMapperGUI {
     // Visibility
     const visFolder = this.pane.addFolder({ title: 'Warp UI', expanded: true });
 
-    visFolder.addButton({ title: 'Toggle' }).on('click', () => this.toggleWarpingUiElements());
+    visFolder.addButton({ title: 'Toggle' }).on('click', () => this.toggleWarpUI());
 
     visFolder.addButton({ title: 'Show All' }).on('click', () => {
       this.settings.showGridPoints = true;
@@ -135,16 +135,9 @@ export class ProjectionMapperGUI {
     visFolder.addBlade({ view: 'separator' });
 
     visFolder
-      .addBinding(this.settings, 'showCornerPoints', { label: 'Corners' })
+      .addBinding(this.settings, 'showCornerPoints', { label: 'Perspective Corners' })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setCornerPointsVisible(e.value as boolean);
-        this.saveSettings();
-      });
-
-    visFolder
-      .addBinding(this.settings, 'showGridPoints', { label: 'Grid' })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        this.mapper.setGridPointsVisible(e.value as boolean);
         this.saveSettings();
       });
 
@@ -152,6 +145,13 @@ export class ProjectionMapperGUI {
       .addBinding(this.settings, 'showOutline', { label: 'Outline' })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setOutlineVisible(e.value as boolean);
+        this.saveSettings();
+      });
+
+    visFolder
+      .addBinding(this.settings, 'showGridPoints', { label: 'Grid Handles' })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        this.mapper.setGridPointsVisible(e.value as boolean);
         this.saveSettings();
       });
 
@@ -170,7 +170,7 @@ export class ProjectionMapperGUI {
     this.mapper.setShowControlLines(this.settings.showControlLines);
   }
 
-  public toggleWarpingUiElements(): void {
+  public toggleWarpUI(): void {
     const anyVisible =
       this.settings.showGridPoints ||
       this.settings.showCornerPoints ||
@@ -211,33 +211,6 @@ export class ProjectionMapperGUI {
     this.saveSettings(); // Im LocalStorage merken
   }
 
-  private saveSettings(): void {
-    try {
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.settings));
-    } catch (error) {
-      console.warn('Failed to save GUI settings:', error);
-    }
-  }
-
-  private loadSettings(): void {
-    try {
-      const saved = localStorage.getItem(this.STORAGE_KEY);
-      if (!saved) return;
-
-      const loaded = JSON.parse(saved) as Partial<ProjectionMapperGUISettings>;
-
-      // Migrate old gridSizeX/gridSizeY format
-      const legacy = loaded as Record<string, unknown>;
-      if ('gridSizeX' in legacy && 'gridSizeY' in legacy && !loaded.gridSize) {
-        loaded.gridSize = { x: legacy.gridSizeX as number, y: legacy.gridSizeY as number };
-      }
-
-      Object.assign(this.settings, loaded);
-    } catch (error) {
-      console.warn('Failed to load GUI settings:', error);
-    }
-  }
-
   private applySettings(): void {
     this.mapper.setShowTestCard(this.settings.showTestcard);
     this.mapper.setGridSize(this.settings.gridSize.x, this.settings.gridSize.y);
@@ -266,6 +239,26 @@ export class ProjectionMapperGUI {
 
   dispose(): void {
     this.pane.dispose();
+  }
+
+  private saveSettings(): void {
+    try {
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.settings));
+    } catch (error) {
+      console.warn('Failed to save GUI settings:', error);
+    }
+  }
+
+  private loadSettings(): void {
+    try {
+      const saved = localStorage.getItem(this.STORAGE_KEY);
+      if (!saved) return;
+
+      const loaded = JSON.parse(saved) as Partial<ProjectionMapperGUISettings>;
+      Object.assign(this.settings, loaded);
+    } catch (error) {
+      console.warn('Failed to load GUI settings:', error);
+    }
   }
 }
 
