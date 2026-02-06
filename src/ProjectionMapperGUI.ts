@@ -143,31 +143,35 @@ export class ProjectionMapperGUI {
       this.saveSettings();
     });
 
-    visFolder.addBlade({ view: 'separator' });
+    // Perspective visibility
+    const perspFolder = visFolder.addFolder({ title: 'Perspective', expanded: true });
 
-    visFolder
-      .addBinding(this.settings, 'showCornerPoints', { label: 'Perspective Corners' })
+    perspFolder
+      .addBinding(this.settings, 'showCornerPoints', { label: 'Corners' })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setCornerPointsVisible(e.value as boolean);
         this.saveSettings();
       });
 
-    visFolder
+    perspFolder
       .addBinding(this.settings, 'showOutline', { label: 'Outline' })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setOutlineVisible(e.value as boolean);
         this.saveSettings();
       });
 
-    visFolder
-      .addBinding(this.settings, 'showGridPoints', { label: 'Grid Handles' })
+    // Grid visibility
+    const gridFolder = visFolder.addFolder({ title: 'Grid', expanded: true });
+
+    gridFolder
+      .addBinding(this.settings, 'showGridPoints', { label: 'Handles' })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setGridPointsVisible(e.value as boolean);
         this.saveSettings();
       });
 
-    visFolder
-      .addBinding(this.settings, 'showControlLines', { label: 'Grid Lines' })
+    gridFolder
+      .addBinding(this.settings, 'showControlLines', { label: 'Lines' })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setShowControlLines(e.value as boolean);
         this.saveSettings();
