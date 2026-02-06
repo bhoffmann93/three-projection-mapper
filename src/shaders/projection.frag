@@ -216,14 +216,13 @@ vec3 testCard(vec2 vUv, vec2 dimensions, float time) {
 
 float drawControlLines(vec2 uv, vec2 gridSize) {
     vec2 fw = fwidth(uv);
-
-    float thicknessInPixel = 5.0;
+    float thicknessInPixel = 2.0;
     vec2 lineThickness = fw * thicknessInPixel * 0.5;
     vec2 tileCount = vec2(gridSize.x - 1.0, gridSize.y - 1.0);
     vec2 gridLineThickness = tileCount * lineThickness;
     vec2 gridUv = fract(uv * tileCount);
-    float startLines = max((1.0 - aastep(gridLineThickness.x, gridUv.x)), (1.0 - aastep(gridLineThickness.y, gridUv.y)));
-    float endLines = max(aastep(1.0 - gridLineThickness.x, gridUv.x), aastep(1.0 - gridLineThickness.y, gridUv.y));
+    float startLines = max((1.0 - step(gridLineThickness.x, gridUv.x)), (1.0 - step(gridLineThickness.y, gridUv.y)));
+    float endLines = max(step(1.0 - gridLineThickness.x, gridUv.x), step(1.0 - gridLineThickness.y, gridUv.y));
     return max(startLines, endLines);
 
 }
@@ -239,9 +238,9 @@ void main() {
 
     if(uShowControlLines) {
         float lines = drawControlLines(vUv, vec2(float(uGridSizeX), float(uGridSizeY)));
-        color = mix(color, vec3(0.8), lines);
+        color = mix(color, vec3(0.75), lines);
     }
 
-    color += (1.0 / 255.0) * hash12(gl_FragCoord.xy) - (0.5 / 255.0);
+    // color += (1.0 / 255.0) * hash12(gl_FragCoord.xy) - (0.5 / 255.0);
     gl_FragColor = vec4(color, 1.0);
 }

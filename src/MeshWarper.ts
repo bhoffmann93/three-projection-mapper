@@ -167,7 +167,7 @@ export class MeshWarper {
       const x = gridControlPointPositions[i * 3];
       const y = gridControlPointPositions[i * 3 + 1];
 
-      const object = new THREE.Mesh(boxGeometry, new THREE.MeshBasicMaterial({ color: 'rgba(200, 200, 200, 1)' }));
+      const object = new THREE.Mesh(boxGeometry, new THREE.MeshBasicMaterial({ color: 'hsl(23, 80%, 80%)' }));
       object.scale.setScalar(0.3);
       object.position.set(x, y, 0);
       object.userData.group = 'grid';

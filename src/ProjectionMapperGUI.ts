@@ -86,6 +86,7 @@ export class ProjectionMapperGUI {
         this.settings.showGridPoints = visible;
         this.settings.showCornerPoints = visible;
         this.settings.showOutline = visible;
+        this.settings.showControlLines = visible;
         this.pane.refresh();
         this.saveSettings();
       });
