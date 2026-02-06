@@ -55,9 +55,10 @@ export class ProjectionMapperGUI {
 
     this.pane = new Pane({ title });
 
-    if (anchor === GUI_ANCHOR.LEFT) {
-      const wrapper = document.querySelector('.tp-dfwv') as HTMLElement;
-      if (wrapper) {
+    const wrapper = document.querySelector('.tp-dfwv') as HTMLElement;
+    if (wrapper) {
+      wrapper.style.width = '240px';
+      if (anchor === GUI_ANCHOR.LEFT) {
         wrapper.style.right = 'auto';
         wrapper.style.left = '8px';
       }
