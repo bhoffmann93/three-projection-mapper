@@ -46,18 +46,18 @@ export class ProjectionMapperGUI {
   }
 
   private initPane(): void {
+    this.pane.addBlade({
+      view: 'text',
+      label: 'Buffer Resolution',
+      value: `${this.mapper['resolution'].width}x${this.mapper['resolution'].height}`,
+      parse: (v: unknown) => v,
+      disabled: true,
+    });
     // Shortcuts at top
     this.pane.addBlade({
       view: 'text',
       label: '[G] GUI',
-      value: '[T] Testcard',
-      parse: (v: string) => v,
-      disabled: true,
-    } as Record<string, unknown>);
-    this.pane.addBlade({
-      view: 'text',
-      label: '[H] Warp UI',
-      value: '',
+      value: '[T] Warp UI',
       parse: (v: string) => v,
       disabled: true,
     } as Record<string, unknown>);
@@ -76,7 +76,7 @@ export class ProjectionMapperGUI {
 
     settingsFolder
       .addBinding(this.settings, 'gridSize', {
-        label: 'Grid',
+        label: 'Warp Grid',
         x: { min: 2, max: 10, step: 1 },
         y: { min: 2, max: 10, step: 1 },
       })
@@ -96,7 +96,7 @@ export class ProjectionMapperGUI {
     });
 
     // Visibility
-    const visFolder = this.pane.addFolder({ title: 'Warping UI', expanded: true });
+    const visFolder = this.pane.addFolder({ title: 'Warp UI', expanded: true });
 
     visFolder.addButton({ title: 'Toggle' }).on('click', () => this.toggleWarpingUiElements());
 
@@ -226,17 +226,6 @@ export class ProjectionMapperGUI {
   toggleTestCard(): void {
     this.settings.showTestcard = !this.settings.showTestcard;
     this.mapper.setShowTestCard(this.settings.showTestcard);
-    this.pane.refresh();
-    this.saveSettings();
-  }
-
-  setControlsEnabled(visible: boolean): void {
-    this.settings.showGridPoints = visible;
-    this.settings.showCornerPoints = visible;
-    this.settings.showOutline = visible;
-    this.settings.showControlLines = visible;
-    this.savedVisibility = null;
-    this.applyVisibility();
     this.pane.refresh();
     this.saveSettings();
   }
