@@ -180,7 +180,6 @@ export class MeshWarper {
         boxGeometry,
         new THREE.MeshBasicMaterial({ color: 'hsl(23, 80%, 80%)', transparent: true, opacity: 0.9 }),
       );
-      object.scale.setScalar(0.3);
       object.position.set(x, y, 0);
       object.userData.group = 'grid';
 
@@ -211,7 +210,6 @@ export class MeshWarper {
         boxGeometry,
         new THREE.MeshBasicMaterial({ color: 'orange', transparent: true, opacity: 0.8 }),
       );
-      object.scale.setScalar(0.4);
       object.position.set(x, y, 0);
       object.userData.group = 'corner';
       object.userData.lastValidPosition = object.position.clone();
@@ -463,6 +461,14 @@ export class MeshWarper {
 
   public getMaterial(): THREE.ShaderMaterial {
     return this.material;
+  }
+
+  public updateControlPointsScale(screenScale: number): void {
+    const cornerCubeSize = screenScale * 20.0;
+    const gridControlCubeSize = screenScale * 15.0;
+
+    this.cornerObjects.forEach((obj) => obj.scale.setScalar(cornerCubeSize));
+    this.gridObjects.forEach((obj) => obj.scale.setScalar(gridControlCubeSize));
   }
 
   // Visibility toggles for GUI

@@ -164,6 +164,12 @@ export class ProjectionMapper {
   render(): void {
     this.uniforms.uTime.value = this.clock.getElapsedTime();
 
+    // Constant screen-pixel size: convert 1 pixel to world units
+    const frustumWidth = this.camera.right - this.camera.left;
+    const viewportWidth = this.renderer.domElement.clientWidth;
+    const pixelToWorld = frustumWidth / viewportWidth;
+    this.meshWarper.updateControlPointsScale(pixelToWorld);
+
     if (this.config.antialias == false) {
       this.renderer.setRenderTarget(null);
       this.renderer.render(this.scene, this.camera);
