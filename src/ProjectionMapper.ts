@@ -46,7 +46,7 @@ export class ProjectionMapper {
 
   private uniforms: {
     uBuffer: { value: THREE.Texture };
-    uResolution: { value: THREE.Vector2 };
+    uBufferResolution: { value: THREE.Vector2 };
     uWarpPlaneSize: { value: THREE.Vector2 };
     uTime: { value: number };
     uShowTestCard: { value: boolean };
@@ -73,64 +73,32 @@ export class ProjectionMapper {
     this.worldHeight = 10;
     this.worldWidth = 10 * aspectRatio;
 
-    //defaults
-    const minGridWarpPoints = 3;
-    const planeScale = 0.7;
+    const DEFAULT_MIN_GRID_WARP_POINTS = 3;
+    const DEFAULT_PLANE_SCALE = 0.7;
+    const DEFAULT_SEGMENTS = 50;
+    const DEFAULT_AA = true;
 
-    // Use saved grid size from GUI settings if available, so MeshWarper
-    // is created with the correct grid size before loading stored control points
-    let gridControlPoints = config.gridControlPoints;
-    if (!gridControlPoints) {
-      try {
-        const savedGui = localStorage.getItem(GUI_STORAGE_KEY);
-        if (savedGui) {
-          const parsed = JSON.parse(savedGui);
-          if (parsed.gridSize?.x && parsed.gridSize?.y) {
-            gridControlPoints = { x: Math.floor(parsed.gridSize.x), y: Math.floor(parsed.gridSize.y) };
-          }
-        }
-      } catch {
-        // ignore parse errors
-      }
-      gridControlPoints = gridControlPoints ?? calculateGridPoints(aspectRatio, minGridWarpPoints);
-    }
+    const gridControlPoints = this.getGridControlPoints(config, aspectRatio, DEFAULT_MIN_GRID_WARP_POINTS);
 
     this.config = {
-      segments: config.segments ?? 50,
+      segments: config.segments ?? DEFAULT_SEGMENTS,
       gridControlPoints,
-      antialias: config.antialias ?? true,
-      planeScale: config.planeScale ?? planeScale,
+      antialias: config.antialias ?? DEFAULT_AA,
+      planeScale: config.planeScale ?? DEFAULT_PLANE_SCALE,
     };
 
     // Setup scene
     this.scene = new THREE.Scene();
 
-    // Setup orthographic camera to fit the plane with correct aspect
-    const windowAspect = window.innerWidth / window.innerHeight;
-    const planeAspect = this.worldWidth / this.worldHeight;
-
-    const scale = 1 / this.config.planeScale;
-    let left, right, top, bottom;
-    if (windowAspect > planeAspect) {
-      top = (this.worldHeight / 2) * scale;
-      bottom = (-this.worldHeight / 2) * scale;
-      left = ((-this.worldHeight * windowAspect) / 2) * scale;
-      right = ((this.worldHeight * windowAspect) / 2) * scale;
-    } else {
-      left = (-this.worldWidth / 2) * scale;
-      right = (this.worldWidth / 2) * scale;
-      top = (this.worldWidth / windowAspect / 2) * scale;
-      bottom = (-this.worldWidth / windowAspect / 2) * scale;
-    }
-
-    this.camera = new THREE.OrthographicCamera(left, right, top, bottom, 0.1, 100);
+    this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
     this.camera.position.set(0, 0, 20);
     this.camera.lookAt(0, 0, 0);
+    this.updateCameraFrustum();
 
-    // Setup uniforms - uResolution uses actual pixel resolution for shader precision
+    // Setup uniforms
     this.uniforms = {
       uBuffer: { value: inputTexture },
-      uResolution: {
+      uBufferResolution: {
         value: new THREE.Vector2(this.resolution.width, this.resolution.height),
       },
       uWarpPlaneSize: {
@@ -168,11 +136,40 @@ export class ProjectionMapper {
     }
   }
 
+  // Use saved grid size from GUI settings if available, so MeshWarper
+  // is created with the correct grid size before loading stored control points
+  private getGridControlPoints(
+    config: ProjectionMapperConfig,
+    aspectRatio: number,
+    DEFAULT_MIN_GRID_WARP_POINTS: number,
+  ) {
+    let gridControlPoints = config.gridControlPoints;
+    if (!gridControlPoints) {
+      try {
+        const savedGui = localStorage.getItem(GUI_STORAGE_KEY);
+        if (savedGui) {
+          const parsed = JSON.parse(savedGui);
+          if (parsed.gridSize?.x && parsed.gridSize?.y) {
+            gridControlPoints = { x: Math.floor(parsed.gridSize.x), y: Math.floor(parsed.gridSize.y) };
+          }
+        }
+      } catch {
+        // ignore parse errors
+      }
+      gridControlPoints = gridControlPoints ?? calculateGridPoints(aspectRatio, DEFAULT_MIN_GRID_WARP_POINTS);
+    }
+    return gridControlPoints;
+  }
+
   render(): void {
     this.uniforms.uTime.value = this.clock.getElapsedTime();
-    this.renderer.setRenderTarget(null);
-    this.renderer.render(this.scene, this.camera);
-    this.composer.render();
+
+    if (this.config.antialias == false) {
+      this.renderer.setRenderTarget(null);
+      this.renderer.render(this.scene, this.camera);
+    } else {
+      this.composer.render();
+    }
   }
 
   setTexture(texture: THREE.Texture): void {
@@ -196,19 +193,19 @@ export class ProjectionMapper {
     return this.uniforms.uShowControlLines.value;
   }
 
-  resize(width: number, height: number): void {
+  private updateCameraFrustum(): void {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
     const windowAspect = width / height;
     const planeAspect = this.worldWidth / this.worldHeight;
     const scale = 1 / this.config.planeScale;
 
     if (windowAspect > planeAspect) {
-      // Window is wider than plane -> height is the limiting factor
       this.camera.top = (this.worldHeight / 2) * scale;
       this.camera.bottom = (-this.worldHeight / 2) * scale;
       this.camera.left = ((-this.worldHeight * windowAspect) / 2) * scale;
       this.camera.right = ((this.worldHeight * windowAspect) / 2) * scale;
     } else {
-      // Window is narrower than plane -> width is the limiting factor
       this.camera.left = (-this.worldWidth / 2) * scale;
       this.camera.right = (this.worldWidth / 2) * scale;
       this.camera.top = (this.worldWidth / windowAspect / 2) * scale;
@@ -216,6 +213,11 @@ export class ProjectionMapper {
     }
 
     this.camera.updateProjectionMatrix();
+  }
+
+  resize(width: number, height: number): void {
+    this.composer.setSize(width, height);
+    this.updateCameraFrustum();
   }
 
   getWarper(): MeshWarper {

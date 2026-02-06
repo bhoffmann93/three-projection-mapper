@@ -580,13 +580,31 @@ export class MeshWarper {
     console.log(`Grid resized to ${x}x${y}`);
   }
 
-  // LocalStorage persistence
+  // LocalStorage persistence — positions stored normalized (0–1) so calibration
+  // survives resolution/plane-size changes.
+
+  private toNormalized(p: THREE.Vector3): { x: number; y: number; z: number } {
+    return {
+      x: (p.x + this.config.width / 2) / this.config.width,
+      y: (p.y + this.config.height / 2) / this.config.height,
+      z: p.z,
+    };
+  }
+
+  private fromNormalized(n: { x: number; y: number; z: number }): { x: number; y: number; z: number } {
+    return {
+      x: n.x * this.config.width - this.config.width / 2,
+      y: n.y * this.config.height - this.config.height / 2,
+      z: n.z,
+    };
+  }
+
   private saveToStorage(): void {
     const data: StoredControlPoints = {
       gridSize: { x: this.xControlPointAmount, y: this.yControlPointAmount },
-      corners: this.dragCornerControlPoints.map((p) => ({ x: p.x, y: p.y, z: p.z })),
-      grid: this.dragGridControlPoints.map((p) => ({ x: p.x, y: p.y, z: p.z })),
-      referenceGrid: this.referenceGridControlPoints.map((p) => ({ x: p.x, y: p.y, z: p.z })),
+      corners: this.dragCornerControlPoints.map((p) => this.toNormalized(p)),
+      grid: this.dragGridControlPoints.map((p) => this.toNormalized(p)),
+      referenceGrid: this.referenceGridControlPoints.map((p) => this.toNormalized(p)),
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -604,7 +622,8 @@ export class MeshWarper {
 
       // Always load corners if valid (always 4)
       if (data.corners && data.corners.length === 4) {
-        data.corners.forEach((pos, i) => {
+        data.corners.forEach((nPos, i) => {
+          const pos = this.fromNormalized(nPos);
           this.dragCornerControlPoints[i].set(pos.x, pos.y, pos.z);
           this.cornerObjects[i].position.set(pos.x, pos.y, pos.z);
           this.cornerObjects[i].userData.lastValidPosition = this.cornerObjects[i].position.clone();
@@ -622,8 +641,14 @@ export class MeshWarper {
         data.grid.length === expectedCount &&
         data.referenceGrid?.length === expectedCount
       ) {
-        data.grid.forEach((pos, i) => this.dragGridControlPoints[i].set(pos.x, pos.y, pos.z));
-        data.referenceGrid.forEach((pos, i) => this.referenceGridControlPoints[i].set(pos.x, pos.y, pos.z));
+        data.grid.forEach((nPos, i) => {
+          const pos = this.fromNormalized(nPos);
+          this.dragGridControlPoints[i].set(pos.x, pos.y, pos.z);
+        });
+        data.referenceGrid.forEach((nPos, i) => {
+          const pos = this.fromNormalized(nPos);
+          this.referenceGridControlPoints[i].set(pos.x, pos.y, pos.z);
+        });
       } else {
         // Grid size changed: recompute grid positions from loaded corners
         const corners = this.dragCornerControlPoints.flatMap((p) => [p.x, p.y]);
