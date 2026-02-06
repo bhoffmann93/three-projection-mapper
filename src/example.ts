@@ -19,17 +19,15 @@ renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setClearColor(0x000000);
 document.body.appendChild(renderer.domElement);
 
-// World units use aspect ratio, pixel resolution only for textures/renderer
+// Projection resolution in pixels - the library normalizes to small world units internally
 const projectionResolution = { width: 1920, height: 1080 };
-const aspect = projectionResolution.width / projectionResolution.height;
-const planeSize = { width: 16, height: 16 / aspect }; // 16 x 9 world units
 
 // Create a render target at full pixel resolution
 const renderTarget = new THREE.WebGLRenderTarget(projectionResolution.width, projectionResolution.height);
 
 // Your custom scene and camera (what you want to project)
 const contentScene = new THREE.Scene();
-const contentCamera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
+const contentCamera = new THREE.PerspectiveCamera(75, projectionResolution.width / projectionResolution.height, 0.1, 1000);
 contentCamera.position.z = 5;
 
 // Add some content to your scene (example: rotating cube)
@@ -44,10 +42,9 @@ light.position.set(1, 1, 1);
 contentScene.add(light);
 contentScene.add(new THREE.AmbientLight(0x404040));
 
-// Create the projection mapper with aspect-ratio-based world units
+// Create the projection mapper - pass resolution in pixels, world units are derived internally
 const mapper = new ProjectionMapper(renderer, renderTarget.texture, {
-  width: planeSize.width,
-  height: planeSize.height,
+  resolution: projectionResolution,
   gridControlPoints: { x: 5, y: 5 },
 });
 
@@ -77,7 +74,7 @@ window.addEventListener('resize', () => {
 
   renderer.setSize(width, height);
 
-  contentCamera.aspect = aspect;
+  contentCamera.aspect = projectionResolution.width / projectionResolution.height;
   contentCamera.updateProjectionMatrix();
 
   mapper.resize(width, height);

@@ -6,20 +6,14 @@ import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import projectionFragmentShader from './shaders/projection.frag';
 
 export interface ProjectionMapperConfig {
-  /** Width of the projection surface in world units (default: 16) */
-  width?: number;
-  /** Height of the projection surface in world units (default: 9) */
-  height?: number;
+  /** Projection resolution in pixels (default: { width: 1920, height: 1080 }) */
+  resolution?: { width: number; height: number };
   /** Number of mesh segments for smooth warping (default: 50) */
   segments?: number;
   /** Grid control points for fine warping (default: 5x5) */
   gridControlPoints?: { x: number; y: number };
   /** Enable anti-aliasing (default: true) */
   antialias?: boolean;
-  /** Camera field of view (default: 42) */
-  fov?: number;
-  /** Camera distance (default: 85) */
-  cameraDistance?: number;
   /** Scale factor for how much of the window the plane fills (default: 0.9 = 90%) */
   planeFill?: number;
 }
@@ -57,21 +51,31 @@ export class ProjectionMapper {
     uShowControlLines: { value: boolean };
   };
 
-  private config: Required<ProjectionMapperConfig>;
+  /** Resolution in pixels, passed through to shaders */
+  private resolution: { width: number; height: number };
+  /** Normalized world-space dimensions derived from resolution aspect ratio */
+  private worldWidth: number;
+  private worldHeight: number;
+
+  private config: Required<Omit<ProjectionMapperConfig, 'resolution'>>;
 
   constructor(renderer: THREE.WebGLRenderer, inputTexture: THREE.Texture, config: ProjectionMapperConfig = {}) {
     this.renderer = renderer;
     this.clock = new THREE.Clock();
 
+    // Resolution in pixels (for textures/shaders)
+    this.resolution = config.resolution ?? { width: 1920, height: 1080 };
+
+    // Normalize to small world units: height is always 10, width follows aspect
+    const aspectRatio = this.resolution.width / this.resolution.height;
+    this.worldHeight = 10;
+    this.worldWidth = 10 * aspectRatio;
+
     // Apply defaults
     this.config = {
-      width: config.width ?? 16,
-      height: config.height ?? 9,
       segments: config.segments ?? 50,
       gridControlPoints: config.gridControlPoints ?? { x: 5, y: 5 },
       antialias: config.antialias ?? true,
-      fov: config.fov ?? 42,
-      cameraDistance: config.cameraDistance ?? 20,
       planeFill: config.planeFill ?? 0.9,
     };
 
@@ -80,44 +84,44 @@ export class ProjectionMapper {
 
     // Setup orthographic camera to fit the plane with correct aspect
     const windowAspect = window.innerWidth / window.innerHeight;
-    const planeAspect = this.config.width / this.config.height;
+    const planeAspect = this.worldWidth / this.worldHeight;
 
     const scale = 1 / this.config.planeFill;
     let left, right, top, bottom;
     if (windowAspect > planeAspect) {
-      top = (this.config.height / 2) * scale;
-      bottom = (-this.config.height / 2) * scale;
-      left = ((-this.config.height * windowAspect) / 2) * scale;
-      right = ((this.config.height * windowAspect) / 2) * scale;
+      top = (this.worldHeight / 2) * scale;
+      bottom = (-this.worldHeight / 2) * scale;
+      left = ((-this.worldHeight * windowAspect) / 2) * scale;
+      right = ((this.worldHeight * windowAspect) / 2) * scale;
     } else {
-      left = (-this.config.width / 2) * scale;
-      right = (this.config.width / 2) * scale;
-      top = (this.config.width / windowAspect / 2) * scale;
-      bottom = (-this.config.width / windowAspect / 2) * scale;
+      left = (-this.worldWidth / 2) * scale;
+      right = (this.worldWidth / 2) * scale;
+      top = (this.worldWidth / windowAspect / 2) * scale;
+      bottom = (-this.worldWidth / windowAspect / 2) * scale;
     }
 
     this.camera = new THREE.OrthographicCamera(left, right, top, bottom, 0.1, 100);
     this.camera.position.set(0, 0, 20);
     this.camera.lookAt(0, 0, 0);
 
-    // Setup uniforms
+    // Setup uniforms - uResolution uses actual pixel resolution for shader precision
     this.uniforms = {
       uBuffer: { value: inputTexture },
       uResolution: {
-        value: new THREE.Vector2(window.innerWidth * devicePixelRatio, window.innerHeight * devicePixelRatio),
+        value: new THREE.Vector2(this.resolution.width, this.resolution.height),
       },
       uWarpPlaneSize: {
-        value: new THREE.Vector2(this.config.width, this.config.height),
+        value: new THREE.Vector2(this.worldWidth, this.worldHeight),
       },
       uTime: { value: 0 },
       uShowTestCard: { value: false },
       uShowControlLines: { value: false },
     };
 
-    // Setup mesh warper
+    // Setup mesh warper using normalized world units
     const warperConfig: MeshWarperConfig = {
-      width: this.config.width,
-      height: this.config.height,
+      width: this.worldWidth,
+      height: this.worldHeight,
       widthSegments: this.config.segments,
       heightSegments: this.config.segments,
       gridControlPoints: this.config.gridControlPoints,
@@ -177,25 +181,24 @@ export class ProjectionMapper {
 
   resize(width: number, height: number): void {
     const windowAspect = width / height;
-    const planeAspect = this.config.width / this.config.height;
+    const planeAspect = this.worldWidth / this.worldHeight;
     const scale = 1 / this.config.planeFill;
 
     if (windowAspect > planeAspect) {
       // Window is wider than plane -> height is the limiting factor
-      this.camera.top = (this.config.height / 2) * scale;
-      this.camera.bottom = (-this.config.height / 2) * scale;
-      this.camera.left = ((-this.config.height * windowAspect) / 2) * scale;
-      this.camera.right = ((this.config.height * windowAspect) / 2) * scale;
+      this.camera.top = (this.worldHeight / 2) * scale;
+      this.camera.bottom = (-this.worldHeight / 2) * scale;
+      this.camera.left = ((-this.worldHeight * windowAspect) / 2) * scale;
+      this.camera.right = ((this.worldHeight * windowAspect) / 2) * scale;
     } else {
       // Window is narrower than plane -> width is the limiting factor
-      this.camera.left = (-this.config.width / 2) * scale;
-      this.camera.right = (this.config.width / 2) * scale;
-      this.camera.top = (this.config.width / windowAspect / 2) * scale;
-      this.camera.bottom = (-this.config.width / windowAspect / 2) * scale;
+      this.camera.left = (-this.worldWidth / 2) * scale;
+      this.camera.right = (this.worldWidth / 2) * scale;
+      this.camera.top = (this.worldWidth / windowAspect / 2) * scale;
+      this.camera.bottom = (-this.worldWidth / windowAspect / 2) * scale;
     }
 
     this.camera.updateProjectionMatrix();
-    this.uniforms.uResolution.value.set(width * window.devicePixelRatio, height * window.devicePixelRatio);
   }
 
   getWarper(): MeshWarper {
@@ -230,7 +233,7 @@ export class ProjectionMapper {
     return this.scene;
   }
 
-  getCamera(): THREE.PerspectiveCamera {
+  getCamera(): THREE.OrthographicCamera {
     return this.camera;
   }
 
