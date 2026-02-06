@@ -4,9 +4,7 @@ import { ProjectionMapper } from './ProjectionMapper';
 export interface ProjectionMapperGUISettings {
   showTestcard: boolean;
   showControlLines: boolean;
-  gridSizeX: number;
-  gridSizeY: number;
-  showAllControls: boolean;
+  gridSize: { x: number; y: number };
   showGridPoints: boolean;
   showCornerPoints: boolean;
   showOutline: boolean;
@@ -18,112 +16,171 @@ export class ProjectionMapperGUI {
   private mapper: ProjectionMapper;
   private pane: Pane;
   private settings: ProjectionMapperGUISettings;
+  private savedVisibility: Pick<
+    ProjectionMapperGUISettings,
+    'showGridPoints' | 'showCornerPoints' | 'showOutline' | 'showControlLines'
+  > | null = null;
 
   private readonly STORAGE_KEY = GUI_STORAGE_KEY;
 
   constructor(mapper: ProjectionMapper, title = 'Projection Mapper') {
     this.mapper = mapper;
 
-    // Initialize settings with defaults
     this.settings = {
       showTestcard: mapper.isShowingTestCard(),
       showControlLines: mapper.isShowingControlLines(),
-      gridSizeX: mapper.getWarper().getGridSizeX(),
-      gridSizeY: mapper.getWarper().getGridSizeY(),
-      showAllControls: true,
+      gridSize: {
+        x: mapper.getWarper().getGridSizeX(),
+        y: mapper.getWarper().getGridSizeY(),
+      },
       showGridPoints: true,
       showCornerPoints: true,
       showOutline: true,
     };
 
-    // Load saved settings
     this.loadSettings();
-
-    // Apply loaded settings
     this.applySettings();
 
-    // Create GUI
-    this.pane = new Pane();
-    this.initPane(title);
+    this.pane = new Pane({ title });
+    this.initPane();
   }
 
-  private initPane(title: string): void {
-    const folder = this.pane.addFolder({ title });
+  private initPane(): void {
+    // Shortcuts at top
+    this.pane.addBlade({
+      view: 'text',
+      label: '[G] GUI',
+      value: '[T] Testcard',
+      parse: (v: string) => v,
+      disabled: true,
+    } as Record<string, unknown>);
+    this.pane.addBlade({
+      view: 'text',
+      label: '[H] Hide',
+      value: '[S] Show',
+      parse: (v: string) => v,
+      disabled: true,
+    } as Record<string, unknown>);
 
-    // Testcard toggle
-    folder
-      .addBinding(this.settings, 'showTestcard', { label: 'Show Testcard' })
+    this.pane.addBlade({ view: 'separator' });
+
+    // Settings: grid size + testcard
+    const settingsFolder = this.pane.addFolder({ title: 'Settings', expanded: true });
+
+    settingsFolder
+      .addBinding(this.settings, 'showTestcard', { label: 'Testcard' })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setShowTestCard(e.value as boolean);
         this.saveSettings();
       });
 
-    // Grid size controls
-    const gridFolder = this.pane.addFolder({ title: 'Grid Settings', expanded: true });
-
-    gridFolder
-      .addBinding(this.settings, 'gridSizeX', { label: 'Grid X', min: 2, max: 10, step: 1 })
+    settingsFolder
+      .addBinding(this.settings, 'gridSize', {
+        label: 'Grid',
+        x: { min: 2, max: 10, step: 1 },
+        y: { min: 2, max: 10, step: 1 },
+      })
       .on('change', (e: TpChangeEvent<unknown>) => {
-        this.mapper.setGridSize(e.value as number, this.settings.gridSizeY);
+        const val = e.value as { x: number; y: number };
+        this.settings.gridSize.x = Math.floor(val.x);
+        this.settings.gridSize.y = Math.floor(val.y);
+        this.mapper.setGridSize(this.settings.gridSize.x, this.settings.gridSize.y);
         this.saveSettings();
       });
 
-    gridFolder
-      .addBinding(this.settings, 'gridSizeY', { label: 'Grid Y', min: 2, max: 10, step: 1 })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        this.mapper.setGridSize(this.settings.gridSizeX, e.value as number);
-        this.saveSettings();
-      });
+    settingsFolder.addBlade({ view: 'separator' });
 
-    // Visibility controls
-    const visibilityFolder = this.pane.addFolder({ title: 'Visibility', expanded: true });
+    settingsFolder.addButton({ title: 'Reset Warp' }).on('click', () => {
+      this.mapper.reset();
+      window.location.reload();
+    });
 
-    visibilityFolder
-      .addBinding(this.settings, 'showAllControls', { label: 'Show All' })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        const visible = e.value as boolean;
-        this.mapper.setControlsVisible(visible);
-        this.settings.showGridPoints = visible;
-        this.settings.showCornerPoints = visible;
-        this.settings.showOutline = visible;
-        this.settings.showControlLines = visible;
-        this.pane.refresh();
-        this.saveSettings();
-      });
+    // Visibility
+    const visFolder = this.pane.addFolder({ title: 'Visibility', expanded: true });
 
-    visibilityFolder
-      .addBinding(this.settings, 'showGridPoints', { label: 'Grid Points' })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        this.mapper.setGridPointsVisible(e.value as boolean);
-        this.saveSettings();
-      });
+    visFolder.addButton({ title: 'Toggle UI' }).on('click', () => {
+      const anyVisible =
+        this.settings.showGridPoints ||
+        this.settings.showCornerPoints ||
+        this.settings.showOutline ||
+        this.settings.showControlLines;
 
-    visibilityFolder
-      .addBinding(this.settings, 'showCornerPoints', { label: 'Corner Points' })
+      if (anyVisible) {
+        this.savedVisibility = {
+          showGridPoints: this.settings.showGridPoints,
+          showCornerPoints: this.settings.showCornerPoints,
+          showOutline: this.settings.showOutline,
+          showControlLines: this.settings.showControlLines,
+        };
+        this.settings.showGridPoints = false;
+        this.settings.showCornerPoints = false;
+        this.settings.showOutline = false;
+        this.settings.showControlLines = false;
+      } else if (this.savedVisibility) {
+        this.settings.showGridPoints = this.savedVisibility.showGridPoints;
+        this.settings.showCornerPoints = this.savedVisibility.showCornerPoints;
+        this.settings.showOutline = this.savedVisibility.showOutline;
+        this.settings.showControlLines = this.savedVisibility.showControlLines;
+        this.savedVisibility = null;
+      } else {
+        this.settings.showGridPoints = true;
+        this.settings.showCornerPoints = true;
+        this.settings.showOutline = true;
+        this.settings.showControlLines = true;
+      }
+
+      this.applyVisibility();
+      this.pane.refresh();
+      this.saveSettings();
+    });
+
+    visFolder.addButton({ title: 'Show All' }).on('click', () => {
+      this.settings.showGridPoints = true;
+      this.settings.showCornerPoints = true;
+      this.settings.showOutline = true;
+      this.settings.showControlLines = true;
+      this.savedVisibility = null;
+      this.applyVisibility();
+      this.pane.refresh();
+      this.saveSettings();
+    });
+
+    visFolder.addBlade({ view: 'separator' });
+
+    visFolder
+      .addBinding(this.settings, 'showCornerPoints', { label: 'Corners' })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setCornerPointsVisible(e.value as boolean);
         this.saveSettings();
       });
 
-    visibilityFolder
+    visFolder
+      .addBinding(this.settings, 'showGridPoints', { label: 'Grid' })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        this.mapper.setGridPointsVisible(e.value as boolean);
+        this.saveSettings();
+      });
+
+    visFolder
       .addBinding(this.settings, 'showOutline', { label: 'Outline' })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setOutlineVisible(e.value as boolean);
         this.saveSettings();
       });
 
-    visibilityFolder
-      .addBinding(this.settings, 'showControlLines', { label: 'Control Lines' })
+    visFolder
+      .addBinding(this.settings, 'showControlLines', { label: 'Shader Lines' })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setShowControlLines(e.value as boolean);
         this.saveSettings();
       });
+  }
 
-    // Reset button
-    this.pane.addButton({ title: 'Reset Warp' }).on('click', () => {
-      this.mapper.reset();
-      window.location.reload();
-    });
+  private applyVisibility(): void {
+    this.mapper.setGridPointsVisible(this.settings.showGridPoints);
+    this.mapper.setCornerPointsVisible(this.settings.showCornerPoints);
+    this.mapper.setOutlineVisible(this.settings.showOutline);
+    this.mapper.setShowControlLines(this.settings.showControlLines);
   }
 
   private saveSettings(): void {
@@ -137,10 +194,17 @@ export class ProjectionMapperGUI {
   private loadSettings(): void {
     try {
       const saved = localStorage.getItem(this.STORAGE_KEY);
-      if (saved) {
-        const loaded = JSON.parse(saved) as Partial<ProjectionMapperGUISettings>;
-        Object.assign(this.settings, loaded);
+      if (!saved) return;
+
+      const loaded = JSON.parse(saved) as Partial<ProjectionMapperGUISettings>;
+
+      // Migrate old gridSizeX/gridSizeY format
+      const legacy = loaded as Record<string, unknown>;
+      if ('gridSizeX' in legacy && 'gridSizeY' in legacy && !loaded.gridSize) {
+        loaded.gridSize = { x: legacy.gridSizeX as number, y: legacy.gridSizeY as number };
       }
+
+      Object.assign(this.settings, loaded);
     } catch (error) {
       console.warn('Failed to load GUI settings:', error);
     }
@@ -148,12 +212,8 @@ export class ProjectionMapperGUI {
 
   private applySettings(): void {
     this.mapper.setShowTestCard(this.settings.showTestcard);
-    this.mapper.setShowControlLines(this.settings.showControlLines);
-    this.mapper.setGridSize(this.settings.gridSizeX, this.settings.gridSizeY);
-    this.mapper.setControlsVisible(this.settings.showAllControls);
-    this.mapper.setGridPointsVisible(this.settings.showGridPoints);
-    this.mapper.setCornerPointsVisible(this.settings.showCornerPoints);
-    this.mapper.setOutlineVisible(this.settings.showOutline);
+    this.mapper.setGridSize(this.settings.gridSize.x, this.settings.gridSize.y);
+    this.applyVisibility();
   }
 
   show(): void {
