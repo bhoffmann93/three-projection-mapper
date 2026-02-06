@@ -23,7 +23,7 @@ export class ProjectionMapperGUI {
     'showGridPoints' | 'showCornerPoints' | 'showOutline' | 'showControlLines'
   > | null = null;
   private transient = { shouldWarp: true };
-  private visFolder!: FolderApi;
+  private warpFolder!: FolderApi;
 
   private readonly STORAGE_KEY = GUI_STORAGE_KEY;
 
@@ -80,11 +80,11 @@ export class ProjectionMapperGUI {
       });
 
     settingsFolder
-      .addBinding(this.transient, 'shouldWarp', { label: 'Show Warp' })
+      .addBinding(this.transient, 'shouldWarp', { label: 'Apply Warp' })
       .on('change', (e: TpChangeEvent<unknown>) => {
         const enabled = e.value as boolean;
         this.mapper.setShouldWarp(enabled);
-        this.visFolder.disabled = !enabled;
+        this.warpFolder.disabled = !enabled;
         if (!enabled) {
           this.toggleWarpUI(false);
         } else {
@@ -92,8 +92,12 @@ export class ProjectionMapperGUI {
         }
       });
 
+    // Warp UI
+    this.warpFolder = this.pane.addFolder({ title: 'Warping', expanded: true });
+    const visFolder = this.warpFolder;
+
     // Warp Mode
-    settingsFolder
+    visFolder
       .addBlade({
         view: 'list',
         label: 'Warp Mode',
@@ -110,7 +114,7 @@ export class ProjectionMapperGUI {
         this.saveSettings();
       });
 
-    settingsFolder
+    visFolder
       .addBinding(this.settings, 'gridSize', {
         label: 'Warp Grid',
         x: { min: 2, max: 10, step: 1 },
@@ -124,16 +128,7 @@ export class ProjectionMapperGUI {
         this.saveSettings();
       });
 
-    settingsFolder.addBlade({ view: 'separator' });
-
-    settingsFolder.addButton({ title: 'Reset Warp' }).on('click', () => {
-      this.mapper.reset();
-      window.location.reload();
-    });
-
-    // Visibility
-    this.visFolder = this.pane.addFolder({ title: 'Warp UI', expanded: true });
-    const visFolder = this.visFolder;
+    visFolder.addBlade({ view: 'separator' });
 
     visFolder.addButton({ title: 'Toggle' }).on('click', () => this.toggleWarpUI());
 
@@ -177,6 +172,13 @@ export class ProjectionMapperGUI {
         this.mapper.setShowControlLines(e.value as boolean);
         this.saveSettings();
       });
+
+    visFolder.addBlade({ view: 'separator' });
+
+    visFolder.addButton({ title: 'Reset Warp' }).on('click', () => {
+      this.mapper.reset();
+      window.location.reload();
+    });
   }
 
   private applyVisibility(): void {
