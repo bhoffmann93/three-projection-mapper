@@ -52,22 +52,12 @@ const mapper = new ProjectionMapper(renderer, renderTarget.texture, {
   resolution: projectionResolution,
 });
 
-// Optional: Add GUI for easy calibration
 const gui = new ProjectionMapperGUI(mapper);
-
-// Handle keyboard shortcuts
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'g' || e.key === 'p') {
-    gui.toggle();
-  }
-  if (e.key === 't') {
-    mapper.setShowTestCard(!mapper.isShowingTestCard());
-  }
+  if (e.key === 'g' || e.key === 'p') gui.toggle();
+  if (e.key === 't') gui.toggleTestCard();
   if (e.key === 'h') {
-    mapper.setControlsVisible(false);
-  }
-  if (e.key === 's') {
-    mapper.setControlsVisible(true);
+    gui.toggleWarpingUiElements();
   }
 });
 
@@ -84,15 +74,13 @@ window.addEventListener('resize', () => {
   mapper.resize(width, height);
 });
 
-// Animation loop
 function animate() {
   requestAnimationFrame(animate);
 
-  // Animate your content
   cube.rotation.x += 0.01;
   cube.rotation.y += 0.01;
 
-  // Render your content to the render target
+  // Render content to  render target
   renderer.setRenderTarget(renderTarget);
   renderer.render(contentScene, contentCamera);
 

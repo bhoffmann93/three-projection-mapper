@@ -56,8 +56,8 @@ export class ProjectionMapperGUI {
     } as Record<string, unknown>);
     this.pane.addBlade({
       view: 'text',
-      label: '[H] Hide',
-      value: '[S] Show',
+      label: '[H] Warp UI',
+      value: '',
       parse: (v: string) => v,
       disabled: true,
     } as Record<string, unknown>);
@@ -96,43 +96,9 @@ export class ProjectionMapperGUI {
     });
 
     // Visibility
-    const visFolder = this.pane.addFolder({ title: 'Visibility', expanded: true });
+    const visFolder = this.pane.addFolder({ title: 'Warping UI', expanded: true });
 
-    visFolder.addButton({ title: 'Toggle UI' }).on('click', () => {
-      const anyVisible =
-        this.settings.showGridPoints ||
-        this.settings.showCornerPoints ||
-        this.settings.showOutline ||
-        this.settings.showControlLines;
-
-      if (anyVisible) {
-        this.savedVisibility = {
-          showGridPoints: this.settings.showGridPoints,
-          showCornerPoints: this.settings.showCornerPoints,
-          showOutline: this.settings.showOutline,
-          showControlLines: this.settings.showControlLines,
-        };
-        this.settings.showGridPoints = false;
-        this.settings.showCornerPoints = false;
-        this.settings.showOutline = false;
-        this.settings.showControlLines = false;
-      } else if (this.savedVisibility) {
-        this.settings.showGridPoints = this.savedVisibility.showGridPoints;
-        this.settings.showCornerPoints = this.savedVisibility.showCornerPoints;
-        this.settings.showOutline = this.savedVisibility.showOutline;
-        this.settings.showControlLines = this.savedVisibility.showControlLines;
-        this.savedVisibility = null;
-      } else {
-        this.settings.showGridPoints = true;
-        this.settings.showCornerPoints = true;
-        this.settings.showOutline = true;
-        this.settings.showControlLines = true;
-      }
-
-      this.applyVisibility();
-      this.pane.refresh();
-      this.saveSettings();
-    });
+    visFolder.addButton({ title: 'Toggle' }).on('click', () => this.toggleWarpingUiElements());
 
     visFolder.addButton({ title: 'Show All' }).on('click', () => {
       this.settings.showGridPoints = true;
@@ -169,7 +135,7 @@ export class ProjectionMapperGUI {
       });
 
     visFolder
-      .addBinding(this.settings, 'showControlLines', { label: 'Shader Lines' })
+      .addBinding(this.settings, 'showControlLines', { label: 'Grid Lines' })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setShowControlLines(e.value as boolean);
         this.saveSettings();
@@ -181,6 +147,47 @@ export class ProjectionMapperGUI {
     this.mapper.setCornerPointsVisible(this.settings.showCornerPoints);
     this.mapper.setOutlineVisible(this.settings.showOutline);
     this.mapper.setShowControlLines(this.settings.showControlLines);
+  }
+
+  public toggleWarpingUiElements(): void {
+    const anyVisible =
+      this.settings.showGridPoints ||
+      this.settings.showCornerPoints ||
+      this.settings.showOutline ||
+      this.settings.showControlLines;
+
+    if (anyVisible) {
+      // Aktuellen Zustand merken, um ihn später wiederherzustellen
+      this.savedVisibility = {
+        showGridPoints: this.settings.showGridPoints,
+        showCornerPoints: this.settings.showCornerPoints,
+        showOutline: this.settings.showOutline,
+        showControlLines: this.settings.showControlLines,
+      };
+      // Alles ausschalten
+      this.settings.showGridPoints = false;
+      this.settings.showCornerPoints = false;
+      this.settings.showOutline = false;
+      this.settings.showControlLines = false;
+    } else {
+      // Entweder gespeicherten Zustand laden oder Standard-Alles-An
+      if (this.savedVisibility) {
+        this.settings.showGridPoints = this.savedVisibility.showGridPoints;
+        this.settings.showCornerPoints = this.savedVisibility.showCornerPoints;
+        this.settings.showOutline = this.savedVisibility.showOutline;
+        this.settings.showControlLines = this.savedVisibility.showControlLines;
+        this.savedVisibility = null;
+      } else {
+        this.settings.showGridPoints = true;
+        this.settings.showCornerPoints = true;
+        this.settings.showOutline = true;
+        this.settings.showControlLines = true;
+      }
+    }
+
+    this.applyVisibility(); // Mapper updaten
+    this.pane.refresh(); // GUI-Schalter visuell aktualisieren
+    this.saveSettings(); // Im LocalStorage merken
   }
 
   private saveSettings(): void {
@@ -214,6 +221,24 @@ export class ProjectionMapperGUI {
     this.mapper.setShowTestCard(this.settings.showTestcard);
     this.mapper.setGridSize(this.settings.gridSize.x, this.settings.gridSize.y);
     this.applyVisibility();
+  }
+
+  toggleTestCard(): void {
+    this.settings.showTestcard = !this.settings.showTestcard;
+    this.mapper.setShowTestCard(this.settings.showTestcard);
+    this.pane.refresh();
+    this.saveSettings();
+  }
+
+  setControlsEnabled(visible: boolean): void {
+    this.settings.showGridPoints = visible;
+    this.settings.showCornerPoints = visible;
+    this.settings.showOutline = visible;
+    this.settings.showControlLines = visible;
+    this.savedVisibility = null;
+    this.applyVisibility();
+    this.pane.refresh();
+    this.saveSettings();
   }
 
   show(): void {
