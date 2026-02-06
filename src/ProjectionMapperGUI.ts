@@ -1,4 +1,4 @@
-import { Pane, TpChangeEvent } from 'tweakpane';
+import { FolderApi, Pane, TpChangeEvent } from 'tweakpane';
 import { ProjectionMapper } from './ProjectionMapper';
 import { WARP_MODE } from './MeshWarper';
 
@@ -23,6 +23,7 @@ export class ProjectionMapperGUI {
     'showGridPoints' | 'showCornerPoints' | 'showOutline' | 'showControlLines'
   > | null = null;
   private transient = { shouldWarp: true };
+  private visFolder!: FolderApi;
 
   private readonly STORAGE_KEY = GUI_STORAGE_KEY;
 
@@ -79,9 +80,16 @@ export class ProjectionMapperGUI {
       });
 
     settingsFolder
-      .addBinding(this.transient, 'shouldWarp', { label: 'Warp' })
+      .addBinding(this.transient, 'shouldWarp', { label: 'Show Warp' })
       .on('change', (e: TpChangeEvent<unknown>) => {
-        this.mapper.setShouldWarp(e.value as boolean);
+        const enabled = e.value as boolean;
+        this.mapper.setShouldWarp(enabled);
+        this.visFolder.disabled = !enabled;
+        if (!enabled) {
+          this.toggleWarpUI(false);
+        } else {
+          this.toggleWarpUI(true);
+        }
       });
 
     // Warp Mode
@@ -124,7 +132,8 @@ export class ProjectionMapperGUI {
     });
 
     // Visibility
-    const visFolder = this.pane.addFolder({ title: 'Warp UI', expanded: true });
+    this.visFolder = this.pane.addFolder({ title: 'Warp UI', expanded: true });
+    const visFolder = this.visFolder;
 
     visFolder.addButton({ title: 'Toggle' }).on('click', () => this.toggleWarpUI());
 
@@ -177,28 +186,29 @@ export class ProjectionMapperGUI {
     this.mapper.setShowControlLines(this.settings.showControlLines);
   }
 
-  public toggleWarpUI(): void {
+  public toggleWarpUI(forceState?: boolean): void {
     const anyVisible =
       this.settings.showGridPoints ||
       this.settings.showCornerPoints ||
       this.settings.showOutline ||
       this.settings.showControlLines;
 
-    if (anyVisible) {
-      // Aktuellen Zustand merken, um ihn später wiederherzustellen
+    const shouldHide = forceState !== undefined ? !forceState : anyVisible;
+
+    if (shouldHide && anyVisible) {
       this.savedVisibility = {
         showGridPoints: this.settings.showGridPoints,
         showCornerPoints: this.settings.showCornerPoints,
         showOutline: this.settings.showOutline,
         showControlLines: this.settings.showControlLines,
       };
-      // Alles ausschalten
       this.settings.showGridPoints = false;
       this.settings.showCornerPoints = false;
       this.settings.showOutline = false;
       this.settings.showControlLines = false;
+    } else if (shouldHide) {
+      // Already hidden, nothing to do
     } else {
-      // Entweder gespeicherten Zustand laden oder Standard-Alles-An
       if (this.savedVisibility) {
         this.settings.showGridPoints = this.savedVisibility.showGridPoints;
         this.settings.showCornerPoints = this.savedVisibility.showCornerPoints;
@@ -213,9 +223,9 @@ export class ProjectionMapperGUI {
       }
     }
 
-    this.applyVisibility(); // Mapper updaten
-    this.pane.refresh(); // GUI-Schalter visuell aktualisieren
-    this.saveSettings(); // Im LocalStorage merken
+    this.applyVisibility();
+    this.pane.refresh();
+    this.saveSettings();
   }
 
   private applySettings(): void {

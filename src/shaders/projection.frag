@@ -1,6 +1,7 @@
 // Renders input texture with optional procedural testcard for alignment
 
 varying vec2 vUv;
+uniform bool uShouldWarp;
 
 uniform sampler2D uBuffer;
 uniform vec2 uBufferResolution;
@@ -223,17 +224,30 @@ float drawControlLines(vec2 uv, vec2 gridSize) {
     vec2 gridUv = fract(uv * tileCount);
     float startLines = max((1.0 - step(gridLineThickness.x, gridUv.x)), (1.0 - step(gridLineThickness.y, gridUv.y)));
     float endLines = max(step(1.0 - gridLineThickness.x, gridUv.x), step(1.0 - gridLineThickness.y, gridUv.y));
-    return max(startLines, endLines);
+    return clamp(0.0, 1.0, max(startLines, endLines));
+}
 
+float drawBorderLines(vec2 uv) {
+    float thicknessInPixel = 2.0;
+    float leftLine = 1.0 - aastep(fwidth(vUv.x) * thicknessInPixel, vUv.x);
+    float rightLine = 1.0 - aastep(fwidth(vUv.x) * thicknessInPixel, 1.0 - vUv.x);
+    float bottomLine = 1.0 - aastep(fwidth(vUv.y) * thicknessInPixel, vUv.y);
+    float topLine = 1.0 - aastep(fwidth(vUv.y) * thicknessInPixel, 1.0 - vUv.y);
+    return clamp(max(leftLine, max(rightLine, max(bottomLine, topLine))), 0.0, 1.0);
 }
 
 void main() {
     vec3 color;
 
     if(uShowTestCard) {
-        color = testCard(vUv, uWarpPlaneSize, uTime);
+        color = testCard(vUv, uShouldWarp ? uWarpPlaneSize : uBufferResolution, uTime);
     } else {
         color = texture2D(uBuffer, vUv).rgb;
+    }
+
+    if(uShouldWarp == false) {
+        float borderLines = drawBorderLines(vUv);
+        color = mix(color, vec3(0.75), borderLines);
     }
 
     if(uShowControlLines) {
