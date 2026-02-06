@@ -3,7 +3,7 @@
 varying vec2 vUv;
 
 uniform sampler2D uBuffer;
-uniform vec2 uResolution;
+uniform vec2 uBufferResolution;
 uniform vec2 uWarpPlaneSize;
 uniform float uTime;
 uniform bool uShowTestCard;

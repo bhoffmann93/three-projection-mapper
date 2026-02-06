@@ -213,7 +213,12 @@ export class ProjectionMapperGUI {
 
   private applySettings(): void {
     this.mapper.setShowTestCard(this.settings.showTestcard);
-    this.mapper.setGridSize(this.settings.gridSize.x, this.settings.gridSize.y);
+    //only apply if settings differ
+    const currentX = this.mapper.getWarper().getGridSizeX();
+    const currentY = this.mapper.getWarper().getGridSizeY();
+    if (this.settings.gridSize.x !== currentX || this.settings.gridSize.y !== currentY) {
+      this.mapper.setGridSize(this.settings.gridSize.x, this.settings.gridSize.y);
+    }
     this.mapper.getWarper().setWarpMode(this.settings.warpMode);
     this.applyVisibility();
   }
