@@ -209,7 +209,7 @@ vec3 testCard(vec2 vUv, vec2 dimensions, float time) {
     if(vUv.x > 1.0 - cornerSize && vUv.y > 1.0 - cornerSize * ratio)
         color = RED;
 
-    float timeDigits = printValue((uv - vec2(0.385, 0.48)) * 30.0, time, 2.0, 2.0);
+    float timeDigits = printValue((uv - vec2(0.385, 0.3)) * 30.0, time, 2.0, 2.0);
     color = mix(color, WHITE, timeDigits);
     return color;
 }

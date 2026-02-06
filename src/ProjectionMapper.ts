@@ -73,10 +73,11 @@ export class ProjectionMapper {
     this.worldHeight = 10;
     this.worldWidth = 10 * aspectRatio;
 
+    const minGridWarpPoints = 3;
     // Apply defaults
     this.config = {
       segments: config.segments ?? 50,
-      gridControlPoints: config.gridControlPoints ?? calculateGridPoints(aspectRatio),
+      gridControlPoints: config.gridControlPoints ?? calculateGridPoints(aspectRatio, minGridWarpPoints),
       antialias: config.antialias ?? true,
       planeFill: config.planeFill ?? 0.9,
     };

@@ -17,7 +17,7 @@ export const isQuadConcave = (corners: number[]) => {
   return isConcave;
 };
 
-export const calculateGridPoints = (aspectRatio: number, minPoints = 5): { x: number; y: number } => {
+export const calculateGridPoints = (aspectRatio: number, minPoints: number): { x: number; y: number } => {
   if (aspectRatio >= 1) {
     return { x: Math.max(minPoints, Math.round(minPoints * aspectRatio)), y: minPoints };
   }
