@@ -11,6 +11,11 @@ import { isQuadConcave } from './geometry';
 import { clamp } from 'three/src/math/MathUtils';
 import meshWarpVertexShader from './shaders/warp.vert';
 
+export enum WARP_MODE {
+  bilinear = 0,
+  bicubic = 1,
+}
+
 export interface MeshWarperConfig {
   width: number;
   height: number;
@@ -108,6 +113,7 @@ export class MeshWarper {
       uBuffer: {
         value: this.config.bufferTexture,
       },
+      uWarpMode: { value: WARP_MODE.bicubic },
     };
 
     const material = new THREE.ShaderMaterial({
@@ -434,6 +440,14 @@ export class MeshWarper {
     if (this.material.uniforms.uBuffer) {
       this.material.uniforms.uBuffer.value = texture;
     }
+  }
+
+  public setWarpMode(mode: WARP_MODE): void {
+    this.material.uniforms.uWarpMode.value = mode;
+  }
+
+  public getWarpMode(): WARP_MODE {
+    return this.material.uniforms.uWarpMode.value;
   }
 
   public getMaterial(): THREE.ShaderMaterial {
