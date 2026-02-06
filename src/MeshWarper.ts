@@ -116,6 +116,7 @@ export class MeshWarper {
         value: this.config.bufferTexture,
       },
       uWarpMode: { value: WARP_MODE.bicubic },
+      uShouldWarp: { value: true },
     };
 
     const material = new THREE.ShaderMaterial({
@@ -452,6 +453,14 @@ export class MeshWarper {
     return this.material.uniforms.uWarpMode.value;
   }
 
+  public setShouldWarp(enabled: boolean): void {
+    this.material.uniforms.uShouldWarp.value = enabled;
+  }
+
+  public getShouldWarp(): boolean {
+    return this.material.uniforms.uShouldWarp.value;
+  }
+
   public getMaterial(): THREE.ShaderMaterial {
     return this.material;
   }
@@ -633,14 +642,9 @@ export class MeshWarper {
       // Validate grid dimensions using stored gridSize metadata
       const expectedCount = this.xControlPointAmount * this.yControlPointAmount;
       const gridSizeMatches =
-        data.gridSize?.x === this.xControlPointAmount &&
-        data.gridSize?.y === this.yControlPointAmount;
+        data.gridSize?.x === this.xControlPointAmount && data.gridSize?.y === this.yControlPointAmount;
 
-      if (
-        gridSizeMatches &&
-        data.grid.length === expectedCount &&
-        data.referenceGrid?.length === expectedCount
-      ) {
+      if (gridSizeMatches && data.grid.length === expectedCount && data.referenceGrid?.length === expectedCount) {
         data.grid.forEach((nPos, i) => {
           const pos = this.fromNormalized(nPos);
           this.dragGridControlPoints[i].set(pos.x, pos.y, pos.z);

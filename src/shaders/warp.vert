@@ -28,6 +28,7 @@ uniform int uGridSizeX;
 uniform int uGridSizeY;
 uniform float uTime;
 uniform int uWarpMode;
+uniform bool uShouldWarp;
 
 const int BILINEAR_INTERPOLATION = 0;
 const int BICUBIC_INTERPOLATION = 1;
@@ -124,6 +125,11 @@ vec2 bilinearInterpolate(float u, float v, int cellIndexX, int cellIndexY) {
 
 void main() {
     vUv = uv;
+
+    if(uShouldWarp == false) {
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); //orignal vertex pos
+        return;
+    }
 
     vec2 scaledGridUv = vec2(vUv.x, vUv.y) * vec2(uGridSizeX - 1, uGridSizeY - 1);
     int cellIndexX = int(floor(scaledGridUv.x));

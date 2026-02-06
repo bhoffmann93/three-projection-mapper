@@ -22,7 +22,11 @@ document.body.appendChild(renderer.domElement);
 // Projection resolution in pixels - the library normalizes to small world units internally
 const projectionResolution = { width: 1920, height: 1080 };
 
-const renderTarget = new THREE.WebGLRenderTarget(projectionResolution.width, projectionResolution.height);
+const renderTarget = new THREE.WebGLRenderTarget(projectionResolution.width, projectionResolution.height, {
+  magFilter: THREE.LinearFilter,
+  minFilter: THREE.LinearFilter,
+  generateMipmaps: false,
+});
 
 // Your custom scene and camera (what you want to project)
 const contentScene = new THREE.Scene();

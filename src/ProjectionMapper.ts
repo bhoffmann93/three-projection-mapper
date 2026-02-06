@@ -245,6 +245,14 @@ export class ProjectionMapper {
     this.meshWarper.setGridSize(x, y);
   }
 
+  setShouldWarp(enabled: boolean): void {
+    this.meshWarper.setShouldWarp(enabled);
+  }
+
+  isShouldWarp(): boolean {
+    return this.meshWarper.getShouldWarp();
+  }
+
   reset(): void {
     this.meshWarper.resetToDefault();
     // Clear GUI settings so visibility and grid size reset on reload

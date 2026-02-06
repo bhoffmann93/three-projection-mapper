@@ -22,6 +22,7 @@ export class ProjectionMapperGUI {
     ProjectionMapperGUISettings,
     'showGridPoints' | 'showCornerPoints' | 'showOutline' | 'showControlLines'
   > | null = null;
+  private transient = { shouldWarp: true };
 
   private readonly STORAGE_KEY = GUI_STORAGE_KEY;
 
@@ -75,6 +76,12 @@ export class ProjectionMapperGUI {
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setShowTestCard(e.value as boolean);
         this.saveSettings();
+      });
+
+    settingsFolder
+      .addBinding(this.transient, 'shouldWarp', { label: 'Warp' })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        this.mapper.setShouldWarp(e.value as boolean);
       });
 
     // Warp Mode
