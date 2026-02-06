@@ -27,7 +27,12 @@ const renderTarget = new THREE.WebGLRenderTarget(projectionResolution.width, pro
 
 // Your custom scene and camera (what you want to project)
 const contentScene = new THREE.Scene();
-const contentCamera = new THREE.PerspectiveCamera(75, projectionResolution.width / projectionResolution.height, 0.1, 1000);
+const contentCamera = new THREE.PerspectiveCamera(
+  75,
+  projectionResolution.width / projectionResolution.height,
+  0.1,
+  1000,
+);
 contentCamera.position.z = 5;
 
 // Add some content to your scene (example: rotating cube)
@@ -45,7 +50,6 @@ contentScene.add(new THREE.AmbientLight(0x404040));
 // Create the projection mapper - pass resolution in pixels, world units are derived internally
 const mapper = new ProjectionMapper(renderer, renderTarget.texture, {
   resolution: projectionResolution,
-  gridControlPoints: { x: 5, y: 5 },
 });
 
 // Optional: Add GUI for easy calibration

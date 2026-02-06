@@ -71,10 +71,21 @@ export class ProjectionMapper {
     this.worldHeight = 10;
     this.worldWidth = 10 * aspectRatio;
 
+    // Auto-calculate grid points if not provided: min 5 on short side, proportional on long side
+    let gridControlPoints = config.gridControlPoints;
+    if (!gridControlPoints) {
+      const minPoints = 5;
+      if (aspectRatio >= 1) {
+        gridControlPoints = { x: Math.max(minPoints, Math.round(minPoints * aspectRatio)), y: minPoints };
+      } else {
+        gridControlPoints = { x: minPoints, y: Math.max(minPoints, Math.round(minPoints / aspectRatio)) };
+      }
+    }
+
     // Apply defaults
     this.config = {
       segments: config.segments ?? 50,
-      gridControlPoints: config.gridControlPoints ?? { x: 5, y: 5 },
+      gridControlPoints,
       antialias: config.antialias ?? true,
       planeFill: config.planeFill ?? 0.9,
     };

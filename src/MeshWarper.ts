@@ -123,7 +123,7 @@ export class MeshWarper {
       },
     });
 
-    material.side = THREE.DoubleSide;
+    material.side = THREE.FrontSide;
 
     return material;
   }
