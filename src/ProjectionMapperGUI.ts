@@ -61,7 +61,7 @@ export class ProjectionMapperGUI {
     this.pane.addBlade({
       view: 'text',
       label: '[G] GUI',
-      value: '[H] Warp UI',
+      value: '[H] Warp UI  [T] Test',
       parse: (v: string) => v,
       disabled: true,
     } as Record<string, unknown>);
@@ -135,16 +135,9 @@ export class ProjectionMapperGUI {
     visFolder.addBlade({ view: 'separator' });
 
     visFolder
-      .addBinding(this.settings, 'showCornerPoints', { label: 'Corners' })
+      .addBinding(this.settings, 'showCornerPoints', { label: 'Perspective Corners' })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setCornerPointsVisible(e.value as boolean);
-        this.saveSettings();
-      });
-
-    visFolder
-      .addBinding(this.settings, 'showGridPoints', { label: 'Grid' })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        this.mapper.setGridPointsVisible(e.value as boolean);
         this.saveSettings();
       });
 
@@ -152,6 +145,13 @@ export class ProjectionMapperGUI {
       .addBinding(this.settings, 'showOutline', { label: 'Outline' })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setOutlineVisible(e.value as boolean);
+        this.saveSettings();
+      });
+
+    visFolder
+      .addBinding(this.settings, 'showGridPoints', { label: 'Grid Handles' })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        this.mapper.setGridPointsVisible(e.value as boolean);
         this.saveSettings();
       });
 

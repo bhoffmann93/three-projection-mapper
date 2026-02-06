@@ -77,9 +77,27 @@ export class ProjectionMapper {
     const minGridWarpPoints = 3;
     const planeScale = 0.7;
 
+    // Use saved grid size from GUI settings if available, so MeshWarper
+    // is created with the correct grid size before loading stored control points
+    let gridControlPoints = config.gridControlPoints;
+    if (!gridControlPoints) {
+      try {
+        const savedGui = localStorage.getItem(GUI_STORAGE_KEY);
+        if (savedGui) {
+          const parsed = JSON.parse(savedGui);
+          if (parsed.gridSize?.x && parsed.gridSize?.y) {
+            gridControlPoints = { x: Math.floor(parsed.gridSize.x), y: Math.floor(parsed.gridSize.y) };
+          }
+        }
+      } catch {
+        // ignore parse errors
+      }
+      gridControlPoints = gridControlPoints ?? calculateGridPoints(aspectRatio, minGridWarpPoints);
+    }
+
     this.config = {
       segments: config.segments ?? 50,
-      gridControlPoints: config.gridControlPoints ?? calculateGridPoints(aspectRatio, minGridWarpPoints),
+      gridControlPoints,
       antialias: config.antialias ?? true,
       planeScale: config.planeScale ?? planeScale,
     };
