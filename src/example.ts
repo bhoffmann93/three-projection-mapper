@@ -22,7 +22,6 @@ document.body.appendChild(renderer.domElement);
 // Projection resolution in pixels - the library normalizes to small world units internally
 const projectionResolution = { width: 1920, height: 1080 };
 
-// Create a render target at full pixel resolution
 const renderTarget = new THREE.WebGLRenderTarget(projectionResolution.width, projectionResolution.height);
 
 // Your custom scene and camera (what you want to project)
@@ -35,19 +34,16 @@ const contentCamera = new THREE.PerspectiveCamera(
 );
 contentCamera.position.z = 5;
 
-// Add some content to your scene (example: rotating cube)
 const geometry = new THREE.BoxGeometry(2, 2, 2);
 const material = new THREE.MeshNormalMaterial();
 const cube = new THREE.Mesh(geometry, material);
 contentScene.add(cube);
 
-// Add a light (optional, for materials that need it)
 const light = new THREE.DirectionalLight(0xffffff, 1);
 light.position.set(1, 1, 1);
 contentScene.add(light);
 contentScene.add(new THREE.AmbientLight(0x404040));
 
-// Create the projection mapper - pass resolution in pixels, world units are derived internally
 const mapper = new ProjectionMapper(renderer, renderTarget.texture, {
   resolution: projectionResolution,
 });

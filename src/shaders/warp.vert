@@ -1,4 +1,5 @@
-// Bicubic Grid Warp adapted from Omnidome https://github.com/WilstonOreo/omnidome/blob/master/lib/src/WarpGrid.cpp
+// Bicubic Grid Warp Adapted for GLSL from C++ 
+// Omnidome https://github.com/WilstonOreo/omnidome/blob/master/lib/src/WarpGrid.cpp
 /* Copyright (c) 2014-2015 "Omnidome" by Michael Winkelmann
  * Dome Mapping Projection Software (http://omnido.me).
  * Omnidome was created by Michael Winkelmann aka Wilston Oreo (@WilstonOreo)
@@ -19,12 +20,17 @@
  */
 
 varying vec2 vUv;
+
 uniform vec3 uCorners[4]; //World Space TL TR BL BR
 uniform vec3 uControlPoint;
 uniform vec3 uControlPoints[CONTROL_POINT_AMOUNT]; //World Space BL Origin
 uniform int uGridSizeX;
 uniform int uGridSizeY;
 uniform float uTime;
+uniform int uWarpMode;
+
+const int BILINEAR_INTERPOLATION = 0;
+const int BICUBIC_INTERPOLATION = 1;
 
 //fast Catmull-Rom
 //http://www.paulinternet.nl/?page=bicubic 
@@ -121,17 +127,18 @@ void main() {
 
     vec2 scaledGridUv = vec2(vUv.x, vUv.y) * vec2(uGridSizeX - 1, uGridSizeY - 1);
     int cellIndexX = int(floor(scaledGridUv.x));
-    int cellIndexY = int(floor(scaledGridUv.y)); 
+    int cellIndexY = int(floor(scaledGridUv.y));
 
-    // Local uv coordinates within grid cell
     float localCellUvX = fract(scaledGridUv.x);
     float localCellUvY = fract(scaledGridUv.y);
 
-    vec2 bicubicTransformedPos = bicubicInterpolate(localCellUvX, localCellUvY, cellIndexX, cellIndexY);
-    // vec2 bilinearTransformedPos = bilinearInterpolate(localCellUvX, localCellUvY, cellIndexX, cellIndexY);
-    // bicubicTransformedPos = mix(bicubicTransformedPos, bilinearTransformedPos, 1.0);
+    vec2 vertexPos;
+    if(uWarpMode == BILINEAR_INTERPOLATION) {
+        vertexPos = bilinearInterpolate(localCellUvX, localCellUvY, cellIndexX, cellIndexY);
+    }
+    if(uWarpMode == BICUBIC_INTERPOLATION) {
+        vertexPos = bicubicInterpolate(localCellUvX, localCellUvY, cellIndexX, cellIndexY);
+    }
 
-    gl_Position = projectionMatrix * viewMatrix * vec4(vec3(bicubicTransformedPos, 0.0), 1.0); //world space vertex 
-    // gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); //orignal vertex
-
+    gl_Position = projectionMatrix * viewMatrix * vec4(vec3(vertexPos, 0.0), 1.0); //world space vertex position
 }

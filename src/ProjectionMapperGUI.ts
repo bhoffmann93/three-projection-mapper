@@ -1,9 +1,11 @@
 import { Pane, TpChangeEvent } from 'tweakpane';
 import { ProjectionMapper } from './ProjectionMapper';
+import { WARP_MODE } from './MeshWarper';
 
 export interface ProjectionMapperGUISettings {
   showTestcard: boolean;
   showControlLines: boolean;
+  warpMode: WARP_MODE;
   gridSize: { x: number; y: number };
   showGridPoints: boolean;
   showCornerPoints: boolean;
@@ -29,6 +31,7 @@ export class ProjectionMapperGUI {
     this.settings = {
       showTestcard: mapper.isShowingTestCard(),
       showControlLines: mapper.isShowingControlLines(),
+      warpMode: mapper.getWarper().getWarpMode(),
       gridSize: {
         x: mapper.getWarper().getGridSizeX(),
         y: mapper.getWarper().getGridSizeY(),
@@ -53,7 +56,8 @@ export class ProjectionMapperGUI {
       parse: (v: unknown) => v,
       disabled: true,
     });
-    // Shortcuts at top
+
+    // Shortcuts
     this.pane.addBlade({
       view: 'text',
       label: '[G] GUI',
@@ -64,13 +68,29 @@ export class ProjectionMapperGUI {
 
     this.pane.addBlade({ view: 'separator' });
 
-    // Settings: grid size + testcard
     const settingsFolder = this.pane.addFolder({ title: 'Settings', expanded: true });
 
     settingsFolder
       .addBinding(this.settings, 'showTestcard', { label: 'Testcard' })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setShowTestCard(e.value as boolean);
+        this.saveSettings();
+      });
+
+    // Warp Mode
+    const warpBlade = settingsFolder
+      .addBlade({
+        view: 'list',
+        label: 'Warp Mode',
+        options: [
+          { text: 'Bilinear', value: WARP_MODE.bilinear },
+          { text: 'Bicubic', value: WARP_MODE.bicubic },
+        ],
+        value: this.settings.warpMode,
+      })
+      .on('change', (e: unknown) => {
+        this.settings.warpMode = e.value;
+        this.mapper.getWarper().setWarpMode(e.value);
         this.saveSettings();
       });
 
@@ -220,6 +240,7 @@ export class ProjectionMapperGUI {
   private applySettings(): void {
     this.mapper.setShowTestCard(this.settings.showTestcard);
     this.mapper.setGridSize(this.settings.gridSize.x, this.settings.gridSize.y);
+    this.mapper.getWarper().setWarpMode(this.settings.warpMode);
     this.applyVisibility();
   }
 
