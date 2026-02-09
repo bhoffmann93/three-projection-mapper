@@ -445,6 +445,7 @@ export class MeshWarper {
 
   public setWarpMode(mode: WARP_MODE): void {
     this.material.uniforms.uWarpMode.value = mode;
+    this.material.needsUpdate = true;
   }
 
   public getWarpMode(): WARP_MODE {
