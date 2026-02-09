@@ -47,15 +47,16 @@
     "@vitest/ui": "^3.2.4",
     "eslint": "^9.39.1",
     "globals": "^16.5.0",
-        "typescript": "^5.9.3",
+    "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.4",
     "vite": "^7.2.2",
+    "vite-plugin-dts": "^4.5.4",
     "vite-plugin-glsl": "^1.5.4",
     "vitest": "^3.2.4"
   },
   "dependencies": {
     "convex-hull": "^1.0.3",
-    "three": "^0.181.1",
+    "three": ">=0.150.0",
     "tweakpane": "^4.0.5"
   }
 }
