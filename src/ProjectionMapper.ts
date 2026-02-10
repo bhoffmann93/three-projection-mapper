@@ -65,8 +65,12 @@ export class ProjectionMapper {
     this.renderer = renderer;
     this.clock = new THREE.Clock();
 
+    //Get Dimensions from Texture / Render Target
+    const texWidth = (inputTexture as any).image?.width || (inputTexture as any).width;
+    const texHeight = (inputTexture as any).image?.height || (inputTexture as any).height;
+
     // Resolution in pixels (for textures/shaders)
-    this.resolution = config.resolution ?? { width: 1920, height: 1080 };
+    this.resolution = config.resolution ?? { width: texWidth, height: texHeight };
 
     // Normalize to small world units: height is always 10, width follows aspect
     const aspectRatio = this.resolution.width / this.resolution.height;
