@@ -239,6 +239,7 @@ float drawBorderLines(vec2 uv) {
 void main() {
     vec3 color;
 
+    //test card always gets displayed at full res (render res)
     if(uShowTestCard) {
         color = testCard(vUv, uShouldWarp ? uWarpPlaneSize : uBufferResolution, uTime);
     } else {

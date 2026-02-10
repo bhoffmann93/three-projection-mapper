@@ -122,7 +122,7 @@ export class ProjectionMapperGUI {
 
     // Warp UI
     this.warpFolder = this.pane.addFolder({ title: 'Warping', expanded: true });
-    
+
     // Ensure folder state matches loaded settings
     this.warpFolder.disabled = !this.settings.shouldWarp;
     if (!this.settings.shouldWarp) {
@@ -304,6 +304,10 @@ export class ProjectionMapperGUI {
 
   dispose(): void {
     this.pane.dispose();
+  }
+
+  collapse(): void {
+    this.pane.expanded = false;
   }
 
   private saveSettings(): void {
