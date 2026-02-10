@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { MeshWarper, MeshWarperConfig, WARP_MODE } from './MeshWarper';
+import { MeshWarper, MeshWarperConfig } from './MeshWarper';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';

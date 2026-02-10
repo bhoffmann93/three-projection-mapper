@@ -102,6 +102,8 @@ export class ProjectionMapperGUI {
         const enabled = e.value as boolean;
         this.mapper.setShouldWarp(enabled);
         this.warpFolder.disabled = !enabled;
+        this.warpFolder.expanded = enabled;
+
         if (!enabled) {
           this.toggleWarpUI(false);
         } else {

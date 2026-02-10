@@ -1,5 +1,5 @@
 {
-  "name": "three-projection-mapping",
+  "name": "three-projection-mapper",
   "version": "1.0.0",
   "description": "A projection mapping library for Three.js with interactive warp grid control",
   "type": "module",
