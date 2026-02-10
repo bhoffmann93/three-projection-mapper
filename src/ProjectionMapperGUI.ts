@@ -8,6 +8,7 @@ export const enum GUI_ANCHOR {
 }
 
 export interface ProjectionMapperGUISettings {
+  shouldWarp: boolean;
   showTestcard: boolean;
   showControlLines: boolean;
   warpMode: WARP_MODE;
@@ -28,7 +29,6 @@ export class ProjectionMapperGUI {
     ProjectionMapperGUISettings,
     'showGridPoints' | 'showCornerPoints' | 'showOutline' | 'showControlLines'
   > | null = null;
-  private transient = { shouldWarp: true };
   private warpFolder!: FolderApi;
 
   private readonly STORAGE_KEY = GUI_STORAGE_KEY;
@@ -37,6 +37,7 @@ export class ProjectionMapperGUI {
     this.mapper = mapper;
 
     this.settings = {
+      shouldWarp: mapper.isShouldWarp(),
       showTestcard: mapper.isShowingTestCard(),
       showControlLines: mapper.isShowingControlLines(),
       warpMode: mapper.getWarper().getWarpMode(),
@@ -97,7 +98,7 @@ export class ProjectionMapperGUI {
       });
 
     settingsFolder
-      .addBinding(this.transient, 'shouldWarp', { label: 'Apply Warp' })
+      .addBinding(this.settings, 'shouldWarp', { label: 'Apply Warp' })
       .on('change', (e: TpChangeEvent<unknown>) => {
         const enabled = e.value as boolean;
         this.mapper.setShouldWarp(enabled);
@@ -109,6 +110,7 @@ export class ProjectionMapperGUI {
         } else {
           this.toggleWarpUI(true);
         }
+        this.saveSettings();
       });
 
     settingsFolder
@@ -120,6 +122,13 @@ export class ProjectionMapperGUI {
 
     // Warp UI
     this.warpFolder = this.pane.addFolder({ title: 'Warping', expanded: true });
+    
+    // Ensure folder state matches loaded settings
+    this.warpFolder.disabled = !this.settings.shouldWarp;
+    if (!this.settings.shouldWarp) {
+      this.warpFolder.expanded = false;
+    }
+
     const visFolder = this.warpFolder;
 
     // Warp Mode
@@ -261,6 +270,7 @@ export class ProjectionMapperGUI {
   }
 
   private applySettings(): void {
+    this.mapper.setShouldWarp(this.settings.shouldWarp);
     this.mapper.setShowTestCard(this.settings.showTestcard);
     //only apply if settings differ
     const currentX = this.mapper.getWarper().getGridSizeX();
