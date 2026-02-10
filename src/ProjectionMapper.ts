@@ -70,6 +70,7 @@ export class ProjectionMapper {
     const texHeight = (inputTexture as any).image?.height || (inputTexture as any).height;
 
     // Resolution in pixels (for textures/shaders)
+    // User can overwrite the Resolution which calculates a different aspect ratio
     this.resolution = config.resolution ?? { width: texWidth, height: texHeight };
 
     // Normalize to small world units: height is always 10, width follows aspect

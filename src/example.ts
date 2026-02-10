@@ -48,9 +48,7 @@ light.position.set(1, 1, 1);
 contentScene.add(light);
 contentScene.add(new THREE.AmbientLight(0x404040));
 
-const mapper = new ProjectionMapper(renderer, renderTarget.texture, {
-  resolution: projectionResolution,
-});
+const mapper = new ProjectionMapper(renderer, renderTarget.texture);
 
 const gui = new ProjectionMapperGUI(mapper, 'Projection Mapper', PROJECTION_GUI_POSITION.LEFT);
 window.addEventListener('keydown', (e) => {
