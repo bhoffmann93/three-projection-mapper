@@ -79,7 +79,7 @@ export class ProjectionMapper {
     this.worldWidth = 10 * aspectRatio;
 
     const DEFAULT_MIN_GRID_WARP_POINTS = 3;
-    const DEFAULT_PLANE_SCALE = 0.7;
+    const DEFAULT_PLANE_SCALE = 0.5;
     const DEFAULT_SEGMENTS = 50;
     const DEFAULT_AA = true;
 

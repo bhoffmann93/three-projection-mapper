@@ -23,8 +23,8 @@ document.body.appendChild(renderer.domElement);
 const projectionResolution = { width: 1920, height: 1080 };
 
 const renderTarget = new THREE.WebGLRenderTarget(projectionResolution.width, projectionResolution.height, {
-  magFilter: THREE.LinearFilter,
   minFilter: THREE.LinearFilter,
+  magFilter: THREE.LinearFilter,
   generateMipmaps: false,
 });
 
