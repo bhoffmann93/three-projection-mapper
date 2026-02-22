@@ -9,7 +9,9 @@
       "Bash(npm test:*)",
       "Bash(git checkout:*)",
       "Bash(npx tsc:*)",
-      "Bash(node -e:*)"
+      "Bash(node -e:*)",
+      "Bash(ls:*)",
+      "Bash(npm start)"
     ]
   }
 }

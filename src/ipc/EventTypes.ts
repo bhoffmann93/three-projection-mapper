@@ -1,0 +1,32 @@
+/**
+ * Type-safe event enumeration for projection mapper IPC
+ * Using const enum for zero runtime overhead
+ */
+export const enum ProjectionEventType {
+  // Control point updates
+  CORNER_POINTS_UPDATED = 'CORNER_POINTS_UPDATED',
+  GRID_POINTS_UPDATED = 'GRID_POINTS_UPDATED',
+
+  // Grid configuration
+  GRID_SIZE_CHANGED = 'GRID_SIZE_CHANGED',
+
+  // Warp settings
+  WARP_MODE_CHANGED = 'WARP_MODE_CHANGED',
+  SHOULD_WARP_CHANGED = 'SHOULD_WARP_CHANGED',
+
+  // Visual toggles
+  TESTCARD_TOGGLED = 'TESTCARD_TOGGLED',
+  CONTROL_LINES_TOGGLED = 'CONTROL_LINES_TOGGLED',
+  CONTROLS_VISIBILITY_CHANGED = 'CONTROLS_VISIBILITY_CHANGED',
+
+  // Camera/view settings
+  CAMERA_OFFSET_CHANGED = 'CAMERA_OFFSET_CHANGED',
+  PLANE_SCALE_CHANGED = 'PLANE_SCALE_CHANGED',
+
+  // Lifecycle events
+  CONTROLLER_READY = 'CONTROLLER_READY',
+  PROJECTOR_READY = 'PROJECTOR_READY',
+  REQUEST_FULL_STATE = 'REQUEST_FULL_STATE',
+  FULL_STATE_SYNC = 'FULL_STATE_SYNC',
+  RESET_WARP = 'RESET_WARP',
+}
