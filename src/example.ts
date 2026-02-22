@@ -80,7 +80,7 @@ const aspect = projectorResolution.width / projectorResolution.height;
 //throw: distance cam to surface
 //width: projection width in real world
 
-const distToProjectionSurface = 1.0; //m
+const distToProjectionSurface = 1.5; //m
 const lensCenterY = 0.05;
 const throwRatio = 1.65; //1.55-1.7 based on zoom
 
@@ -92,19 +92,22 @@ const projectionWidth = distToProjectionSurface / throwRatio;
 const projectionHeight = projectionWidth / aspect;
 // console.log('projectionHeight: ', projectionHeight / 2 - 10);
 
-const verticalShift = projectionHeight / 2; // This is the 0.3m
-
 const projectorCam = new THREE.PerspectiveCamera(fovDegrees, aspect, 0.1, 1000);
+
+// Physical Position in the Room
 projectorCam.position.set(0.0, lensCenterY, distToProjectionSurface);
 
-//how tited the projector is in physical world
-const physicalTiltDegrees = 0.0;
+// How Tilted the Porjector is
+const physicalTiltDegrees = 0;
 projectorCam.rotation.x = THREE.MathUtils.degToRad(physicalTiltDegrees);
 
 projectorCam.updateProjectionMatrix();
-// internal optical offset fixed
-// lens is at bottom of cone (Acer) some are 100% (1.0) some are 110% (1.1)
-// vertical shear
+
+// Internal Lens fixed Lens Offset
+//1:1.12
+// Vertical offset Lens (Acer) 100% (1.0) some are 110% (1.1)
+// the projectors are build like this to project standing on a table / floor etc
+// vertical shear matrix does not change angle
 const lensShiftY = 1.0; //should be fixed for the projector
 projectorCam.projectionMatrix.elements[9] = lensShiftY; //! needs to be called in resize
 
@@ -180,7 +183,7 @@ function animate() {
   renderer.setRenderTarget(renderTarget);
   renderer.render(contentScene, projectorCam);
 
-  // projectorCam.projectionMatrix.elements[9] = lensShiftY;
+  projectorCam.projectionMatrix.elements[9] = lensShiftY;
 
   // Render the projection mapped output to the screen
   mapper.render();
