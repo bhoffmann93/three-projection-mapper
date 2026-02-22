@@ -114,7 +114,7 @@ export class ProjectionMapperGUI {
       });
 
     settingsFolder
-      .addBinding(this.settings, 'zoom', { label: 'Zoom', min: 0.5, max: 1.0, step: 0.01 })
+      .addBinding(this.settings, 'zoom', { label: 'Zoom', min: 0.125, max: 1.0, step: 0.01 })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setPlaneScale(e.value as number);
         this.saveSettings();
