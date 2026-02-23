@@ -1,6 +1,6 @@
 import { FolderApi, Pane, TpChangeEvent } from 'tweakpane';
 import { ProjectionMapper } from './ProjectionMapper';
-import { WARP_MODE } from './MeshWarper';
+import { WARP_MODE } from '../warp/MeshWarper';
 
 export const enum GUI_ANCHOR {
   LEFT = 'left',

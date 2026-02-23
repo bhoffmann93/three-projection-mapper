@@ -9,7 +9,7 @@
  * For multi-window support, import from 'three-projection-mapper/addons'
  */
 
-export { ProjectionMapper, type ProjectionMapperConfig } from './ProjectionMapper';
-export { ProjectionMapperGUI, GUI_ANCHOR, GUI_STORAGE_KEY, type ProjectionMapperGUISettings } from './ProjectionMapperGUI';
-export { MeshWarper, WARP_MODE, type MeshWarperConfig } from './MeshWarper';
-export { calculateGridPoints } from './geometry';
+export { ProjectionMapper, type ProjectionMapperConfig } from './core/ProjectionMapper';
+export { ProjectionMapperGUI, GUI_ANCHOR, GUI_STORAGE_KEY, type ProjectionMapperGUISettings } from './core/ProjectionMapperGUI';
+export { MeshWarper, WARP_MODE, type MeshWarperConfig } from './warp/MeshWarper';
+export { calculateGridPoints } from './warp/geometry';

@@ -1,20 +1,19 @@
 /**
  * Controller Window - Multi-Window Projection Mapping
  *
- * This shows the multi-window setup:
- * 1. Create your Three.js scene using shared.ts (DRY!)
- * 2. Add WindowSync addon for multi-window support
- * 3. Open projector window with 'O' key
- * 4. Warp settings sync automatically
+ * Clean separation of concerns:
+ * - ProjectionScene: Manages 3D content (user code)
+ * - ProjectionMapper: Manages warping (library code)
+ * - WindowSync: Manages multi-window sync (library code)
  */
 
 import * as THREE from 'three';
-import { ProjectionMapper } from '../../src/ProjectionMapper';
+import { ProjectionMapper } from '../../src/core/ProjectionMapper';
 import { ControllerGUI } from '../../src/gui/ControllerGUI';
 import { WindowSync } from '../../src/addons/WindowSync';
-import { createProjectionScene, animateScene, renderScene } from './shared';
+import { ProjectionScene } from './ProjectionScene';
 
-// ===== 1. Setup Renderer =====
+// Setup renderer
 const renderer = new THREE.WebGLRenderer({
   powerPreference: 'high-performance',
   antialias: false,
@@ -23,32 +22,27 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 document.body.appendChild(renderer.domElement);
 
-// ===== 2. Create Scene Using Shared Code (DRY!) =====
-const sceneData = createProjectionScene();
+// Create scene (user code - encapsulated complexity)
+const projectionScene = new ProjectionScene({
+  width: 1280,
+  height: 800,
+});
 
-// ===== 3. Create Projection Mapper =====
-const mapper = new ProjectionMapper(renderer, sceneData.renderTarget.texture);
+// Setup projection mapper (library code)
+const mapper = new ProjectionMapper(renderer, projectionScene.getTexture());
 
-// ===== 4. Add Multi-Window Support =====
+// Add multi-window support (library code)
 const sync = new WindowSync(mapper, { mode: 'controller' });
 
-// ===== 5. Create GUI =====
+// Create GUI
 const gui = new ControllerGUI(
   mapper,
   sync.getEventChannel(),
   sync.getWindowManager(),
   'Controller',
   undefined,
-  () => {
-    // Grid size change callback - re-attach drag listener
-    setTimeout(() => {
-      sync.reattachDragListener();
-    }, 50);
-  },
-  (visible: boolean) => {
-    // Projector controls visibility callback
-    console.log('[Controller] Projector controls visibility:', visible);
-  },
+  () => setTimeout(() => sync.reattachDragListener(), 50),
+  (visible: boolean) => console.log('[Controller] Projector controls visibility:', visible),
 );
 
 // Keyboard shortcuts
@@ -62,21 +56,19 @@ window.addEventListener('keydown', (e) => {
 // Handle resize
 window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
-  sceneData.camera.aspect = 1280 / 800;
-  sceneData.camera.updateProjectionMatrix();
-  sceneData.camera.projectionMatrix.elements[9] = sceneData.lensShiftY;
+  projectionScene.updateCameraAspect(1280 / 800);
   mapper.resize(window.innerWidth, window.innerHeight);
 });
 
-// ===== 6. Animation Loop =====
+// Animation loop - Clean and simple
 function animate() {
   requestAnimationFrame(animate);
 
-  // Animate using shared function (DRY!)
-  animateScene(sceneData);
+  // Update scene animation
+  projectionScene.animate();
 
-  // Render using shared function (DRY!)
-  renderScene(renderer, sceneData);
+  // Render scene to texture
+  projectionScene.render(renderer);
 
   // Render warped output to screen
   renderer.setRenderTarget(null);

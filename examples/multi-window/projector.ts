@@ -1,57 +1,57 @@
 /**
  * Projector Window - Receives Warp Settings from Controller
  *
- * This shows the projector setup:
- * 1. Create the SAME scene as controller using shared.ts (DRY!)
- * 2. Add WindowSync addon in projector mode
- * 3. Warp settings are received automatically from controller
- * 4. Both windows render the same content independently
- * 5. Drag controls are DISABLED (projector is receive-only)
+ * Clean separation of concerns:
+ * - ProjectionScene: Manages 3D content (SAME as controller)
+ * - ProjectionMapper: Manages warping (library code)
+ * - WindowSync: Receives sync updates (library code)
+ *
+ * Key: Drag controls disabled - projector is receive-only
  */
 
 import * as THREE from 'three';
-import { ProjectionMapper } from '../../src/ProjectionMapper';
+import { ProjectionMapper } from '../../src/core/ProjectionMapper';
 import { WindowSync } from '../../src/addons/WindowSync';
-import { createProjectionScene, animateScene, renderScene } from './shared';
+import { ProjectionScene } from './ProjectionScene';
 
 // Hide cursor for clean projection
 document.body.style.cursor = 'none';
 
-// ===== 1. Setup Renderer (Fixed 1280x800 for projector) =====
+// Setup renderer (fixed 1280x800 for projector)
 const renderer = new THREE.WebGLRenderer({
   powerPreference: 'high-performance',
   antialias: false,
 });
 renderer.setSize(1280, 800);
-renderer.setPixelRatio(1); // Fixed 1:1 for projector
+renderer.setPixelRatio(1);
 document.body.appendChild(renderer.domElement);
 
-// ===== 2. Create Scene Using Shared Code (SAME as controller!) =====
-const sceneData = createProjectionScene();
+// Create scene (SAME class as controller - ensures identical rendering)
+const projectionScene = new ProjectionScene({
+  width: 1280,
+  height: 800,
+});
 
-// ===== 3. Create Projection Mapper =====
-const mapper = new ProjectionMapper(renderer, sceneData.renderTarget.texture);
+// Setup projection mapper (library code)
+const mapper = new ProjectionMapper(renderer, projectionScene.getTexture());
 
-// ===== 4. Add Multi-Window Support (Projector Mode) =====
+// Add multi-window support in projector mode (library code)
 const sync = new WindowSync(mapper, { mode: 'projector' });
 
-// ===== 5. Projector Configuration =====
-// Hide controls and fix zoom for projector output
+// Projector configuration: receive-only, no interaction
 mapper.setControlsVisible(false);
 mapper.setPlaneScale(1.0);
+mapper.getWarper().setDragEnabled(false); // CRITICAL: Disable drag controls
 
-// CRITICAL: Disable drag controls completely (projector is receive-only)
-mapper.getWarper().setDragEnabled(false);
-
-// ===== 6. Animation Loop (SAME as controller!) =====
+// Animation loop - Clean and simple
 function animate() {
   requestAnimationFrame(animate);
 
-  // Animate using shared function (SAME as controller!)
-  animateScene(sceneData);
+  // Update scene animation (SAME as controller)
+  projectionScene.animate();
 
-  // Render using shared function (SAME as controller!)
-  renderScene(renderer, sceneData);
+  // Render scene to texture (SAME as controller)
+  projectionScene.render(renderer);
 
   // Render warped output to screen
   renderer.setRenderTarget(null);

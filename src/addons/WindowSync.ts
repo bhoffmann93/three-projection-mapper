@@ -18,7 +18,7 @@
  */
 
 import * as THREE from 'three';
-import { ProjectionMapper } from '../ProjectionMapper';
+import { ProjectionMapper } from '../core/ProjectionMapper';
 import { EventChannel } from '../ipc/EventChannel';
 import { WindowManager } from '../windows/WindowManager';
 import { ProjectionEventType } from '../ipc/EventTypes';

@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import { MeshWarper, MeshWarperConfig } from './MeshWarper';
+import { MeshWarper, MeshWarperConfig } from '../warp/MeshWarper';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
-import projectionFragmentShader from './shaders/projection.frag';
-import { calculateGridPoints } from './geometry';
+import projectionFragmentShader from '../shaders/projection.frag';
+import { calculateGridPoints } from '../warp/geometry';
 import { GUI_STORAGE_KEY } from './ProjectionMapperGUI';
 
 export interface ProjectionMapperConfig {

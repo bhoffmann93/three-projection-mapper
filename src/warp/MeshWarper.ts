@@ -6,10 +6,10 @@ import { Line2 } from 'three/addons/lines/Line2.js';
 import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 //@ts-ignore
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
-import PerspT from './perspective';
+import PerspT from '../utils/perspective';
 import { isQuadConcave } from './geometry';
 import { clamp } from 'three/src/math/MathUtils';
-import meshWarpVertexShader from './shaders/warp.vert';
+import meshWarpVertexShader from '../shaders/warp.vert';
 
 export enum WARP_MODE {
   bilinear = 0,

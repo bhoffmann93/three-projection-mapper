@@ -1,10 +1,10 @@
 import { FolderApi, Pane, TpChangeEvent } from 'tweakpane';
-import { ProjectionMapper } from '../ProjectionMapper';
+import { ProjectionMapper } from '../core/ProjectionMapper';
 import { EventChannel } from '../ipc/EventChannel';
 import { ProjectionEventType } from '../ipc/EventTypes';
 import { WindowManager } from '../windows/WindowManager';
-import { WARP_MODE } from '../MeshWarper';
-import { GUI_ANCHOR, ProjectionMapperGUISettings, GUI_STORAGE_KEY } from '../ProjectionMapperGUI';
+import { WARP_MODE } from '../warp/MeshWarper';
+import { GUI_ANCHOR, ProjectionMapperGUISettings, GUI_STORAGE_KEY } from '../core/ProjectionMapperGUI';
 
 /**
  * Controller-specific GUI with event broadcasting

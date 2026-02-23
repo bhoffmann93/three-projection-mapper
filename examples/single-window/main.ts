@@ -8,8 +8,8 @@
  */
 
 import * as THREE from 'three';
-import { ProjectionMapper } from '../../src/ProjectionMapper';
-import { ProjectionMapperGUI, GUI_ANCHOR } from '../../src/ProjectionMapperGUI';
+import { ProjectionMapper } from '../../src/core/ProjectionMapper';
+import { ProjectionMapperGUI, GUI_ANCHOR } from '../../src/core/ProjectionMapperGUI';
 
 // ===== 1. Setup Renderer =====
 const renderer = new THREE.WebGLRenderer({
