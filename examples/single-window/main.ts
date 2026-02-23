@@ -12,7 +12,10 @@ document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 
-const aspect = 1280 / 800;
+const oversamplingFactor = 1.0;
+const projectionResolution = new THREE.Vector2(1280, 800);
+
+const aspect = projectionResolution.x / projectionResolution.y;
 const throwRatio = 1.65; // Acer X1383WH
 const fovV = 2 * Math.atan(Math.tan(Math.atan(1 / (2 * throwRatio))) / aspect);
 const camera = new THREE.PerspectiveCamera(fovV * (180 / Math.PI), aspect, 0.1, 1000);
@@ -37,7 +40,10 @@ scene.add(new THREE.AmbientLight(0x404040));
 const grid = new THREE.GridHelper(2.0, 20, 0xff0000, 0xffffff);
 scene.add(grid);
 
-const renderTarget = new THREE.WebGLRenderTarget(1280, 800, {
+//increase resolution for warping
+projectionResolution.multiplyScalar(oversamplingFactor);
+
+const renderTarget = new THREE.WebGLRenderTarget(projectionResolution.x, projectionResolution.y, {
   minFilter: THREE.LinearFilter,
   magFilter: THREE.LinearFilter,
   generateMipmaps: false,
@@ -54,7 +60,7 @@ window.addEventListener('keydown', (e) => {
 
 window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
-  camera.aspect = 1280 / 800;
+  camera.aspect = projectionResolution.x / projectionResolution.y;
   camera.updateProjectionMatrix();
   camera.projectionMatrix.elements[9] = 1.0;
   mapper.resize(window.innerWidth, window.innerHeight);
