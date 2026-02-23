@@ -25,6 +25,7 @@
     "dev": "vite",
     "build": "vite build",
     "build:lib": "vite build --config vite.lib.config.ts",
+    "prepare": "npm run build:lib",
     "prepublishOnly": "npm run build:lib",
     "test": "vitest",
     "preview": "vite preview",
