@@ -185,8 +185,8 @@ export class WindowSync {
 
       // Broadcast grid points
       this.eventChannel.emit(ProjectionEventType.GRID_POINTS_UPDATED, {
-        points: gridPoints.map(p => this.normalizePoint(p, config.width, config.height)),
-        referencePoints: referenceGridPoints.map(p => this.normalizePoint(p, config.width, config.height)),
+        points: gridPoints.map((p: THREE.Vector3) => this.normalizePoint(p, config.width, config.height)),
+        referencePoints: referenceGridPoints.map((p: THREE.Vector3) => this.normalizePoint(p, config.width, config.height)),
       });
     });
   }
@@ -218,9 +218,9 @@ export class WindowSync {
     const referenceGridPoints = (warper as any).referenceGridControlPoints;
 
     return {
-      cornerPoints: cornerPoints.map(p => this.normalizePoint(p, config.width, config.height)),
-      gridPoints: gridPoints.map(p => this.normalizePoint(p, config.width, config.height)),
-      referenceGridPoints: referenceGridPoints.map(p => this.normalizePoint(p, config.width, config.height)),
+      cornerPoints: cornerPoints.map((p: THREE.Vector3) => this.normalizePoint(p, config.width, config.height)),
+      gridPoints: gridPoints.map((p: THREE.Vector3) => this.normalizePoint(p, config.width, config.height)),
+      referenceGridPoints: referenceGridPoints.map((p: THREE.Vector3) => this.normalizePoint(p, config.width, config.height)),
       gridSize: {
         x: warper.getGridSizeX(),
         y: warper.getGridSizeY(),
@@ -373,12 +373,12 @@ export class WindowSync {
   /**
    * Open projector window (controller only)
    */
-  public openProjectorWindow(url?: string): Window | null {
+  public openProjectorWindow(): void {
     if (this.mode !== WINDOW_SYNC_MODE.CONTROLLER) {
       console.warn('WindowSync: openProjectorWindow() can only be called from controller mode');
-      return null;
+      return;
     }
-    return this.windowManager.openProjectorWindow(url);
+    this.windowManager.openProjectorWindow();
   }
 
   /**
