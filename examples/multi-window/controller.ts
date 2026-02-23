@@ -4,7 +4,6 @@ import { ProjectionMapperGUI, GUI_ANCHOR } from '../../src/core/ProjectionMapper
 import { WindowSync, WINDOW_SYNC_MODE } from '../../src/addons/WindowSync';
 import { ProjectionScene } from './ProjectionScene';
 import MUTLI_WINDOW_CONFIG from './multi-window.config';
-import { MultiLogController } from '@tweakpane/core';
 
 const renderer = new THREE.WebGLRenderer({
   powerPreference: 'high-performance',
@@ -27,7 +26,6 @@ const gui = new ProjectionMapperGUI(mapper, {
   anchor: GUI_ANCHOR.LEFT,
   eventChannel: sync.getEventChannel(),
   windowManager: sync.getWindowManager(),
-  onProjectorControlsChange: (visible) => console.log('[Controller] Projector controls:', visible),
 });
 
 window.addEventListener('keydown', (e) => {

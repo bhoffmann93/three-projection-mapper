@@ -17,7 +17,6 @@ export interface ProjectionMapperGUIConfig {
   anchor?: GUI_ANCHOR;
   eventChannel?: EventChannel; // Optional: enables event broadcasting
   windowManager?: WindowManager; // Optional: enables projector window button
-  onProjectorControlsChange?: (visible: boolean) => void;
 }
 
 export interface ProjectionMapperGUISettings {
@@ -30,7 +29,6 @@ export interface ProjectionMapperGUISettings {
   showGridPoints: boolean;
   showCornerPoints: boolean;
   showOutline: boolean;
-  showProjectorControls?: boolean; // Optional for backwards compatibility
 }
 
 export const GUI_STORAGE_KEY = 'projection-mapper-gui-settings';
@@ -69,7 +67,6 @@ export class ProjectionMapperGUI {
       showGridPoints: true,
       showCornerPoints: true,
       showOutline: true,
-      showProjectorControls: false, // Default: hide controls on projector
     };
 
     this.loadSettings();
@@ -148,23 +145,6 @@ export class ProjectionMapperGUI {
           show: e.value as boolean,
         });
       });
-
-    // Conditional: Add projector controls toggle in multi-window mode
-    if (this.isMultiWindowMode()) {
-      settingsFolder
-        .addBinding(this.settings, 'showProjectorControls', { label: 'Projector Controls' })
-        .on('change', (e: TpChangeEvent<unknown>) => {
-          const visible = e.value as boolean;
-          this.settings.showProjectorControls = visible;
-          this.saveSettings();
-          this.broadcast(ProjectionEventType.CONTROLS_VISIBILITY_CHANGED, {
-            visible,
-          });
-          if (this.config.onProjectorControlsChange) {
-            this.config.onProjectorControlsChange(visible);
-          }
-        });
-    }
 
     settingsFolder
       .addBinding(this.settings, 'shouldWarp', { label: 'Warp' })
