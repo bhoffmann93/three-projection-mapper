@@ -110,6 +110,11 @@ export class WindowSync {
    * Receives updates from controller
    */
   private setupProjectorSync(): void {
+    // Configure mapper for projector mode (receive-only, no user interaction)
+    this.mapper.setControlsVisible(false);
+    this.mapper.setPlaneScale(1.0);
+    this.mapper.getWarper().setDragEnabled(false);
+
     // Request full state from controller
     console.log('[WindowSync] Projector requesting full state from controller...');
     this.eventChannel.emit(ProjectionEventType.PROJECTOR_READY, {});

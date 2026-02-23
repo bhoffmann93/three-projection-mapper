@@ -23,10 +23,6 @@ const projectionScene = new ProjectionScene({ width: bufferResolution.width, hei
 const mapper = new ProjectionMapper(renderer, projectionScene.getTexture());
 const sync = new WindowSync(mapper, { mode: WINDOW_SYNC_MODE.PROJECTOR });
 
-mapper.setControlsVisible(false);
-mapper.setPlaneScale(1.0);
-mapper.getWarper().setDragEnabled(false); // Projector is receive-only, no user interaction
-
 function animate() {
   requestAnimationFrame(animate);
   projectionScene.animate();

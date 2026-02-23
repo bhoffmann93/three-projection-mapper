@@ -59,7 +59,13 @@ animate();
 
 ### Multi-Window (Controller + Projector)
 
-**Encapsulate your scene in a class:**
+For professional projection mapping setups, use two browser windows:
+- **Controller Window**: Full GUI for calibration, drag controls, preview
+- **Projector Window**: Output-only display (fullscreen on projector hardware)
+
+State automatically syncs between windows via BroadcastChannel (no server required).
+
+**Step 1: Encapsulate your scene in a class:**
 
 ```typescript
 // ProjectionScene.ts
@@ -100,7 +106,7 @@ export class ProjectionScene {
 }
 ```
 
-**Controller window:**
+**Step 2: Controller window (calibration & control):**
 
 ```typescript
 // controller.ts
@@ -139,7 +145,7 @@ function animate() {
 animate();
 ```
 
-**Projector window:**
+**Step 3: Projector window (output-only):**
 
 ```typescript
 // projector.ts
@@ -156,10 +162,6 @@ const projectionScene = new ProjectionScene({ width: 1280, height: 800 });
 const mapper = new ProjectionMapper(renderer, projectionScene.getTexture());
 const sync = new WindowSync(mapper, { mode: WINDOW_SYNC_MODE.PROJECTOR });
 
-mapper.setControlsVisible(false);
-mapper.setPlaneScale(1.0);
-mapper.getWarper().setDragEnabled(false); // Projector is receive-only
-
 function animate() {
   requestAnimationFrame(animate);
   projectionScene.animate();
@@ -170,6 +172,12 @@ function animate() {
 
 animate();
 ```
+
+**What WindowSync does automatically:**
+- **Controller mode**: Broadcasts all state changes (warp points, settings, testcard) to projector
+- **Projector mode**: Hides all controls, disables drag, sets scale to 1.0, receives updates from controller
+
+**See full example:** `/examples/multi-window/`
 
 ## API Reference
 
