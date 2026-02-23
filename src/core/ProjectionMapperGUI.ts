@@ -45,6 +45,7 @@ export class ProjectionMapperGUI {
   > | null = null;
   private warpFolder!: FolderApi;
   private config: ProjectionMapperGUIConfig;
+  private cornersOutlineState = { enabled: true };
 
   private readonly STORAGE_KEY = GUI_STORAGE_KEY;
 
@@ -166,7 +167,7 @@ export class ProjectionMapperGUI {
     }
 
     settingsFolder
-      .addBinding(this.settings, 'shouldWarp', { label: 'Apply Warp' })
+      .addBinding(this.settings, 'shouldWarp', { label: 'Warp' })
       .on('change', (e: TpChangeEvent<unknown>) => {
         const enabled = e.value as boolean;
         this.mapper.setShouldWarp(enabled);
@@ -193,7 +194,7 @@ export class ProjectionMapperGUI {
       });
 
     // Warp UI
-    this.warpFolder = this.pane.addFolder({ title: 'Warp Grid', expanded: true });
+    this.warpFolder = this.pane.addFolder({ title: 'Warping', expanded: true });
 
     // Ensure folder state matches loaded settings
     this.warpFolder.disabled = !this.settings.shouldWarp;
@@ -201,8 +202,47 @@ export class ProjectionMapperGUI {
       this.warpFolder.expanded = false;
     }
 
-    // Warp Mode
-    this.warpFolder
+    this.warpFolder.addBlade({ view: 'separator' });
+
+    this.warpFolder.addButton({ title: 'Toggle Controls' }).on('click', () => this.toggleWarpUI());
+
+    this.warpFolder.addButton({ title: 'Show All' }).on('click', () => {
+      this.settings.showGridPoints = true;
+      this.settings.showCornerPoints = true;
+      this.settings.showOutline = true;
+      this.settings.showControlLines = true;
+      this.cornersOutlineState.enabled = true;
+      this.savedVisibility = null;
+      this.applyVisibility();
+      this.pane.refresh();
+      this.saveSettings();
+      this.broadcast(ProjectionEventType.CONTROLS_VISIBILITY_CHANGED, {
+        visible: true,
+      });
+      this.broadcast(ProjectionEventType.CONTROL_LINES_TOGGLED, {
+        show: true,
+      });
+    });
+
+    // Perspective Warp folder
+    const perspFolder = this.warpFolder.addFolder({ title: 'Perspective Warp', expanded: true });
+
+    this.cornersOutlineState.enabled = this.settings.showCornerPoints;
+    perspFolder
+      .addBinding(this.cornersOutlineState, 'enabled', { label: 'Show' })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        const enabled = e.value as boolean;
+        this.settings.showCornerPoints = enabled;
+        this.settings.showOutline = enabled;
+        this.mapper.setCornerPointsVisible(enabled);
+        this.mapper.setOutlineVisible(enabled);
+        this.saveSettings();
+      });
+
+    // Grid Warp folder
+    const gridFolder = this.warpFolder.addFolder({ title: 'Grid Warp', expanded: true });
+
+    gridFolder
       .addBlade({
         view: 'list',
         label: 'Warp Mode',
@@ -222,7 +262,7 @@ export class ProjectionMapperGUI {
         });
       });
 
-    this.warpFolder
+    gridFolder
       .addBinding(this.settings, 'gridSize', {
         label: 'Grid Size',
         x: { min: 2, max: 10, step: 1 },
@@ -261,45 +301,6 @@ export class ProjectionMapperGUI {
           });
         }
       });
-
-    this.warpFolder.addBlade({ view: 'separator' });
-
-    this.warpFolder.addButton({ title: 'Toggle Controls' }).on('click', () => this.toggleWarpUI());
-
-    this.warpFolder.addButton({ title: 'Show All' }).on('click', () => {
-      this.settings.showGridPoints = true;
-      this.settings.showCornerPoints = true;
-      this.settings.showOutline = true;
-      this.settings.showControlLines = true;
-      this.savedVisibility = null;
-      this.applyVisibility();
-      this.pane.refresh();
-      this.saveSettings();
-      this.broadcast(ProjectionEventType.CONTROLS_VISIBILITY_CHANGED, {
-        visible: true,
-      });
-      this.broadcast(ProjectionEventType.CONTROL_LINES_TOGGLED, {
-        show: true,
-      });
-    });
-
-    // Perspective Warp folder
-    const perspFolder = this.warpFolder.addFolder({ title: 'Perspective Warp', expanded: true });
-
-    const cornersOutlineState = { enabled: this.settings.showCornerPoints };
-    perspFolder
-      .addBinding(cornersOutlineState, 'enabled', { label: 'Show' })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        const enabled = e.value as boolean;
-        this.settings.showCornerPoints = enabled;
-        this.settings.showOutline = enabled;
-        this.mapper.setCornerPointsVisible(enabled);
-        this.mapper.setOutlineVisible(enabled);
-        this.saveSettings();
-      });
-
-    // Grid Warp folder
-    const gridFolder = this.warpFolder.addFolder({ title: 'Grid Warp', expanded: true });
 
     gridFolder
       .addBinding(this.settings, 'showGridPoints', { label: 'Grid Handles' })
@@ -363,6 +364,7 @@ export class ProjectionMapperGUI {
       this.settings.showCornerPoints = false;
       this.settings.showOutline = false;
       this.settings.showControlLines = false;
+      this.cornersOutlineState.enabled = false;
     } else if (shouldHide) {
       // Already hidden, nothing to do
     } else {
@@ -371,12 +373,14 @@ export class ProjectionMapperGUI {
         this.settings.showCornerPoints = this.savedVisibility.showCornerPoints;
         this.settings.showOutline = this.savedVisibility.showOutline;
         this.settings.showControlLines = this.savedVisibility.showControlLines;
+        this.cornersOutlineState.enabled = this.savedVisibility.showCornerPoints;
         this.savedVisibility = null;
       } else {
         this.settings.showGridPoints = true;
         this.settings.showCornerPoints = true;
         this.settings.showOutline = true;
         this.settings.showControlLines = true;
+        this.cornersOutlineState.enabled = true;
       }
     }
 
@@ -438,6 +442,9 @@ export class ProjectionMapperGUI {
   }
 
   private saveSettings(): void {
+    // Only controller should manage localStorage to avoid race conditions
+    if (this.isMultiWindowMode()) return;
+
     try {
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.settings));
     } catch (error) {
@@ -446,6 +453,10 @@ export class ProjectionMapperGUI {
   }
 
   private loadSettings(): void {
+    // Only controller should load from localStorage
+    // Projector will receive state via FULL_STATE_SYNC
+    if (this.isMultiWindowMode()) return;
+
     try {
       const saved = localStorage.getItem(this.STORAGE_KEY);
       if (!saved) return;
