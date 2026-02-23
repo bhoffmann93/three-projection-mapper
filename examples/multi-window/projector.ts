@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { ProjectionMapper } from '../../src/core/ProjectionMapper';
-import { WindowSync, WindowSyncMode } from '../../src/addons/WindowSync';
+import { WindowSync, WINDOW_SYNC_MODE } from '../../src/addons/WindowSync';
 import { ProjectionScene } from './ProjectionScene';
 import MUTLI_WINDOW_CONFIG from './multi-window.config';
 
@@ -21,7 +21,7 @@ const bufferResolution = {
 };
 const projectionScene = new ProjectionScene({ width: bufferResolution.width, height: bufferResolution.height });
 const mapper = new ProjectionMapper(renderer, projectionScene.getTexture());
-const sync = new WindowSync(mapper, { mode: 'projector' satisfies WindowSyncMode });
+const sync = new WindowSync(mapper, { mode: WINDOW_SYNC_MODE.PROJECTOR });
 
 mapper.setControlsVisible(false);
 mapper.setPlaneScale(1.0);

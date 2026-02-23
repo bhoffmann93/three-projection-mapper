@@ -15,9 +15,8 @@ export const enum GUI_ANCHOR {
 export interface ProjectionMapperGUIConfig {
   title?: string;
   anchor?: GUI_ANCHOR;
-  eventChannel?: EventChannel;           // Optional: enables event broadcasting
-  windowManager?: WindowManager;         // Optional: enables projector window button
-  onGridSizeChange?: () => void;
+  eventChannel?: EventChannel; // Optional: enables event broadcasting
+  windowManager?: WindowManager; // Optional: enables projector window button
   onProjectorControlsChange?: (visible: boolean) => void;
 }
 
@@ -93,10 +92,7 @@ export class ProjectionMapperGUI {
     return !!this.config.eventChannel;
   }
 
-  private broadcast<T extends ProjectionEventType>(
-    type: T,
-    payload: ProjectionEventPayloads[T]
-  ): void {
+  private broadcast<T extends ProjectionEventType>(type: T, payload: ProjectionEventPayloads[T]): void {
     if (this.config.eventChannel) {
       this.config.eventChannel.emit(type, payload);
     }
@@ -264,11 +260,6 @@ export class ProjectionMapperGUI {
             })),
           });
         }
-
-        // Call callback to re-attach drag listeners
-        if (this.config.onGridSizeChange) {
-          this.config.onGridSizeChange();
-        }
       });
 
     this.warpFolder.addBlade({ view: 'separator' });
@@ -292,13 +283,12 @@ export class ProjectionMapperGUI {
       });
     });
 
-    // GUI Controls folder - positioned AFTER buttons
-    const guiControlsFolder = this.warpFolder.addFolder({ title: 'GUI Controls', expanded: true });
+    // Perspective Warp folder
+    const perspFolder = this.warpFolder.addFolder({ title: 'Perspective Warp', expanded: true });
 
-    // Single combined toggle for corners and outline
     const cornersOutlineState = { enabled: this.settings.showCornerPoints };
-    guiControlsFolder
-      .addBinding(cornersOutlineState, 'enabled', { label: 'Show Corners/Outline' })
+    perspFolder
+      .addBinding(cornersOutlineState, 'enabled', { label: 'Show' })
       .on('change', (e: TpChangeEvent<unknown>) => {
         const enabled = e.value as boolean;
         this.settings.showCornerPoints = enabled;
@@ -308,14 +298,17 @@ export class ProjectionMapperGUI {
         this.saveSettings();
       });
 
-    guiControlsFolder
+    // Grid Warp folder
+    const gridFolder = this.warpFolder.addFolder({ title: 'Grid Warp', expanded: true });
+
+    gridFolder
       .addBinding(this.settings, 'showGridPoints', { label: 'Grid Handles' })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setGridPointsVisible(e.value as boolean);
         this.saveSettings();
       });
 
-    guiControlsFolder
+    gridFolder
       .addBinding(this.settings, 'showControlLines', { label: 'Control Lines' })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setShowControlLines(e.value as boolean);

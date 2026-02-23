@@ -105,9 +105,8 @@ export class ProjectionScene {
 ```typescript
 // controller.ts
 import * as THREE from 'three';
-import { ProjectionMapper } from 'three-projection-mapping';
-import { ControllerGUI } from 'three-projection-mapping/gui';
-import { WindowSync } from 'three-projection-mapping/addons';
+import { ProjectionMapper, ProjectionMapperGUI, GUI_ANCHOR } from 'three-projection-mapping';
+import { WindowSync, WINDOW_SYNC_MODE } from 'three-projection-mapping/addons';
 import { ProjectionScene } from './ProjectionScene';
 
 const renderer = new THREE.WebGLRenderer();
@@ -116,14 +115,14 @@ document.body.appendChild(renderer.domElement);
 
 const projectionScene = new ProjectionScene({ width: 1280, height: 800 });
 const mapper = new ProjectionMapper(renderer, projectionScene.getTexture());
-const sync = new WindowSync(mapper, { mode: 'controller' });
+const sync = new WindowSync(mapper, { mode: WINDOW_SYNC_MODE.CONTROLLER });
 
-const gui = new ControllerGUI(
-  mapper,
-  sync.getEventChannel(),
-  sync.getWindowManager(),
-  'Controller'
-);
+const gui = new ProjectionMapperGUI(mapper, {
+  title: 'Controller',
+  anchor: GUI_ANCHOR.LEFT,
+  eventChannel: sync.getEventChannel(),
+  windowManager: sync.getWindowManager(),
+});
 
 window.addEventListener('keydown', (e) => {
   if (e.key === 'o') sync.openProjectorWindow();
@@ -146,7 +145,7 @@ animate();
 // projector.ts
 import * as THREE from 'three';
 import { ProjectionMapper } from 'three-projection-mapping';
-import { WindowSync } from 'three-projection-mapping/addons';
+import { WindowSync, WINDOW_SYNC_MODE } from 'three-projection-mapping/addons';
 import { ProjectionScene } from './ProjectionScene';
 
 const renderer = new THREE.WebGLRenderer();
@@ -155,7 +154,7 @@ document.body.appendChild(renderer.domElement);
 
 const projectionScene = new ProjectionScene({ width: 1280, height: 800 });
 const mapper = new ProjectionMapper(renderer, projectionScene.getTexture());
-const sync = new WindowSync(mapper, { mode: 'projector' });
+const sync = new WindowSync(mapper, { mode: WINDOW_SYNC_MODE.PROJECTOR });
 
 mapper.setControlsVisible(false);
 mapper.setPlaneScale(1.0);
@@ -236,19 +235,22 @@ gui.hide();
 gui.dispose();
 ```
 
-### ControllerGUI
+### Multi-Window Mode
 
-GUI for multi-window controller with projector management.
+For multi-window projection setups, pass `eventChannel` and `windowManager` to enable event broadcasting and projector window controls. WindowSync automatically handles internal state synchronization.
 
 ```typescript
-import { ControllerGUI } from 'three-projection-mapping/gui';
+import { ProjectionMapperGUI, GUI_ANCHOR } from 'three-projection-mapping';
+import { WindowSync } from 'three-projection-mapping/addons';
 
-const gui = new ControllerGUI(
-  mapper,
-  eventChannel,
-  windowManager,
-  'Controller'
-);
+const sync = new WindowSync(mapper, { mode: 'controller' });
+
+const gui = new ProjectionMapperGUI(mapper, {
+  title: 'Controller',
+  anchor: GUI_ANCHOR.LEFT,
+  eventChannel: sync.getEventChannel(),
+  windowManager: sync.getWindowManager(),
+});
 ```
 
 ### WindowSync
@@ -256,15 +258,15 @@ const gui = new ControllerGUI(
 Multi-window synchronization addon.
 
 ```typescript
-import { WindowSync } from 'three-projection-mapping/addons';
+import { WindowSync, WINDOW_SYNC_MODE } from 'three-projection-mapping/addons';
 
 // Controller
-const sync = new WindowSync(mapper, { mode: 'controller' });
+const sync = new WindowSync(mapper, { mode: WINDOW_SYNC_MODE.CONTROLLER });
 sync.openProjectorWindow();
 sync.onProjectorReady(() => console.log('Connected!'));
 
 // Projector
-const sync = new WindowSync(mapper, { mode: 'projector' });
+const sync = new WindowSync(mapper, { mode: WINDOW_SYNC_MODE.PROJECTOR });
 ```
 
 #### Methods
@@ -276,7 +278,6 @@ const sync = new WindowSync(mapper, { mode: 'projector' });
 | `onProjectorReady(callback)` | Called when projector connects |
 | `getEventChannel()` | Get IPC event channel |
 | `getWindowManager()` | Get window manager |
-| `reattachDragListener()` | Reattach drag listener after grid resize |
 | `destroy()` | Clean up resources |
 
 ### MeshWarper
@@ -319,14 +320,13 @@ examples/
 src/
 ├── core/              # Main classes
 │   ├── ProjectionMapper.ts
-│   └── ProjectionMapperGUI.ts
+│   ├── ProjectionMapperGUI.ts
+│   └── ProjectorCamera.ts
 ├── warp/              # Warp mesh & geometry
 │   ├── MeshWarper.ts
 │   └── geometry.ts
 ├── utils/             # Utilities
-│   └── perspective.ts
-├── gui/               # GUI components
-│   └── ControllerGUI.ts
+│   └── projection.ts
 ├── addons/            # Extensions
 │   └── WindowSync.ts
 ├── ipc/               # Type-safe event system

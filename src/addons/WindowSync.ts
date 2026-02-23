@@ -24,21 +24,24 @@ import { WindowManager } from '../windows/WindowManager';
 import { ProjectionEventType } from '../ipc/EventTypes';
 import { FullProjectionState, NormalizedPoint } from '../ipc/EventPayloads';
 
-export type WindowSyncMode = 'controller' | 'projector';
+export const enum WINDOW_SYNC_MODE {
+  CONTROLLER = 'controller',
+  PROJECTOR = 'projector',
+}
 
 export interface WindowSyncConfig {
   /** BroadcastChannel name for IPC (default: 'projection-mapper-sync') */
   channelName?: string;
 
-  /** This window's role (default: 'controller') */
-  mode?: WindowSyncMode;
+  /** This window's role (default: WINDOW_SYNC_MODE.CONTROLLER) */
+  mode?: WINDOW_SYNC_MODE;
 }
 
 export class WindowSync {
   private mapper: ProjectionMapper;
   private eventChannel: EventChannel;
   private windowManager: WindowManager;
-  private mode: WindowSyncMode;
+  private mode: WINDOW_SYNC_MODE;
 
   private dragControls: any; // DragControls from MeshWarper
   private onProjectorReadyCallbacks: Array<() => void> = [];
@@ -47,7 +50,7 @@ export class WindowSync {
   constructor(mapper: ProjectionMapper, config: WindowSyncConfig = {}) {
     const {
       channelName = 'projection-mapper-sync',
-      mode = 'controller',
+      mode = WINDOW_SYNC_MODE.CONTROLLER,
     } = config;
 
     this.mapper = mapper;
@@ -55,9 +58,9 @@ export class WindowSync {
     this.eventChannel = new EventChannel(channelName, mode);
     this.windowManager = new WindowManager();
 
-    if (mode === 'controller') {
+    if (mode === WINDOW_SYNC_MODE.CONTROLLER) {
       this.setupControllerSync();
-    } else if (mode === 'projector') {
+    } else if (mode === WINDOW_SYNC_MODE.PROJECTOR) {
       this.setupProjectorSync();
     }
   }
@@ -72,6 +75,11 @@ export class WindowSync {
 
     // Broadcast point updates when dragging
     this.attachDragListener();
+
+    // Auto-reattach drag listener when grid size changes
+    this.eventChannel.on(ProjectionEventType.GRID_SIZE_CHANGED, () => {
+      this.reattachDragListener();
+    });
 
     // Handle projector ready
     this.eventChannel.on(ProjectionEventType.PROJECTOR_READY, () => {
@@ -155,7 +163,7 @@ export class WindowSync {
    * Attach drag event listener to broadcast point updates
    */
   private attachDragListener(): void {
-    if (!this.dragControls || this.mode !== 'controller') return;
+    if (!this.dragControls || this.mode !== WINDOW_SYNC_MODE.CONTROLLER) return;
 
     const warper = this.mapper.getWarper();
 
@@ -182,8 +190,8 @@ export class WindowSync {
    * Re-attach drag listener after grid size changes
    * (drag controls are recreated when grid size changes)
    */
-  public reattachDragListener(): void {
-    if (this.mode !== 'controller') return;
+  private reattachDragListener(): void {
+    if (this.mode !== WINDOW_SYNC_MODE.CONTROLLER) return;
 
     const warper = this.mapper.getWarper();
     this.dragControls = (warper as any).dragControls;
@@ -361,7 +369,7 @@ export class WindowSync {
    * Open projector window (controller only)
    */
   public openProjectorWindow(url?: string): Window | null {
-    if (this.mode !== 'controller') {
+    if (this.mode !== WINDOW_SYNC_MODE.CONTROLLER) {
       console.warn('WindowSync: openProjectorWindow() can only be called from controller mode');
       return null;
     }
@@ -372,7 +380,7 @@ export class WindowSync {
    * Close projector window (controller only)
    */
   public closeProjectorWindow(): void {
-    if (this.mode !== 'controller') {
+    if (this.mode !== WINDOW_SYNC_MODE.CONTROLLER) {
       console.warn('WindowSync: closeProjectorWindow() can only be called from controller mode');
       return;
     }

@@ -1,7 +1,7 @@
 /**
  * Addons for three-projection-mapper
  *
- * Import with: import { WindowSync } from 'three-projection-mapper/addons';
+ * Import with: import { WindowSync, WINDOW_SYNC_MODE } from 'three-projection-mapper/addons';
  */
 
-export { WindowSync, type WindowSyncConfig, type WindowSyncMode } from './WindowSync';
+export { WindowSync, WINDOW_SYNC_MODE, type WindowSyncConfig } from './WindowSync';

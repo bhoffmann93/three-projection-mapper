@@ -51,7 +51,10 @@ const renderTarget = new THREE.WebGLRenderTarget(projectionResolution.x, project
 });
 
 const mapper = new ProjectionMapper(renderer, renderTarget.texture);
-const gui = new ProjectionMapperGUI(mapper, 'Projection Mapper', GUI_ANCHOR.LEFT);
+const gui = new ProjectionMapperGUI(mapper, {
+  title: 'Projection Mapper',
+  anchor: GUI_ANCHOR.LEFT,
+});
 
 window.addEventListener('keydown', (e) => {
   if (e.key === 'g' || e.key === 'p') gui.toggle();

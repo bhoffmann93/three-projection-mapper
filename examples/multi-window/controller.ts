@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { ProjectionMapper } from '../../src/core/ProjectionMapper';
 import { ProjectionMapperGUI, GUI_ANCHOR } from '../../src/core/ProjectionMapperGUI';
-import { WindowSync } from '../../src/addons/WindowSync';
+import { WindowSync, WINDOW_SYNC_MODE } from '../../src/addons/WindowSync';
 import { ProjectionScene } from './ProjectionScene';
 import MUTLI_WINDOW_CONFIG from './multi-window.config';
 import { MultiLogController } from '@tweakpane/core';
@@ -20,14 +20,13 @@ const bufferResolution = {
 };
 const projectionScene = new ProjectionScene({ width: bufferResolution.width, height: bufferResolution.height });
 const mapper = new ProjectionMapper(renderer, projectionScene.getTexture());
-const sync = new WindowSync(mapper, { mode: 'controller' });
+const sync = new WindowSync(mapper, { mode: WINDOW_SYNC_MODE.CONTROLLER });
 
 const gui = new ProjectionMapperGUI(mapper, {
   title: 'Controller',
   anchor: GUI_ANCHOR.LEFT,
   eventChannel: sync.getEventChannel(),
   windowManager: sync.getWindowManager(),
-  onGridSizeChange: () => setTimeout(() => sync.reattachDragListener(), 50),
   onProjectorControlsChange: (visible) => console.log('[Controller] Projector controls:', visible),
 });
 
