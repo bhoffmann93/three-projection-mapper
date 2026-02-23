@@ -1,31 +1,13 @@
-/**
- * ProjectionScene - Encapsulates 3D Scene Logic
- *
- * Single Responsibility: Manages the 3D content (scene, camera, objects, animation)
- * This is USER CODE, not framework code. Both controller and projector
- * instantiate this class to ensure they render identical content.
- *
- * This class hides implementation details and provides a clean interface.
- */
-
 import * as THREE from 'three';
 
 export interface ProjectionSceneConfig {
-  /** Render target dimensions */
   width: number;
   height: number;
-  /** Camera aspect ratio */
   aspect?: number;
-  /** Projector throw ratio (default: 1.65 for Acer X1383WH) */
   throwRatio?: number;
-  /** Lens shift Y offset (default: 1.0 for Acer) */
   lensShiftY?: number;
 }
 
-/**
- * Encapsulates all 3D scene logic for projection mapping.
- * Hides complexity, exposes simple interface.
- */
 export class ProjectionScene {
   public readonly scene: THREE.Scene;
   public readonly camera: THREE.PerspectiveCamera;
@@ -39,13 +21,12 @@ export class ProjectionScene {
       width,
       height,
       aspect = 1280 / 800,
-      throwRatio = 1.65,
-      lensShiftY = 1.0,
+      throwRatio = 1.65, // Acer X1383WH
+      lensShiftY = 1.0,  // Acer X1383WH has 100% vertical offset
     } = config;
 
     this.lensShiftY = lensShiftY;
 
-    // Initialize scene
     this.scene = this.createScene();
     this.camera = this.createCamera(aspect, throwRatio, lensShiftY);
     this.cube = this.createCube();
@@ -53,7 +34,6 @@ export class ProjectionScene {
     this.addLights();
     this.addGrid();
 
-    // Create render target
     this.renderTarget = new THREE.WebGLRenderTarget(width, height, {
       minFilter: THREE.LinearFilter,
       magFilter: THREE.LinearFilter,
@@ -61,44 +41,28 @@ export class ProjectionScene {
     });
   }
 
-  /**
-   * Update animation (called once per frame)
-   */
   public animate(): void {
     this.cube.rotation.y += 0.01;
   }
 
-  /**
-   * Render scene to render target
-   * Handles lens shift reapplication after render
-   */
   public render(renderer: THREE.WebGLRenderer): void {
     renderer.setRenderTarget(this.renderTarget);
     renderer.render(this.scene, this.camera);
 
-    // Reapply lens shift (needed after every render)
+    // Lens shift gets reset by Three.js after render
     this.camera.projectionMatrix.elements[9] = this.lensShiftY;
   }
 
-  /**
-   * Get the render target texture for projection mapping
-   */
   public getTexture(): THREE.Texture {
     return this.renderTarget.texture;
   }
 
-  /**
-   * Update camera aspect ratio (for resize)
-   */
   public updateCameraAspect(aspect: number): void {
     this.camera.aspect = aspect;
     this.camera.updateProjectionMatrix();
     this.camera.projectionMatrix.elements[9] = this.lensShiftY;
   }
 
-  /**
-   * Dispose resources
-   */
   public dispose(): void {
     this.renderTarget.dispose();
     this.cube.geometry.dispose();
@@ -106,8 +70,6 @@ export class ProjectionScene {
       this.cube.material.dispose();
     }
   }
-
-  // ========== Private: Pull Complexity Downward ==========
 
   private createScene(): THREE.Scene {
     return new THREE.Scene();
@@ -125,7 +87,7 @@ export class ProjectionScene {
   private createCube(): THREE.Mesh {
     const cubeSize = 0.2;
     const geometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
-    geometry.translate(0, -cubeSize / 2, 0); // Pivot at bottom
+    geometry.translate(0, -cubeSize / 2, 0); // Pivot at bottom instead of center
 
     const cube = new THREE.Mesh(geometry, new THREE.MeshNormalMaterial());
     cube.position.set(0, 0.17, 0);

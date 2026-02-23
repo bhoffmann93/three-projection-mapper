@@ -262,7 +262,6 @@ export class MeshWarper {
     const draggedPoint = event.object.position;
     const dragControlCorners = this.dragCornerControlPoints.flatMap((point) => [point.x, point.y]);
 
-    // Check if quad is concave (degenerate)
     if (isQuadConcave(dragControlCorners)) {
       if (object.userData.lastValidPosition && pointGroupName === 'corner') {
         object.position.copy(object.userData.lastValidPosition);
@@ -562,17 +561,11 @@ export class MeshWarper {
     this.config.gridControlPoints.x = x;
     this.config.gridControlPoints.y = y;
 
-    // Create new control point geometry
     const controlPointPlaneGeometry = new THREE.PlaneGeometry(this.config.width, this.config.height, x - 1, y - 1);
-
-    // Create new grid control points
     this.createGridControlPoints(controlPointPlaneGeometry, x, y);
     controlPointPlaneGeometry.dispose();
-
-    // Add new grid objects to scene
     this.gridObjects.forEach((obj) => this.config.scene.add(obj));
 
-    // Apply visibility state
     if (!this.gridPointsEnabled) {
       this.gridObjects.forEach((obj) => {
         obj.visible = false;
@@ -580,7 +573,6 @@ export class MeshWarper {
       });
     }
 
-    // Transform grid points to match current corner warp
     const dragControlCorners = cornerPositions.flatMap((point) => [point.x, point.y]);
     const perspectiveTransformer = new PerspT(this.quadData.initalCorners, dragControlCorners);
 
@@ -590,10 +582,8 @@ export class MeshWarper {
       this.dragGridControlPoints[i].set(warpedX, warpedY, refPos.z);
     }
 
-    // Reinitialize drag controls
     this.initializeDragControls();
 
-    // Update shader defines and uniforms
     const totalControlPoints = x * y;
     this.material.defines.CONTROL_POINT_AMOUNT = totalControlPoints;
     this.material.uniforms.uControlPoints.value = this.dragGridControlPoints;
@@ -601,14 +591,12 @@ export class MeshWarper {
     this.material.uniforms.uGridSizeY.value = y;
     this.material.needsUpdate = true;
 
-    // Save new grid layout (loadFromStorage handles size mismatches gracefully)
     this.saveToStorage();
 
     console.log(`Grid resized to ${x}x${y}`);
   }
 
-  // LocalStorage persistence — positions stored normalized (0–1) so calibration
-  // survives resolution/plane-size changes.
+  // Positions stored normalized (0-1) so calibration survives resolution changes
 
   private toNormalized(p: THREE.Vector3): { x: number; y: number; z: number } {
     return {

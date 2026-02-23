@@ -357,8 +357,6 @@ export class WindowSync {
     }
   }
 
-  // ===== Public API =====
-
   /**
    * Open projector window (controller only)
    */
