@@ -22,6 +22,7 @@ export class ControllerGUI {
   private eventChannel: EventChannel;
   private windowManager: WindowManager;
   private onGridSizeChangeCallback?: () => void;
+  private onProjectorControlsChangeCallback?: (visible: boolean) => void;
 
   private readonly STORAGE_KEY = GUI_STORAGE_KEY;
 
@@ -31,12 +32,14 @@ export class ControllerGUI {
     windowManager: WindowManager,
     title = 'Controller',
     anchor: GUI_ANCHOR = GUI_ANCHOR.LEFT,
-    onGridSizeChange?: () => void
+    onGridSizeChange?: () => void,
+    onProjectorControlsChange?: (visible: boolean) => void
   ) {
     this.mapper = mapper;
     this.eventChannel = eventChannel;
     this.windowManager = windowManager;
     this.onGridSizeChangeCallback = onGridSizeChange;
+    this.onProjectorControlsChangeCallback = onProjectorControlsChange;
 
     this.settings = {
       shouldWarp: mapper.isShouldWarp(),
@@ -51,6 +54,7 @@ export class ControllerGUI {
       showGridPoints: true,
       showCornerPoints: true,
       showOutline: true,
+      showProjectorControls: false, // Default: hide controls on projector
     };
 
     this.loadSettings();
@@ -106,6 +110,21 @@ export class ControllerGUI {
         this.eventChannel.emit(ProjectionEventType.TESTCARD_TOGGLED, {
           show: e.value as boolean,
         });
+      });
+
+    settingsFolder
+      .addBinding(this.settings, 'showProjectorControls', { label: 'Projector Controls' })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        const visible = e.value as boolean;
+        this.settings.showProjectorControls = visible;
+        this.saveSettings();
+        this.eventChannel.emit(ProjectionEventType.CONTROLS_VISIBILITY_CHANGED, {
+          visible,
+        });
+        // Call callback to update controller's local state
+        if (this.onProjectorControlsChangeCallback) {
+          this.onProjectorControlsChangeCallback(visible);
+        }
       });
 
     settingsFolder

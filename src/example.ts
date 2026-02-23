@@ -1,26 +1,41 @@
 /**
- * Example usage of ProjectionMapper
+ * Example usage of ProjectionMapper - Simplified API
  *
- * Single ContentManager class handles all scene content
- * Library focuses only on warping and window management
+ * This example shows the new simplified architecture:
+ * 1. User creates their own Three.js scene
+ * 2. ProjectionMapper handles only warping
+ * 3. No callback inversion - standard Three.js render pattern
  */
 
-import { ProjectionLibrary } from './ProjectionLibrary';
+import * as THREE from 'three';
+import { ProjectionMapper } from './ProjectionMapper';
 import { ProjectionMapperGUI, GUI_ANCHOR } from './ProjectionMapperGUI';
-import { ContentManager } from './content/ContentManager';
+import { ContentManager } from '../examples/ContentManager';
 
-// Create content using single ContentManager class
+// User creates renderer (library doesn't create it anymore)
+const renderer = new THREE.WebGLRenderer({
+  powerPreference: 'high-performance',
+  antialias: false,
+});
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setClearColor(0x000000);
+document.body.appendChild(renderer.domElement);
+
+// User creates content (example code - replace with your own scene)
 const content = new ContentManager();
 
-// Create library (handles warping + windows)
-const library = new ProjectionLibrary({
-  resolution: { width: 1280, height: 800 },
-  mode: 'controller',
+// User creates render target for projection
+const renderTarget = new THREE.WebGLRenderTarget(1280, 800, {
+  minFilter: THREE.LinearFilter,
+  magFilter: THREE.LinearFilter,
+  generateMipmaps: false,
 });
 
-library.start();
+// ✅ Simple library usage - just pass renderer and texture
+const mapper = new ProjectionMapper(renderer, renderTarget.texture);
 
-const mapper = library.getMapper();
+// Optional: Add GUI
 const gui = new ProjectionMapperGUI(mapper, 'Projection Mapper', GUI_ANCHOR.LEFT);
 
 // Keyboard shortcuts
@@ -35,27 +50,29 @@ window.addEventListener('resize', () => {
   const width = window.innerWidth;
   const height = window.innerHeight;
 
-  library.getRenderer().setSize(width, height);
+  renderer.setSize(width, height);
   content.resize();
   mapper.resize(width, height);
 });
 
-// Animation loop
+// Standard Three.js animation loop - no callbacks!
 function animate() {
   requestAnimationFrame(animate);
 
   // Update content
   content.update();
 
-  // Render via library
-  library.render((renderer, renderTarget) => {
-    content.render(renderer, renderTarget);
-  });
+  // Render scene to texture
+  content.render(renderer, renderTarget);
+
+  // Render warped output to screen
+  renderer.setRenderTarget(null);
+  mapper.render();
 }
 
 animate();
 
-console.log('ProjectionMapper Example');
+console.log('ProjectionMapper Example (Simplified API)');
 console.log('Controls:');
 console.log('  G/P - Toggle GUI');
 console.log('  T - Toggle testcard');

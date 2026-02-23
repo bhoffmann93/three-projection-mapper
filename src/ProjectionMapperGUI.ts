@@ -17,6 +17,7 @@ export interface ProjectionMapperGUISettings {
   showGridPoints: boolean;
   showCornerPoints: boolean;
   showOutline: boolean;
+  showProjectorControls?: boolean; // Optional for backwards compatibility
 }
 
 export const GUI_STORAGE_KEY = 'projection-mapper-gui-settings';
