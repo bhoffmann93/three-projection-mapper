@@ -120,6 +120,12 @@ export class WindowSync {
     this.eventChannel.emit(ProjectionEventType.PROJECTOR_READY, {});
     this.eventChannel.emit(ProjectionEventType.REQUEST_FULL_STATE, {});
 
+    // If the controller reloads after us, re-request full state when it announces itself
+    this.eventChannel.on(ProjectionEventType.CONTROLLER_READY, () => {
+      console.log('[WindowSync] Controller became ready, re-requesting full state...');
+      this.eventChannel.emit(ProjectionEventType.REQUEST_FULL_STATE, {});
+    });
+
     // Listen for state updates
     this.eventChannel.on(ProjectionEventType.FULL_STATE_SYNC, ({ state }) => {
       console.log('[WindowSync] Projector received FULL_STATE_SYNC');
