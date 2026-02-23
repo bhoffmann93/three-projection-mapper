@@ -37,6 +37,12 @@ export class EventChannel {
       source: this.source,
     };
     this.channel.postMessage(message);
+
+    // Also dispatch to local handlers so the emitting window can react to its own events
+    const handlers = this.handlers.get(type);
+    if (handlers) {
+      handlers.forEach((handler) => handler(payload));
+    }
   }
 
   /**

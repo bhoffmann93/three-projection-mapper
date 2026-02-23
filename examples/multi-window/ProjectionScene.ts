@@ -43,7 +43,9 @@ export class ProjectionScene {
   }
 
   public animate(): void {
-    this.cube.rotation.y += 0.01;
+    // this.cube.rotation.y += 0.01;
+    // this.cube.rotation.x += 0.01;
+    this.cube.position.y = 0.27 + Math.sin(performance.now() * 0.001) * 0.1;
   }
 
   public render(renderer: THREE.WebGLRenderer): void {
@@ -85,10 +87,9 @@ export class ProjectionScene {
   private createCube(): THREE.Mesh {
     const cubeSize = 0.2;
     const geometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
-    geometry.translate(0, -cubeSize / 2, 0); // Pivot at bottom instead of center
 
     const cube = new THREE.Mesh(geometry, new THREE.MeshNormalMaterial());
-    cube.position.set(0, 0.17, 0);
+    cube.position.set(0, 0.17 + cubeSize / 2, 0);
     cube.rotation.set(Math.PI, Math.PI * 0.25, 0);
 
     return cube;
