@@ -246,7 +246,7 @@ void main() {
         color = texture2D(uBuffer, vUv).rgb;
     }
 
-    if(uShouldWarp == false) {
+    if(uShouldWarp == false || uShowControlLines) {
         float borderLines = drawBorderLines(vUv);
         color = mix(color, vec3(0.75), borderLines);
     }

@@ -1,30 +1,35 @@
 import * as THREE from 'three';
 import { ProjectionMapper } from '../../src/core/ProjectionMapper';
-import { ControllerGUI } from '../../src/gui/ControllerGUI';
+import { ProjectionMapperGUI, GUI_ANCHOR } from '../../src/core/ProjectionMapperGUI';
 import { WindowSync } from '../../src/addons/WindowSync';
 import { ProjectionScene } from './ProjectionScene';
+import MUTLI_WINDOW_CONFIG from './multi-window.config';
+import { MultiLogController } from '@tweakpane/core';
 
 const renderer = new THREE.WebGLRenderer({
   powerPreference: 'high-performance',
   antialias: false,
 });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setPixelRatio(window.devicePixelRatio || 1);
 document.body.appendChild(renderer.domElement);
 
-const projectionScene = new ProjectionScene({ width: 1280, height: 800 });
+const bufferResolution = {
+  width: MUTLI_WINDOW_CONFIG.projectionResolution.width * MUTLI_WINDOW_CONFIG.bufferResOversampling,
+  height: MUTLI_WINDOW_CONFIG.projectionResolution.height * MUTLI_WINDOW_CONFIG.bufferResOversampling,
+};
+const projectionScene = new ProjectionScene({ width: bufferResolution.width, height: bufferResolution.height });
 const mapper = new ProjectionMapper(renderer, projectionScene.getTexture());
 const sync = new WindowSync(mapper, { mode: 'controller' });
 
-const gui = new ControllerGUI(
-  mapper,
-  sync.getEventChannel(),
-  sync.getWindowManager(),
-  'Controller',
-  undefined,
-  () => setTimeout(() => sync.reattachDragListener(), 50),
-  (visible: boolean) => console.log('[Controller] Projector controls visibility:', visible),
-);
+const gui = new ProjectionMapperGUI(mapper, {
+  title: 'Controller',
+  anchor: GUI_ANCHOR.LEFT,
+  eventChannel: sync.getEventChannel(),
+  windowManager: sync.getWindowManager(),
+  onGridSizeChange: () => setTimeout(() => sync.reattachDragListener(), 50),
+  onProjectorControlsChange: (visible) => console.log('[Controller] Projector controls:', visible),
+});
 
 window.addEventListener('keydown', (e) => {
   if (e.key === 'g' || e.key === 'p') gui.toggle();
@@ -35,7 +40,7 @@ window.addEventListener('keydown', (e) => {
 
 window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
-  projectionScene.updateCameraAspect(1280 / 800);
+  projectionScene.updateCameraAspect(bufferResolution.width / bufferResolution.height);
   mapper.resize(window.innerWidth, window.innerHeight);
 });
 

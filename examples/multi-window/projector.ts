@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { ProjectionMapper } from '../../src/core/ProjectionMapper';
-import { WindowSync } from '../../src/addons/WindowSync';
+import { WindowSync, WindowSyncMode } from '../../src/addons/WindowSync';
 import { ProjectionScene } from './ProjectionScene';
+import MUTLI_WINDOW_CONFIG from './multi-window.config';
 
 document.body.style.cursor = 'none';
 
@@ -9,13 +10,18 @@ const renderer = new THREE.WebGLRenderer({
   powerPreference: 'high-performance',
   antialias: false,
 });
-renderer.setSize(1280, 800);
+const projectionResolution = MUTLI_WINDOW_CONFIG.projectionResolution;
+renderer.setSize(projectionResolution.width, projectionResolution.height);
 renderer.setPixelRatio(1);
 document.body.appendChild(renderer.domElement);
 
-const projectionScene = new ProjectionScene({ width: 1280, height: 800 });
+const bufferResolution = {
+  width: projectionResolution.width * MUTLI_WINDOW_CONFIG.bufferResOversampling,
+  height: projectionResolution.height * MUTLI_WINDOW_CONFIG.bufferResOversampling,
+};
+const projectionScene = new ProjectionScene({ width: bufferResolution.width, height: bufferResolution.height });
 const mapper = new ProjectionMapper(renderer, projectionScene.getTexture());
-const sync = new WindowSync(mapper, { mode: 'projector' });
+const sync = new WindowSync(mapper, { mode: 'projector' satisfies WindowSyncMode });
 
 mapper.setControlsVisible(false);
 mapper.setPlaneScale(1.0);
