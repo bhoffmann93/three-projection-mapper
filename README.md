@@ -35,10 +35,7 @@ document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, 1280 / 800, 0.1, 1000);
 
-const cube = new THREE.Mesh(
-  new THREE.BoxGeometry(),
-  new THREE.MeshNormalMaterial()
-);
+const cube = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshNormalMaterial());
 scene.add(cube);
 
 const renderTarget = new THREE.WebGLRenderTarget(1280, 800);
@@ -61,6 +58,7 @@ animate();
 ### Multi-Window (Controller + Projector)
 
 For professional projection mapping setups, use two browser windows:
+
 - **Controller Window**: Full GUI for calibration, drag controls, preview
 - **Projector Window**: Output-only display (fullscreen on projector hardware)
 
@@ -94,10 +92,7 @@ export class ProjectionScene {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(75, config.width / config.height, 0.1, 1000);
 
-    this.cube = new THREE.Mesh(
-      new THREE.BoxGeometry(),
-      new THREE.MeshNormalMaterial()
-    );
+    this.cube = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshNormalMaterial());
     this.scene.add(this.cube);
 
     this.renderTarget = new THREE.WebGLRenderTarget(config.width, config.height);
@@ -186,6 +181,7 @@ animate();
 ```
 
 **What WindowSync does automatically:**
+
 - **Controller mode**: Broadcasts all state changes (warp points, settings, testcard) to projector
 - **Projector mode**: Hides all controls, disables drag, sets scale to 1.0, receives updates from controller
 
@@ -211,30 +207,30 @@ new ProjectionMapper(
 
 ```typescript
 interface ProjectionMapperConfig {
-  resolution?: { width: number; height: number };  // Default: { width: 1920, height: 1080 }
-  segments?: number;                               // Mesh segments (default: 50)
-  gridControlPoints?: { x: number; y: number };   // Grid density (default: { x: 5, y: 5 })
-  antialias?: boolean;                            // Enable SMAA (default: true)
-  planeScale?: number;                            // Plane fill factor (default: 0.9)
+  resolution?: { width: number; height: number }; // Default: { width: 1920, height: 1080 }
+  segments?: number; // Mesh segments (default: 50)
+  gridControlPoints?: { x: number; y: number }; // Grid density (default: { x: 5, y: 5 })
+  antialias?: boolean; // Enable SMAA (default: true)
+  planeScale?: number; // Plane fill factor (default: 0.9)
 }
 ```
 
 #### Methods
 
-| Method | Description |
-|--------|-------------|
-| `render()` | Render the projection mapped output |
-| `setTexture(texture)` | Change the input texture |
-| `setShowTestCard(show)` | Toggle testcard display |
-| `resize(width, height)` | Handle window resize |
-| `setControlsVisible(visible)` | Show/hide all control points |
-| `setGridPointsVisible(visible)` | Show/hide grid points |
-| `setCornerPointsVisible(visible)` | Show/hide corner points |
-| `setOutlineVisible(visible)` | Show/hide outline |
-| `setGridSize(x, y)` | Change grid density (2-10) |
-| `setPlaneScale(scale)` | Set plane fill factor (0-1) |
-| `getWarper()` | Get the internal MeshWarper |
-| `dispose()` | Clean up resources |
+| Method                            | Description                         |
+| --------------------------------- | ----------------------------------- |
+| `render()`                        | Render the projection mapped output |
+| `setTexture(texture)`             | Change the input texture            |
+| `setShowTestCard(show)`           | Toggle testcard display             |
+| `resize(width, height)`           | Handle window resize                |
+| `setControlsVisible(visible)`     | Show/hide all control points        |
+| `setGridPointsVisible(visible)`   | Show/hide grid points               |
+| `setCornerPointsVisible(visible)` | Show/hide corner points             |
+| `setOutlineVisible(visible)`      | Show/hide outline                   |
+| `setGridSize(x, y)`               | Change grid density (2-10)          |
+| `setPlaneScale(scale)`            | Set plane fill factor (0-1)         |
+| `getWarper()`                     | Get the internal MeshWarper         |
+| `dispose()`                       | Clean up resources                  |
 
 ### ProjectionMapperGUI
 
@@ -246,7 +242,7 @@ import { ProjectionMapperGUI, GUI_ANCHOR } from 'three-projection-mapping';
 const gui = new ProjectionMapperGUI(
   mapper,
   'My Projection',
-  GUI_ANCHOR.LEFT  // or GUI_ANCHOR.RIGHT
+  GUI_ANCHOR.LEFT, // or GUI_ANCHOR.RIGHT
 );
 
 gui.toggle();
@@ -291,14 +287,14 @@ const sync = new WindowSync(mapper, { mode: WINDOW_SYNC_MODE.PROJECTOR });
 
 #### Methods
 
-| Method | Description |
-|--------|-------------|
-| `openProjectorWindow()` | Open projector window (controller only) |
-| `closeProjectorWindow()` | Close projector window |
-| `onProjectorReady(callback)` | Called when projector connects |
-| `getEventChannel()` | Get IPC event channel |
-| `getWindowManager()` | Get window manager |
-| `destroy()` | Clean up resources |
+| Method                       | Description                             |
+| ---------------------------- | --------------------------------------- |
+| `openProjectorWindow()`      | Open projector window (controller only) |
+| `closeProjectorWindow()`     | Close projector window                  |
+| `onProjectorReady(callback)` | Called when projector connects          |
+| `getEventChannel()`          | Get IPC event channel                   |
+| `getWindowManager()`         | Get window manager                      |
+| `destroy()`                  | Clean up resources                      |
 
 ### ProjectorCamera
 
@@ -308,20 +304,22 @@ Specialized camera for real-world projector optics with throw ratio and lens shi
 import { ProjectorCamera } from 'three-projection-mapping';
 
 // Match real projector specifications
-const throwRatio = 1.65;  // Distance-to-width ratio (e.g., Acer X1383WH)
-const lensShiftY = 1.0;   // Vertical lens shift (1.0 = 100%)
-const aspect = 16 / 10;   // Projector aspect ratio
+const throwRatio = 1.65; // Distance-to-width ratio (e.g., Acer X1383WH)
+const lensShiftY = 1.0; // Vertical lens shift (1.0 = 100%)
+const aspect = 16 / 10; // Projector aspect ratio
 
 const camera = new ProjectorCamera(throwRatio, lensShiftY, aspect);
 camera.position.set(0, 0.5, 2.0);
 ```
 
 **Why use ProjectorCamera?**
+
 - Automatically calculates FOV from throw ratio
 - Applies lens shift to projection matrix (simulates physical keystone correction)
 - Matches real projector behavior for accurate preview
 
 **Parameters:**
+
 - `throwRatio`: Distance-to-width ratio (typical range: 0.8 - 2.5)
 - `lensShiftY`: Vertical lens shift as multiplier (1.0 = 100%, 1.1 = 110%)
 - `aspect`: Aspect ratio (width/height)
@@ -334,21 +332,21 @@ Low-level warp mesh (advanced usage).
 ```typescript
 const warper = mapper.getWarper();
 
-warper.setDragEnabled(false);           // Disable drag interaction
-warper.setWarpMode(WARP_MODE.bicubic);  // Set warp mode
-warper.setShouldWarp(true);             // Enable/disable warping
+warper.setDragEnabled(false); // Disable drag interaction
+warper.setWarpMode(WARP_MODE.bicubic); // Set warp mode
+warper.setShouldWarp(true); // Enable/disable warping
 ```
 
 ## Keyboard Shortcuts
 
 Default shortcuts in examples:
 
-| Key | Action |
-|-----|--------|
-| G/P | Toggle GUI |
-| T | Toggle testcard |
-| H | Toggle warp UI |
-| O | Open projector window (controller) |
+| Key | Action                             |
+| --- | ---------------------------------- |
+| G/P | Toggle GUI                         |
+| T   | Toggle testcard                    |
+| H   | Toggle warp UI                     |
+| O   | Open projector window (controller) |
 
 ## Project Structure
 
