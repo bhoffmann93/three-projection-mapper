@@ -81,6 +81,7 @@ export class WindowSync {
 
     // Send full state when requested
     this.eventChannel.on(ProjectionEventType.REQUEST_FULL_STATE, () => {
+      console.log('[WindowSync] Controller received REQUEST_FULL_STATE, sending state...');
       this.eventChannel.emit(ProjectionEventType.FULL_STATE_SYNC, {
         state: this.getFullState(),
       });
@@ -102,11 +103,13 @@ export class WindowSync {
    */
   private setupProjectorSync(): void {
     // Request full state from controller
+    console.log('[WindowSync] Projector requesting full state from controller...');
     this.eventChannel.emit(ProjectionEventType.PROJECTOR_READY, {});
     this.eventChannel.emit(ProjectionEventType.REQUEST_FULL_STATE, {});
 
     // Listen for state updates
     this.eventChannel.on(ProjectionEventType.FULL_STATE_SYNC, ({ state }) => {
+      console.log('[WindowSync] Projector received FULL_STATE_SYNC');
       this.applyFullState(state);
     });
 
@@ -269,6 +272,14 @@ export class WindowSync {
 
     // Update mesh
     (warper as any).updateLine();
+
+    // Hide loading message (if it exists)
+    const loadingEl = document.getElementById('loading');
+    if (loadingEl) {
+      loadingEl.classList.add('hidden');
+    }
+
+    console.log('[WindowSync] Applied full state from controller');
   }
 
   /**
