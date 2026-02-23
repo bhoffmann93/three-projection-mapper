@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import glsl from 'vite-plugin-glsl';
 import dts from 'vite-plugin-dts';
+//@ts-ignore
 import { resolve } from 'path';
 
 export default defineConfig({
@@ -13,6 +14,7 @@ export default defineConfig({
   ],
   build: {
     lib: {
+      //@ts-ignore
       entry: resolve(__dirname, 'src/lib.ts'),
       name: 'ThreeProjectionMapping',
       fileName: 'lib',

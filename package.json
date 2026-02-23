@@ -1,7 +1,7 @@
 {
   "name": "three-projection-mapper",
   "version": "0.0.1",
-  "description": "A projection mapping library for Three.js",
+  "description": "Projection mapping library for Three.js with interactive warp grid control, bicubic interpolation, and multi-window synchronization",
   "type": "module",
   "main": "dist/lib.js",
   "module": "dist/lib.js",
@@ -18,13 +18,14 @@
   },
   "files": [
     "dist",
-    "src",
-    "glsl"
+    "LICENSE",
+    "README.md"
   ],
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "build:lib": "vite build --config vite.lib.config.ts",
+    "prepublishOnly": "npm run build:lib",
     "test": "vitest",
     "preview": "vite preview",
     "start": "npm run dev"
@@ -35,10 +36,22 @@
     "projection-mapping",
     "webgl",
     "warp",
-    "mesh-warping"
+    "mesh-warping",
+    "bicubic",
+    "perspective",
+    "calibration",
+    "projector"
   ],
-  "author": "",
+  "author": "YOUR_NAME <YOUR_EMAIL>",
   "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YOUR_USERNAME/three-projection-mapper.git"
+  },
+  "homepage": "https://github.com/YOUR_USERNAME/three-projection-mapper#readme",
+  "bugs": {
+    "url": "https://github.com/YOUR_USERNAME/three-projection-mapper/issues"
+  },
   "peerDependencies": {
     "three": ">=0.150.0",
     "@types/three": ">=0.150.0"
