@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import PerspT from '../perspective';
+import PerspT from '../utils/perspective';
 
 // Helper to check standard 100x100 square coordinates
 // TL, TR, BL, BR order

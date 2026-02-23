@@ -1,10 +1,22 @@
+import * as THREE from 'three';
 import { FolderApi, Pane, TpChangeEvent } from 'tweakpane';
 import { ProjectionMapper } from './ProjectionMapper';
-import { WARP_MODE } from './MeshWarper';
+import { WARP_MODE } from '../warp/MeshWarper';
+import { EventChannel } from '../ipc/EventChannel';
+import { WindowManager } from '../windows/WindowManager';
+import { ProjectionEventType } from '../ipc/EventTypes';
+import type { ProjectionEventPayloads } from '../ipc/EventPayloads';
 
 export const enum GUI_ANCHOR {
   LEFT = 'left',
   RIGHT = 'right',
+}
+
+export interface ProjectionMapperGUIConfig {
+  title?: string;
+  anchor?: GUI_ANCHOR;
+  eventChannel?: EventChannel; // Optional: enables event broadcasting
+  windowManager?: WindowManager; // Optional: enables projector window button
 }
 
 export interface ProjectionMapperGUISettings {
@@ -30,11 +42,17 @@ export class ProjectionMapperGUI {
     'showGridPoints' | 'showCornerPoints' | 'showOutline' | 'showControlLines'
   > | null = null;
   private warpFolder!: FolderApi;
+  private config: ProjectionMapperGUIConfig;
+  private cornersOutlineState = { enabled: true };
 
   private readonly STORAGE_KEY = GUI_STORAGE_KEY;
 
-  constructor(mapper: ProjectionMapper, title = 'Projection Mapper', anchor: GUI_ANCHOR = GUI_ANCHOR.RIGHT) {
+  constructor(mapper: ProjectionMapper, config: ProjectionMapperGUIConfig = {}) {
     this.mapper = mapper;
+    this.config = config;
+
+    const title = config.title || 'Projection Mapper';
+    const anchor = config.anchor || GUI_ANCHOR.RIGHT;
 
     this.settings = {
       shouldWarp: mapper.isShouldWarp(),
@@ -68,7 +86,25 @@ export class ProjectionMapperGUI {
     this.initPane();
   }
 
+  private isMultiWindowMode(): boolean {
+    return !!this.config.eventChannel;
+  }
+
+  private broadcast<T extends ProjectionEventType>(type: T, payload: ProjectionEventPayloads[T]): void {
+    if (this.config.eventChannel) {
+      this.config.eventChannel.emit(type, payload);
+    }
+  }
+
   private initPane(): void {
+    // Conditional: Add projector window button in multi-window mode
+    if (this.config.windowManager) {
+      this.pane.addButton({ title: 'Open Projector [O]' }).on('click', () => {
+        this.config.windowManager!.openProjectorWindow();
+      });
+      this.pane.addBlade({ view: 'separator' });
+    }
+
     this.pane.addBlade({
       view: 'text',
       label: 'Buffer Resolution',
@@ -77,14 +113,24 @@ export class ProjectionMapperGUI {
       disabled: true,
     });
 
-    // Shortcuts
-    this.pane.addBlade({
-      view: 'text',
-      label: '[G] GUI',
-      value: '[H] Warp UI  [T] Test',
-      parse: (v: string) => v,
-      disabled: true,
-    } as Record<string, unknown>);
+    // Shortcuts - different based on mode
+    if (this.isMultiWindowMode()) {
+      this.pane.addBlade({
+        view: 'text',
+        label: '[G] GUI [H] Warp',
+        value: '[T] Test  [O] Projector',
+        parse: (v: string) => v,
+        disabled: true,
+      } as Record<string, unknown>);
+    } else {
+      this.pane.addBlade({
+        view: 'text',
+        label: '[G] GUI',
+        value: '[H] Warp UI  [T] Test',
+        parse: (v: string) => v,
+        disabled: true,
+      } as Record<string, unknown>);
+    }
 
     this.pane.addBlade({ view: 'separator' });
 
@@ -95,10 +141,13 @@ export class ProjectionMapperGUI {
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setShowTestCard(e.value as boolean);
         this.saveSettings();
+        this.broadcast(ProjectionEventType.TESTCARD_TOGGLED, {
+          show: e.value as boolean,
+        });
       });
 
     settingsFolder
-      .addBinding(this.settings, 'shouldWarp', { label: 'Apply Warp' })
+      .addBinding(this.settings, 'shouldWarp', { label: 'Warp' })
       .on('change', (e: TpChangeEvent<unknown>) => {
         const enabled = e.value as boolean;
         this.mapper.setShouldWarp(enabled);
@@ -111,13 +160,17 @@ export class ProjectionMapperGUI {
           this.toggleWarpUI(true);
         }
         this.saveSettings();
+        this.broadcast(ProjectionEventType.SHOULD_WARP_CHANGED, {
+          shouldWarp: enabled,
+        });
       });
 
     settingsFolder
-      .addBinding(this.settings, 'zoom', { label: 'Zoom', min: 0.5, max: 1.0, step: 0.01 })
+      .addBinding(this.settings, 'zoom', { label: 'Zoom', min: 0.125, max: 1.0, step: 0.01 })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setPlaneScale(e.value as number);
         this.saveSettings();
+        // NOTE: Zoom is controller-local only, not broadcast to projector
       });
 
     // Warp UI
@@ -129,10 +182,47 @@ export class ProjectionMapperGUI {
       this.warpFolder.expanded = false;
     }
 
-    const visFolder = this.warpFolder;
+    this.warpFolder.addBlade({ view: 'separator' });
 
-    // Warp Mode
-    visFolder
+    this.warpFolder.addButton({ title: 'Toggle Controls' }).on('click', () => this.toggleWarpUI());
+
+    this.warpFolder.addButton({ title: 'Show All' }).on('click', () => {
+      this.settings.showGridPoints = true;
+      this.settings.showCornerPoints = true;
+      this.settings.showOutline = true;
+      this.settings.showControlLines = true;
+      this.cornersOutlineState.enabled = true;
+      this.savedVisibility = null;
+      this.applyVisibility();
+      this.pane.refresh();
+      this.saveSettings();
+      this.broadcast(ProjectionEventType.CONTROLS_VISIBILITY_CHANGED, {
+        visible: true,
+      });
+      this.broadcast(ProjectionEventType.CONTROL_LINES_TOGGLED, {
+        show: true,
+      });
+    });
+
+    // Perspective Warp folder
+    const perspFolder = this.warpFolder.addFolder({ title: 'Perspective Warp', expanded: true });
+
+    this.cornersOutlineState.enabled = this.settings.showCornerPoints;
+    perspFolder
+      .addBinding(this.cornersOutlineState, 'enabled', { label: 'Show' })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        const enabled = e.value as boolean;
+        this.settings.showCornerPoints = enabled;
+        this.settings.showOutline = enabled;
+        this.mapper.setCornerPointsVisible(enabled);
+        this.mapper.setOutlineVisible(enabled);
+        this.saveSettings();
+      });
+
+    // Grid Warp folder
+    const gridFolder = this.warpFolder.addFolder({ title: 'Grid Warp', expanded: true });
+
+    gridFolder
       .addBlade({
         view: 'list',
         label: 'Warp Mode',
@@ -147,11 +237,14 @@ export class ProjectionMapperGUI {
         this.settings.warpMode = e.value as WARP_MODE;
         this.mapper.getWarper().setWarpMode(e.value as WARP_MODE);
         this.saveSettings();
+        this.broadcast(ProjectionEventType.WARP_MODE_CHANGED, {
+          mode: e.value as number,
+        });
       });
 
-    visFolder
+    gridFolder
       .addBinding(this.settings, 'gridSize', {
-        label: 'Warp Grid',
+        label: 'Grid Size',
         x: { min: 2, max: 10, step: 1 },
         y: { min: 2, max: 10, step: 1 },
       })
@@ -161,62 +254,66 @@ export class ProjectionMapperGUI {
         this.settings.gridSize.y = Math.floor(val.y);
         this.mapper.setGridSize(this.settings.gridSize.x, this.settings.gridSize.y);
         this.saveSettings();
+
+        // Broadcast grid size change
+        this.broadcast(ProjectionEventType.GRID_SIZE_CHANGED, {
+          gridSize: { x: this.settings.gridSize.x, y: this.settings.gridSize.y },
+        });
+
+        // After grid size changes, broadcast updated grid points
+        if (this.isMultiWindowMode()) {
+          const warper = this.mapper.getWarper();
+          const config = (warper as any).config;
+          const gridPoints = warper.getGridControlPoints();
+          const referenceGridPoints = (warper as any).referenceGridControlPoints as THREE.Vector3[];
+
+          this.broadcast(ProjectionEventType.GRID_POINTS_UPDATED, {
+            points: gridPoints.map((p: THREE.Vector3) => ({
+              x: (p.x + config.width / 2) / config.width,
+              y: (p.y + config.height / 2) / config.height,
+              z: p.z,
+            })),
+            referencePoints: referenceGridPoints.map((p: THREE.Vector3) => ({
+              x: (p.x + config.width / 2) / config.width,
+              y: (p.y + config.height / 2) / config.height,
+              z: p.z,
+            })),
+          });
+        }
       });
-
-    visFolder.addBlade({ view: 'separator' });
-
-    visFolder.addButton({ title: 'Toggle' }).on('click', () => this.toggleWarpUI());
-
-    visFolder.addButton({ title: 'Show All' }).on('click', () => {
-      this.settings.showGridPoints = true;
-      this.settings.showCornerPoints = true;
-      this.settings.showOutline = true;
-      this.settings.showControlLines = true;
-      this.savedVisibility = null;
-      this.applyVisibility();
-      this.pane.refresh();
-      this.saveSettings();
-    });
-
-    // Perspective visibility
-    const perspFolder = visFolder.addFolder({ title: 'Perspective', expanded: true });
-
-    perspFolder
-      .addBinding(this.settings, 'showCornerPoints', { label: 'Corners' })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        this.mapper.setCornerPointsVisible(e.value as boolean);
-        this.saveSettings();
-      });
-
-    perspFolder
-      .addBinding(this.settings, 'showOutline', { label: 'Outline' })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        this.mapper.setOutlineVisible(e.value as boolean);
-        this.saveSettings();
-      });
-
-    // Grid visibility
-    const gridFolder = visFolder.addFolder({ title: 'Grid', expanded: true });
 
     gridFolder
-      .addBinding(this.settings, 'showGridPoints', { label: 'Handles' })
+      .addBinding(this.settings, 'showGridPoints', { label: 'Grid Handles' })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setGridPointsVisible(e.value as boolean);
         this.saveSettings();
       });
 
     gridFolder
-      .addBinding(this.settings, 'showControlLines', { label: 'Lines' })
+      .addBinding(this.settings, 'showControlLines', { label: 'Control Lines' })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setShowControlLines(e.value as boolean);
         this.saveSettings();
+        this.broadcast(ProjectionEventType.CONTROL_LINES_TOGGLED, {
+          show: e.value as boolean,
+        });
       });
 
-    visFolder.addBlade({ view: 'separator' });
+    this.warpFolder.addBlade({ view: 'separator' });
 
-    visFolder.addButton({ title: 'Reset Warp' }).on('click', () => {
+    this.warpFolder.addButton({ title: 'Reset Warp' }).on('click', () => {
+      // Broadcast reset to projector
+      this.broadcast(ProjectionEventType.RESET_WARP, {});
+
+      // Reset locally and reload
       this.mapper.reset();
-      window.location.reload();
+      if (this.isMultiWindowMode()) {
+        setTimeout(() => {
+          window.location.reload();
+        }, 100);
+      } else {
+        window.location.reload();
+      }
     });
   }
 
@@ -247,6 +344,7 @@ export class ProjectionMapperGUI {
       this.settings.showCornerPoints = false;
       this.settings.showOutline = false;
       this.settings.showControlLines = false;
+      this.cornersOutlineState.enabled = false;
     } else if (shouldHide) {
       // Already hidden, nothing to do
     } else {
@@ -255,18 +353,28 @@ export class ProjectionMapperGUI {
         this.settings.showCornerPoints = this.savedVisibility.showCornerPoints;
         this.settings.showOutline = this.savedVisibility.showOutline;
         this.settings.showControlLines = this.savedVisibility.showControlLines;
+        this.cornersOutlineState.enabled = this.savedVisibility.showCornerPoints;
         this.savedVisibility = null;
       } else {
         this.settings.showGridPoints = true;
         this.settings.showCornerPoints = true;
         this.settings.showOutline = true;
         this.settings.showControlLines = true;
+        this.cornersOutlineState.enabled = true;
       }
     }
 
     this.applyVisibility();
     this.pane.refresh();
     this.saveSettings();
+
+    // Broadcast visibility changes
+    this.broadcast(ProjectionEventType.CONTROLS_VISIBILITY_CHANGED, {
+      visible: this.settings.showGridPoints || this.settings.showCornerPoints || this.settings.showOutline,
+    });
+    this.broadcast(ProjectionEventType.CONTROL_LINES_TOGGLED, {
+      show: this.settings.showControlLines,
+    });
   }
 
   private applySettings(): void {
@@ -288,6 +396,9 @@ export class ProjectionMapperGUI {
     this.mapper.setShowTestCard(this.settings.showTestcard);
     this.pane.refresh();
     this.saveSettings();
+    this.broadcast(ProjectionEventType.TESTCARD_TOGGLED, {
+      show: this.settings.showTestcard,
+    });
   }
 
   show(): void {
@@ -311,6 +422,9 @@ export class ProjectionMapperGUI {
   }
 
   private saveSettings(): void {
+    // Only controller should manage localStorage to avoid race conditions
+    if (this.isMultiWindowMode()) return;
+
     try {
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.settings));
     } catch (error) {
@@ -319,6 +433,10 @@ export class ProjectionMapperGUI {
   }
 
   private loadSettings(): void {
+    // Only controller should load from localStorage
+    // Projector will receive state via FULL_STATE_SYNC
+    if (this.isMultiWindowMode()) return;
+
     try {
       const saved = localStorage.getItem(this.STORAGE_KEY);
       if (!saved) return;

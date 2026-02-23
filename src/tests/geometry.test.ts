@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isQuadConcave } from '../geometry';
+import { isQuadConcave } from '../warp/geometry';
 
 describe('Geometry Checks', () => {
   it('should return false for a valid square', () => {
