@@ -22,7 +22,7 @@ export class WindowManager {
     const top = (window.screen.height - height) / 2;
 
     this.projectorWindow = window.open(
-      '/projector.html',
+      '/examples/multi-window/projector.html',
       'ProjectorOutput',
       `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no,resizable=yes`
     );

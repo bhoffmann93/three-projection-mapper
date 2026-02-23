@@ -11,7 +11,9 @@
       "Bash(npx tsc:*)",
       "Bash(node -e:*)",
       "Bash(ls:*)",
-      "Bash(npm start)"
+      "Bash(npm start)",
+      "Bash(lsof:*)",
+      "Bash(grep:*)"
     ]
   }
 }

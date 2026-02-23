@@ -1,30 +1,26 @@
 /**
- * Projector Window - Receives Warp Settings from Controller
+ * Simple Example - Single Window Projection Mapping
  *
- * This shows the projector setup:
- * 1. Create the SAME scene as controller (identical code)
- * 2. Add WindowSync addon in projector mode
- * 3. Warp settings are received automatically from controller
- * 4. Both windows render the same content independently
+ * This shows the basic usage:
+ * 1. Create your Three.js scene (cube, camera, lights)
+ * 2. Render it to a texture
+ * 3. ProjectionMapper warps the texture
  */
 
 import * as THREE from 'three';
-import { ProjectionMapper } from './ProjectionMapper';
-import { WindowSync } from './addons/WindowSync';
+import { ProjectionMapper } from '../../src/ProjectionMapper';
+import { ProjectionMapperGUI, GUI_ANCHOR } from '../../src/ProjectionMapperGUI';
 
-// Hide cursor for clean projection
-document.body.style.cursor = 'none';
-
-// ===== 1. Setup Renderer (Fixed 1280x800 for projector) =====
+// ===== 1. Setup Renderer =====
 const renderer = new THREE.WebGLRenderer({
   powerPreference: 'high-performance',
   antialias: false,
 });
-renderer.setSize(1280, 800);
-renderer.setPixelRatio(1); // Fixed 1:1 for projector
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
 document.body.appendChild(renderer.domElement);
 
-// ===== 2. Create Your Scene (SAME as controller) =====
+// ===== 2. Create Your Scene =====
 const scene = new THREE.Scene();
 
 // Camera (using projector specs for Acer X1383WH)
@@ -38,7 +34,7 @@ camera.updateProjectionMatrix();
 // Apply lens shift for projector (Acer has 100% vertical offset)
 camera.projectionMatrix.elements[9] = 1.0;
 
-// Add a cube (SAME as controller)
+// Add a cube
 const cubeSize = 0.2;
 const cubeGeometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
 cubeGeometry.translate(0, -cubeSize / 2, 0); // Pivot at bottom
@@ -47,13 +43,13 @@ cube.position.set(0, 0.17, 0);
 cube.rotation.set(Math.PI, Math.PI * 0.25, 0);
 scene.add(cube);
 
-// Add lights (SAME as controller)
+// Add lights
 const light = new THREE.DirectionalLight(0xffffff, 1);
 light.position.set(1, 1, 1);
 scene.add(light);
 scene.add(new THREE.AmbientLight(0x404040));
 
-// Add floor grid (SAME as controller)
+// Add floor grid
 const grid = new THREE.GridHelper(2.0, 20, 0xff0000, 0xffffff);
 scene.add(grid);
 
@@ -67,20 +63,32 @@ const renderTarget = new THREE.WebGLRenderTarget(1280, 800, {
 // ===== 4. Create Projection Mapper =====
 const mapper = new ProjectionMapper(renderer, renderTarget.texture);
 
-// ===== 5. Add Multi-Window Support (Projector Mode) =====
-const sync = new WindowSync(mapper, { mode: 'projector' });
+// ===== 5. Optional GUI =====
+const gui = new ProjectionMapperGUI(mapper, 'Projection Mapper', GUI_ANCHOR.LEFT);
 
-// Disable controls and fix zoom for projector output
-mapper.setControlsVisible(false);
-mapper.setPlaneScale(1.0);
+// Keyboard shortcuts
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'g' || e.key === 'p') gui.toggle();
+  if (e.key === 't') gui.toggleTestCard();
+  if (e.key === 'h') gui.toggleWarpUI();
+});
 
-// ===== 6. Animation Loop (SAME as controller) =====
+// Handle resize
+window.addEventListener('resize', () => {
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  camera.aspect = 1280 / 800;
+  camera.updateProjectionMatrix();
+  camera.projectionMatrix.elements[9] = 1.0;
+  mapper.resize(window.innerWidth, window.innerHeight);
+});
+
+// ===== 6. Animation Loop =====
 function animate() {
   requestAnimationFrame(animate);
 
-  // Animate your content (SAME as controller)
-  cube.rotation.x += 0.01;
-  cube.rotation.y += 0.01;
+  // Animate your content
+  // cube.rotation.x += 0.01;
+  // cube.rotation.y += 0.01;
 
   // Render scene to texture
   renderer.setRenderTarget(renderTarget);
@@ -96,5 +104,9 @@ function animate() {
 
 animate();
 
-console.log('Projector Window Ready');
-console.log('Waiting for controller connection...');
+console.log('ProjectionMapper Example');
+console.log('Controls:');
+console.log('  G/P - Toggle GUI');
+console.log('  T - Toggle testcard');
+console.log('  H - Toggle warp UI');
+console.log('  Drag corners/grid points to warp');

@@ -509,6 +509,17 @@ export class MeshWarper {
     this.setOutlineVisible(visible);
   }
 
+  /**
+   * Enable or disable drag controls completely.
+   * When disabled, points cannot be dragged even if visible.
+   * Use this for projector windows that should be receive-only.
+   */
+  public setDragEnabled(enabled: boolean): void {
+    if (this.dragControls) {
+      this.dragControls.enabled = enabled;
+    }
+  }
+
   // Grid size getters
   public getGridSizeX(): number {
     return this.xControlPointAmount;
