@@ -33,7 +33,7 @@ export class ControllerGUI {
     title = 'Controller',
     anchor: GUI_ANCHOR = GUI_ANCHOR.LEFT,
     onGridSizeChange?: () => void,
-    onProjectorControlsChange?: (visible: boolean) => void
+    onProjectorControlsChange?: (visible: boolean) => void,
   ) {
     this.mapper = mapper;
     this.eventChannel = eventChannel;
@@ -207,12 +207,12 @@ export class ControllerGUI {
         const referenceGridPoints = (warper as any).referenceGridControlPoints;
 
         this.eventChannel.emit(ProjectionEventType.GRID_POINTS_UPDATED, {
-          points: gridPoints.map(p => ({
+          points: gridPoints.map((p) => ({
             x: (p.x + config.width / 2) / config.width,
             y: (p.y + config.height / 2) / config.height,
             z: p.z,
           })),
-          referencePoints: referenceGridPoints.map(p => ({
+          referencePoints: referenceGridPoints.map((p) => ({
             x: (p.x + config.width / 2) / config.width,
             y: (p.y + config.height / 2) / config.height,
             z: p.z,
@@ -246,7 +246,7 @@ export class ControllerGUI {
       });
     });
 
-    const perspFolder = this.warpFolder.addFolder({ title: 'Perspective', expanded: true });
+    const perspFolder = this.warpFolder.addFolder({ title: 'Perspective Warp', expanded: true });
 
     perspFolder
       .addBinding(this.settings, 'showCornerPoints', { label: 'Corners' })
@@ -262,7 +262,7 @@ export class ControllerGUI {
         this.saveSettings();
       });
 
-    const gridFolder = this.warpFolder.addFolder({ title: 'Grid', expanded: true });
+    const gridFolder = this.warpFolder.addFolder({ title: 'Grid Warp', expanded: true });
 
     gridFolder
       .addBinding(this.settings, 'showGridPoints', { label: 'Handles' })

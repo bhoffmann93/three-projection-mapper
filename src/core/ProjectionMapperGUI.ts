@@ -180,7 +180,7 @@ export class ProjectionMapperGUI {
     });
 
     // Perspective visibility
-    const perspFolder = visFolder.addFolder({ title: 'Perspective', expanded: true });
+    const perspFolder = visFolder.addFolder({ title: 'Perspective Warp', expanded: true });
 
     perspFolder
       .addBinding(this.settings, 'showCornerPoints', { label: 'Corners' })
@@ -197,7 +197,7 @@ export class ProjectionMapperGUI {
       });
 
     // Grid visibility
-    const gridFolder = visFolder.addFolder({ title: 'Grid', expanded: true });
+    const gridFolder = visFolder.addFolder({ title: 'Grid Warp', expanded: true });
 
     gridFolder
       .addBinding(this.settings, 'showGridPoints', { label: 'Handles' })
