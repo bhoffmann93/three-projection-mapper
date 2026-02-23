@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { ProjectionMapper } from '../../src/core/ProjectionMapper';
 import { ProjectionMapperGUI, GUI_ANCHOR } from '../../src/core/ProjectionMapperGUI';
+import { ProjectorCamera } from '../../src/core/ProjectorCamera';
 
 const renderer = new THREE.WebGLRenderer({
   powerPreference: 'high-performance',
@@ -17,12 +18,12 @@ const projectionResolution = new THREE.Vector2(1280, 800);
 
 const aspect = projectionResolution.x / projectionResolution.y;
 const throwRatio = 1.65; // Acer X1383WH
-const fovV = 2 * Math.atan(Math.tan(Math.atan(1 / (2 * throwRatio))) / aspect);
-const camera = new THREE.PerspectiveCamera(fovV * (180 / Math.PI), aspect, 0.1, 1000);
-camera.position.set(0, 0.05, 1.5);
+const lensShiftY = 1.0;
+const camera = new ProjectorCamera(throwRatio, lensShiftY, aspect, 0.1, 1000);
+//pos z zooom
+//pos y move content up down without destroying perspective
 camera.updateProjectionMatrix();
-
-camera.projectionMatrix.elements[9] = 1.0; // Acer X1383WH has 100% vertical lens shift
+camera.position.set(0, 0.05, 1.5);
 
 const cubeSize = 0.2;
 const cubeGeometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
@@ -62,7 +63,6 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
   camera.aspect = projectionResolution.x / projectionResolution.y;
   camera.updateProjectionMatrix();
-  camera.projectionMatrix.elements[9] = 1.0;
   mapper.resize(window.innerWidth, window.innerHeight);
 });
 
@@ -72,7 +72,7 @@ function animate() {
   renderer.setRenderTarget(renderTarget);
   renderer.render(scene, camera);
 
-  camera.projectionMatrix.elements[9] = 1.0; // Lens shift gets reset by Three.js after render
+  camera.updateProjectionMatrix();
 
   renderer.setRenderTarget(null);
   mapper.render();

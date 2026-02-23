@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { ProjectorCamera } from '../../src/core/ProjectorCamera';
 
 export interface ProjectionSceneConfig {
   width: number;
@@ -10,7 +11,7 @@ export interface ProjectionSceneConfig {
 
 export class ProjectionScene {
   public readonly scene: THREE.Scene;
-  public readonly camera: THREE.PerspectiveCamera;
+  public readonly camera: ProjectorCamera;
   public readonly renderTarget: THREE.WebGLRenderTarget;
 
   private readonly cube: THREE.Mesh;
@@ -22,7 +23,7 @@ export class ProjectionScene {
       height,
       aspect = 1280 / 800,
       throwRatio = 1.65, // Acer X1383WH
-      lensShiftY = 1.0,  // Acer X1383WH has 100% vertical offset
+      lensShiftY = 1.0, // Acer X1383WH has 100% vertical offset
     } = config;
 
     this.lensShiftY = lensShiftY;
@@ -49,8 +50,7 @@ export class ProjectionScene {
     renderer.setRenderTarget(this.renderTarget);
     renderer.render(this.scene, this.camera);
 
-    // Lens shift gets reset by Three.js after render
-    this.camera.projectionMatrix.elements[9] = this.lensShiftY;
+    this.camera.updateProjectionMatrix();
   }
 
   public getTexture(): THREE.Texture {
@@ -75,12 +75,10 @@ export class ProjectionScene {
     return new THREE.Scene();
   }
 
-  private createCamera(aspect: number, throwRatio: number, lensShiftY: number): THREE.PerspectiveCamera {
-    const fovV = 2 * Math.atan(Math.tan(Math.atan(1 / (2 * throwRatio))) / aspect);
-    const camera = new THREE.PerspectiveCamera(fovV * (180 / Math.PI), aspect, 0.1, 1000);
+  private createCamera(aspect: number, throwRatio: number, lensShiftY: number): ProjectorCamera {
+    const camera = new ProjectorCamera(throwRatio, lensShiftY, aspect, 0.1, 1000);
     camera.position.set(0, 0.05, 1.5);
     camera.updateProjectionMatrix();
-    camera.projectionMatrix.elements[9] = lensShiftY;
     return camera;
   }
 
