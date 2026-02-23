@@ -1,4 +1,4 @@
-// Bicubic Grid Warp Adapted for GLSL from C++ 
+// Bicubic Grid Warp Adapted for GLSL from C++
 // Omnidome https://github.com/WilstonOreo/omnidome/blob/master/lib/src/WarpGrid.cpp
 /* Copyright (c) 2014-2015 "Omnidome" by Michael Winkelmann
  * Dome Mapping Projection Software (http://omnido.me).

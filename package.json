@@ -40,7 +40,13 @@
   "author": "",
   "license": "AGPL-3.0-or-later",
   "peerDependencies": {
-    "three": ">=0.150.0"
+    "three": ">=0.150.0",
+    "@types/three": ">=0.150.0"
+  },
+  "peerDependenciesMeta": {
+    "@types/three": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
@@ -60,7 +66,6 @@
   },
   "dependencies": {
     "convex-hull": "^1.0.3",
-    "three": ">=0.150.0",
     "tweakpane": "^4.0.5"
   }
 }

@@ -6,6 +6,7 @@ A projection mapping library for Three.js with interactive warp grid control and
 
 - **Bicubic warp mesh** - Smooth perspective correction using Catmull-Rom interpolation
 - **Interactive control points** - Drag corners and grid points to adjust warping
+- **Hardware-optics support** - Specialized camera class for physical lens shift and throw ratio correction
 - **Multi-window sync** - Separate controller and projector windows with real-time sync
 - **Testcard overlay** - Built-in test pattern for projection alignment
 - **Persistence** - Control point positions saved to localStorage
@@ -64,6 +65,17 @@ For professional projection mapping setups, use two browser windows:
 - **Projector Window**: Output-only display (fullscreen on projector hardware)
 
 State automatically syncs between windows via BroadcastChannel (no server required).
+
+```
+┌─────────────────────────┐         BroadcastChannel         ┌─────────────────────────┐
+│   Controller Window     │◄──────── (local IPC) ──────────►│   Projector Window      │
+├─────────────────────────┤                                  ├─────────────────────────┤
+│ • Tweakpane GUI         │   Warp Points, Settings, etc.    │ • No GUI                │
+│ • Drag controls         │─────────────────────────────────►│ • Drag disabled         │
+│ • Testcard toggle       │                                  │ • Fullscreen output     │
+│ • Preview window        │                                  │ • Hardware projector    │
+└─────────────────────────┘                                  └─────────────────────────┘
+```
 
 **Step 1: Encapsulate your scene in a class:**
 
@@ -287,6 +299,33 @@ const sync = new WindowSync(mapper, { mode: WINDOW_SYNC_MODE.PROJECTOR });
 | `getEventChannel()` | Get IPC event channel |
 | `getWindowManager()` | Get window manager |
 | `destroy()` | Clean up resources |
+
+### ProjectorCamera
+
+Specialized camera for real-world projector optics with throw ratio and lens shift support.
+
+```typescript
+import { ProjectorCamera } from 'three-projection-mapping';
+
+// Match real projector specifications
+const throwRatio = 1.65;  // Distance-to-width ratio (e.g., Acer X1383WH)
+const lensShiftY = 1.0;   // Vertical lens shift (1.0 = 100%)
+const aspect = 16 / 10;   // Projector aspect ratio
+
+const camera = new ProjectorCamera(throwRatio, lensShiftY, aspect);
+camera.position.set(0, 0.5, 2.0);
+```
+
+**Why use ProjectorCamera?**
+- Automatically calculates FOV from throw ratio
+- Applies lens shift to projection matrix (simulates physical keystone correction)
+- Matches real projector behavior for accurate preview
+
+**Parameters:**
+- `throwRatio`: Distance-to-width ratio (typical range: 0.8 - 2.5)
+- `lensShiftY`: Vertical lens shift as multiplier (1.0 = 100%, 1.1 = 110%)
+- `aspect`: Aspect ratio (width/height)
+- `near`, `far`: Optional near/far clipping planes (default: 0.1, 1000)
 
 ### MeshWarper
 
