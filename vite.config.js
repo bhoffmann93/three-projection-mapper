@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
 export default defineConfig({
+  base: process.env.VITE_BASE_URL || '/', //eslint-disable-line
   server: {
     port: '8080',
     open: 'examples/multi-window/controller.html', // Default to controller for dual-window mode
@@ -19,6 +20,7 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
+        'index': resolve(__dirname, 'index.html'),
         'single-window': resolve(__dirname, 'examples/single-window/index.html'),
         'multi-window-controller': resolve(__dirname, 'examples/multi-window/controller.html'),
         'multi-window-projector': resolve(__dirname, 'examples/multi-window/projector.html'),
