@@ -14,7 +14,7 @@ document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 
 const oversamplingFactor = 1.0;
-const projectionResolution = new THREE.Vector2(1280, 800);
+const projectionResolution = new THREE.Vector2(1920, 1080);
 
 const aspect = projectionResolution.x / projectionResolution.y;
 const throwRatio = 1.65; // Acer X1383WH
@@ -70,6 +70,8 @@ window.addEventListener('resize', () => {
 });
 
 function animate() {
+  cube.rotation.y += 0.01;
+
   requestAnimationFrame(animate);
 
   renderer.setRenderTarget(renderTarget);
