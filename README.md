@@ -1,5 +1,9 @@
 # Three.js Projection Mapping
 
+<p align="center">
+  <img src="./static/screenshot-warp.png" alt="Project Logo" width="400">
+</p>
+
 A projection mapping library for Three.js with interactive warp grid control and multi-window synchronization. Easily add projection mapping capabilities to any Three.js project.
 The library uses a deformable mesh with perspective and or bicubic or bilinear grid interpolation on vertex shader to warp any texture for projection mapping. Pass a Three.js Render Target or Texture to start warping.
 
