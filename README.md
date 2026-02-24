@@ -16,7 +16,7 @@ The library uses a deformable mesh with perspective and or bicubic or bilinear g
 - **Grid control points (configurable)** - Internal points for fine adjustments with Bilinear or Bicubic warping on vertex shader
 - **GUI** - Tweakpane-based interface for calibration
 - **Persistence** - Control point positions saved to localStorage
-- **Testcard overlay** - Built-in procedural Resolution independant test pattern shader for projection alignment
+- **Testcard overlay** - Built-in procedural Resolution independent test pattern shader for projection alignment
 - **Multi-window sync Option** - Separate controller and projector windows with real-time sync
 - **Hardware-optics support** - Specialized camera class for physical lens shift and throw ratio correction
 - **BroadcastChannel IPC** - Real-time sync between controller and projector windows
