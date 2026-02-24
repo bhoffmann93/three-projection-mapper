@@ -35,7 +35,7 @@ Your Three.js Scene → RenderTarget → ProjectionMapper → Projector
 ## Features
 
 - **Corner control points** — 4 outer points for broad perspective correction
-- **Grid control points** — configurable inner grid for fine-grained surface warping
+- **Grid control points** — configurable inner grid for fine-grained surface warping (Bilinear or Bicubic)
 - **Testcard overlay** — procedural pattern (resolution-independent)
 - **GUI** — Tweakpane based UI included
 - **Auto-save** — warp positions saved to `localStorage`, restored on reload
