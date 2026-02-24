@@ -35,6 +35,9 @@ export interface WindowSyncConfig {
 
   /** This window's role (default: WINDOW_SYNC_MODE.CONTROLLER) */
   mode?: WINDOW_SYNC_MODE;
+
+  /** URL for the projector window (controller only) */
+  projectorUrl?: string;
 }
 
 export class WindowSync {
@@ -57,6 +60,10 @@ export class WindowSync {
     this.mode = mode;
     this.eventChannel = new EventChannel(channelName, mode);
     this.windowManager = new WindowManager();
+
+    if (config.projectorUrl) {
+      this.windowManager.setProjectorUrl(config.projectorUrl);
+    }
 
     if (mode === WINDOW_SYNC_MODE.CONTROLLER) {
       this.setupControllerSync();

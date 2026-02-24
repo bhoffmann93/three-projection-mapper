@@ -39,6 +39,7 @@ const cube = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshNormalMateria
 scene.add(cube);
 
 const renderTarget = new THREE.WebGLRenderTarget(1280, 800);
+//could also pass a image texture
 const mapper = new ProjectionMapper(renderer, renderTarget.texture);
 const gui = new ProjectionMapperGUI(mapper, 'Projection Mapper', GUI_ANCHOR.LEFT);
 

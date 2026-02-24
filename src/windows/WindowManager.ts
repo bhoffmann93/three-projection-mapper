@@ -5,6 +5,14 @@ export class WindowManager {
   private projectorWindow: Window | null = null;
   private checkInterval: number | null = null;
   private onCloseCallback?: () => void;
+  private projectorUrl = '/examples/multi-window/projector.html';
+
+  /**
+   * Set the URL for the projector window
+   */
+  setProjectorUrl(url: string): void {
+    this.projectorUrl = url;
+  }
 
   /**
    * Open the projector window at 1280x800
@@ -22,7 +30,7 @@ export class WindowManager {
     const top = (window.screen.height - height) / 2;
 
     this.projectorWindow = window.open(
-      '/examples/multi-window/projector.html',
+      this.projectorUrl,
       'ProjectorOutput',
       `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no,resizable=yes`
     );

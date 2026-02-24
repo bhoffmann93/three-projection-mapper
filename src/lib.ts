@@ -21,3 +21,6 @@ export {
 export { ProjectorCamera } from './core/ProjectorCamera';
 export { MeshWarper, WARP_MODE, type MeshWarperConfig } from './warp/MeshWarper';
 export { calculateGridPoints } from './warp/geometry';
+export { WindowSync, WINDOW_SYNC_MODE, type WindowSyncConfig } from './addons/WindowSync';
+export { EventChannel } from './ipc/EventChannel';
+export { WindowManager } from './windows/WindowManager';
