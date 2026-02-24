@@ -1,7 +1,7 @@
 # Three Projection Mapper
 
 <p align="center">
-  <img src="./static/screenshot-warp.png" alt="Project Logo" width="400">
+  <img src="./static/screenshot-warp.png" alt="Warp grid control interface" width="400">
 </p>
 
 <p align="center">
@@ -9,33 +9,38 @@
   <img src="https://img.shields.io/badge/version-v0.1.0--alpha-blue" alt="Version: v0.1.0-alpha">
 </p>
 
-## Project Status: In Development
-
-This project is currently in **Active Development**. 
-
-* **Stability:** Experimental.
-* **API Maturity:** The API and internal architecture are subject to frequent breaking changes without prior notice.
-* **Production Readiness:** Not recommended for production environments at this stage.
+> **In active development.** API and architecture are subject to breaking changes. Not recommended for production use yet.
 
 ---
 
-A projection mapping library for Three.js with interactive warp grid control and multi-window synchronization. Easily add projection mapping capabilities to any Three.js project.
-The library uses a deformable mesh with perspective and or bicubic or bilinear grid interpolation on vertex shader to warp any texture for projection mapping. Pass a Three.js Render Target or Texture to start warping.
+A projection mapping library for [Three.js](https://threejs.org/). Warp and align any Three.js scene onto physical surfaces — without leaving the browser.
 
 **[Live Examples](https://bhoffmann93.github.io/three-projection-mapper/)**
 
+---
+
+## How it works
+
+You render your Three.js scene into a texture, pass it to `ProjectionMapper`, and it gives you interactive control points to warp, stretch, and align the output to match your projection surface. All calibration data is saved automatically so your setup persists across sessions.
+
+```
+Your Three.js Scene → RenderTarget → ProjectionMapper → Projector
+                                           ↕
+                                    Drag control points
+                                    to align on surface
+```
+
+---
+
 ## Features
 
-- **Perspective + Bilinear or Bicubic Grid Warp**
-- **Corner control points (4)** - Define the outer quad for perspective correction (Perspective Homography)
-- **Grid control points (configurable)** - Internal points for fine adjustments with Bilinear or Bicubic warping on vertex shader
-- **GUI** - Tweakpane-based interface for calibration
-- **Persistence** - Control point positions saved to localStorage
-- **Testcard overlay** - Built-in procedural Resolution independent test pattern shader for projection alignment
-- **Multi-window sync Option** - Separate controller and projector windows with real-time sync
-- **Hardware-optics support** - Specialized camera class for physical lens shift and throw ratio correction
-- **BroadcastChannel IPC** - Real-time sync between controller and projector windows
-- **Type-safe events** - BroadcastChannel IPC with strict TypeScript types
+- **Corner control points** — 4 outer points for broad perspective correction
+- **Grid control points** — configurable inner grid for fine-grained surface warping
+- **Testcard overlay** — procedural pattern (resolution-independent)
+- **GUI** — Tweakpane based UI included
+- **Auto-save** — warp positions saved to `localStorage`, restored on reload
+- **Multi-window mode** — separate controller and projector windows, synced in real time (no server needed)
+- **Hardware optics support** — camera class for physical throw ratio and lens shift correction
 
 ## Installation
 
@@ -43,34 +48,42 @@ The library uses a deformable mesh with perspective and or bicubic or bilinear g
 npm install github:bhoffmann93/three-projection-mapper
 ```
 
+---
+
 ## Quick Start
 
-### Single Window
+The core idea: render your scene to a `WebGLRenderTarget`, then hand its texture to `ProjectionMapper`. In your animation loop, call `mapper.render()` last.
 
 ```typescript
 import * as THREE from 'three';
 import { ProjectionMapper, ProjectionMapperGUI, GUI_ANCHOR } from 'three-projection-mapping';
 
+// Standard Three.js setup
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, 1280 / 800, 0.1, 1000);
+scene.add(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshNormalMaterial()));
 
-const cube = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshNormalMaterial());
-scene.add(cube);
-
+// Render your scene off-screen into this target
 const renderTarget = new THREE.WebGLRenderTarget(1280, 800);
+
+// Pass the texture to ProjectionMapper
 const mapper = new ProjectionMapper(renderer, renderTarget.texture);
+
+// Optional: add the calibration GUI
 const gui = new ProjectionMapperGUI(mapper, { title: 'Projection Mapper', anchor: GUI_ANCHOR.LEFT });
 
 function animate() {
   requestAnimationFrame(animate);
 
+  // 1. Render your scene into the render target
   renderer.setRenderTarget(renderTarget);
   renderer.render(scene, camera);
 
+  // 2. Render the warped output to screen
   renderer.setRenderTarget(null);
   mapper.render();
 }
@@ -78,27 +91,37 @@ function animate() {
 animate();
 ```
 
-### Multi-Window (Controller + Projector)
+### Keyboard Shortcuts (example app)
 
-For professional projection mapping setups, use two browser windows:
+| Key       | Action                  |
+| --------- | ----------------------- |
+| `G` / `P` | Toggle GUI panel        |
+| `T`       | Toggle testcard         |
+| `H`       | Hide all control points |
+| `O`       | Open projector window   |
 
-- **Controller Window**: Full GUI for calibration, drag controls, preview
-- **Projector Window**: Output-only display (fullscreen on projector hardware)
+---
 
-State automatically syncs between windows via BroadcastChannel (no server required).
+## Multi-Window Setup
+
+For real installations, you'll typically want two separate browser windows:
+
+- **Controller window** — your laptop: GUI, drag controls, preview
+- **Projector window** — your projector display: output only, no controls
+
+State syncs automatically between them via the browser's `BroadcastChannel` API — no server or network needed.
 
 ```
-┌─────────────────────────┐         BroadcastChannel         ┌─────────────────────────┐
-│   Controller Window     │◄──────── (local IPC) ──────────►│   Projector Window      │
-├─────────────────────────┤                                  ├─────────────────────────┤
-│ • Tweakpane GUI         │   Warp Points, Settings, etc.    │ • No GUI                │
-│ • Drag controls         │─────────────────────────────────►│ • Drag disabled         │
-│ • Testcard toggle       │                                  │ • Fullscreen output     │
-│ • Preview window        │                                  │ • Hardware projector    │
-└─────────────────────────┘                                  └─────────────────────────┘
+┌─────────────────────────┐                    ┌─────────────────────────┐
+│   Controller Window     │◄── local sync ────►│   Projector Window      │
+├─────────────────────────┤                    ├─────────────────────────┤
+│ • Tweakpane GUI         │  warp points,      │ • No GUI                │
+│ • Drag controls         │  settings, etc.    │ • Drag disabled         │
+│ • Testcard toggle       │                    │ • Fullscreen output     │
+└─────────────────────────┘                    └─────────────────────────┘
 ```
 
-**Step 1: Encapsulate your scene in a class:**
+**Step 1 — Shared scene class** (used in both windows):
 
 ```typescript
 // ProjectionScene.ts
@@ -108,16 +131,13 @@ export class ProjectionScene {
   public readonly scene: THREE.Scene;
   public readonly camera: THREE.PerspectiveCamera;
   public readonly renderTarget: THREE.WebGLRenderTarget;
-
   private cube: THREE.Mesh;
 
   constructor(config: { width: number; height: number }) {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(75, config.width / config.height, 0.1, 1000);
-
     this.cube = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshNormalMaterial());
     this.scene.add(this.cube);
-
     this.renderTarget = new THREE.WebGLRenderTarget(config.width, config.height);
   }
 
@@ -136,7 +156,7 @@ export class ProjectionScene {
 }
 ```
 
-**Step 2: Controller window (calibration & control):**
+**Step 2 — Controller window:**
 
 ```typescript
 // controller.ts
@@ -160,6 +180,7 @@ const gui = new ProjectionMapperGUI(mapper, {
   windowManager: sync.getWindowManager(),
 });
 
+// Press O to open the projector window
 window.addEventListener('keydown', (e) => {
   if (e.key === 'o') sync.openProjectorWindow();
 });
@@ -171,11 +192,10 @@ function animate() {
   renderer.setRenderTarget(null);
   mapper.render();
 }
-
 animate();
 ```
 
-**Step 3: Projector window (output-only):**
+**Step 3 — Projector window:**
 
 ```typescript
 // projector.ts
@@ -191,6 +211,7 @@ document.body.appendChild(renderer.domElement);
 const projectionScene = new ProjectionScene({ width: 1280, height: 800 });
 const mapper = new ProjectionMapper(renderer, projectionScene.getTexture());
 const sync = new WindowSync(mapper, { mode: WINDOW_SYNC_MODE.PROJECTOR });
+// WindowSync automatically hides controls and disables drag in projector mode
 
 function animate() {
   requestAnimationFrame(animate);
@@ -199,24 +220,16 @@ function animate() {
   renderer.setRenderTarget(null);
   mapper.render();
 }
-
 animate();
 ```
 
-**What WindowSync does automatically:**
+See the full working example in `/examples/multi-window/`.
 
-- **Controller mode**: Broadcasts all state changes (warp points, settings, testcard) to projector
-- **Projector mode**: Hides all controls, disables drag, sets scale to 1.0, receives updates from controller
-
-**See full example:** `/examples/multi-window/`
+---
 
 ## API Reference
 
-### ProjectionMapper
-
-Main class for projection mapping.
-
-#### Constructor
+### `ProjectionMapper`
 
 ```typescript
 new ProjectionMapper(
@@ -226,43 +239,45 @@ new ProjectionMapper(
 )
 ```
 
-**Config Options:**
+**Config options:**
 
 ```typescript
 interface ProjectionMapperConfig {
   resolution?: { width: number; height: number }; // Default: input texture size
-  segments?: number; // Mesh segments (default: 50)
-  gridControlPoints?: { x: number; y: number }; // Grid density (auto-calculated if omitted)
+  segments?: number; // Mesh density (default: 50)
+  gridControlPoints?: { x: number; y: number }; // Grid size (auto-calculated if omitted)
   antialias?: boolean; // Enable SMAA (default: true)
-  planeScale?: number; // Plane fill factor (default: 0.5)
+  planeScale?: number; // Fill factor 0–1 (default: 0.5)
 }
 ```
 
-#### Methods
+**Methods:**
 
-| Method                            | Description                          |
-| --------------------------------- | ------------------------------------ |
-| `render()`                        | Render the projection mapped output  |
-| `setTexture(texture)`             | Change the input texture             |
-| `setShowTestCard(show)`           | Toggle testcard display              |
-| `setShowControlLines(show)`       | Show/hide control line overlay       |
-| `resize(width, height)`           | Handle window resize                 |
-| `setControlsVisible(visible)`     | Show/hide all control points         |
-| `setGridPointsVisible(visible)`   | Show/hide grid points                |
-| `setCornerPointsVisible(visible)` | Show/hide corner points              |
-| `setOutlineVisible(visible)`      | Show/hide outline                    |
-| `setGridSize(x, y)`               | Change grid density (2-10)           |
-| `setPlaneScale(scale)`            | Set plane fill factor (0-1)          |
-| `setShouldWarp(enabled)`          | Enable/disable warping               |
-| `setCameraOffset(x, y)`           | Offset the orthographic camera       |
-| `getCameraOffset()`               | Get current camera offset            |
-| `reset()`                         | Reset warp to default and clear save |
-| `getWarper()`                     | Get the internal MeshWarper          |
-| `dispose()`                       | Clean up resources                   |
+| Method                            | Description                      |
+| --------------------------------- | -------------------------------- |
+| `render()`                        | Render the warped output         |
+| `setTexture(texture)`             | Swap the input texture           |
+| `setShowTestCard(show)`           | Toggle testcard                  |
+| `setShowControlLines(show)`       | Show/hide control line overlay   |
+| `resize(width, height)`           | Handle window resize             |
+| `setControlsVisible(visible)`     | Show/hide all control points     |
+| `setGridPointsVisible(visible)`   | Show/hide grid points            |
+| `setCornerPointsVisible(visible)` | Show/hide corner points          |
+| `setOutlineVisible(visible)`      | Show/hide outline                |
+| `setGridSize(x, y)`               | Change grid density (2–10)       |
+| `setPlaneScale(scale)`            | Set fill factor (0–1)            |
+| `setShouldWarp(enabled)`          | Enable/disable warping           |
+| `setCameraOffset(x, y)`           | Offset the orthographic camera   |
+| `getCameraOffset()`               | Get current camera offset        |
+| `reset()`                         | Reset warp and clear saved state |
+| `getWarper()`                     | Access the internal `MeshWarper` |
+| `dispose()`                       | Clean up GPU resources           |
 
-### ProjectionMapperGUI
+---
 
-Optional GUI for single-window calibration.
+### `ProjectionMapperGUI`
+
+Optional calibration interface built on Tweakpane.
 
 ```typescript
 import { ProjectionMapperGUI, GUI_ANCHOR } from 'three-projection-mapping';
@@ -278,25 +293,35 @@ gui.hide();
 gui.dispose();
 ```
 
-### Multi-Window Mode
+---
 
-For multi-window projection setups, pass `eventChannel` and `windowManager` to enable event broadcasting and projector window controls. WindowSync automatically handles internal state synchronization.
+### `ProjectorCamera`
+
+A camera class that mirrors real projector optics — useful when your 3D scene should match what a physical projector would render.
 
 ```typescript
-import { ProjectionMapperGUI, GUI_ANCHOR } from 'three-projection-mapping';
-import { WindowSync, WINDOW_SYNC_MODE } from 'three-projection-mapping/addons';
+import { ProjectorCamera } from 'three-projection-mapping';
 
-const sync = new WindowSync(mapper, { mode: WINDOW_SYNC_MODE.CONTROLLER });
-
-const gui = new ProjectionMapperGUI(mapper, {
-  title: 'Controller',
-  anchor: GUI_ANCHOR.LEFT,
-  eventChannel: sync.getEventChannel(),
-  windowManager: sync.getWindowManager(),
-});
+const camera = new ProjectorCamera(
+  1.65, // throwRatio: distance-to-width ratio (check your projector's spec sheet)
+  1.0, // lensShiftY: vertical lens shift (1.0 = 100%)
+  16 / 10, // aspect ratio
+);
+camera.position.set(0, 0.5, 2.0);
 ```
 
-### WindowSync
+**Parameters:**
+
+| Parameter     | Description                                        |
+| ------------- | -------------------------------------------------- |
+| `throwRatio`  | Distance-to-width ratio (typical range: 0.8 – 2.5) |
+| `lensShiftY`  | Vertical lens shift as multiplier (1.0 = 100%)     |
+| `aspect`      | Width / height                                     |
+| `near`, `far` | Clipping planes (default: 0.1, 1000)               |
+
+---
+
+### `WindowSync`
 
 Multi-window synchronization addon.
 
@@ -306,122 +331,47 @@ import { WindowSync, WINDOW_SYNC_MODE } from 'three-projection-mapping/addons';
 // Controller
 const sync = new WindowSync(mapper, { mode: WINDOW_SYNC_MODE.CONTROLLER });
 sync.openProjectorWindow();
-sync.onProjectorReady(() => console.log('Connected!'));
+sync.onProjectorReady(() => console.log('Projector connected'));
 
 // Projector
 const sync = new WindowSync(mapper, { mode: WINDOW_SYNC_MODE.PROJECTOR });
 ```
 
-#### Methods
+| Method                       | Description                     |
+| ---------------------------- | ------------------------------- |
+| `openProjectorWindow()`      | Open the projector window       |
+| `closeProjectorWindow()`     | Close the projector window      |
+| `onProjectorReady(callback)` | Called when projector connects  |
+| `getEventChannel()`          | IPC event channel (pass to GUI) |
+| `getWindowManager()`         | Window manager (pass to GUI)    |
+| `destroy()`                  | Clean up                        |
 
-| Method                       | Description                             |
-| ---------------------------- | --------------------------------------- |
-| `openProjectorWindow()`      | Open projector window (controller only) |
-| `closeProjectorWindow()`     | Close projector window                  |
-| `onProjectorReady(callback)` | Called when projector connects          |
-| `getEventChannel()`          | Get IPC event channel                   |
-| `getWindowManager()`         | Get window manager                      |
-| `destroy()`                  | Clean up resources                      |
+---
 
-### ProjectorCamera
+### `MeshWarper` (advanced)
 
-Specialized camera for real-world projector optics with throw ratio and lens shift support.
-
-```typescript
-import { ProjectorCamera } from 'three-projection-mapping';
-
-// Match real projector specifications
-const throwRatio = 1.65; // Distance-to-width ratio (e.g., Acer X1383WH)
-const lensShiftY = 1.0; // Vertical lens shift (1.0 = 100%)
-const aspect = 16 / 10; // Projector aspect ratio
-
-const camera = new ProjectorCamera(throwRatio, lensShiftY, aspect);
-camera.position.set(0, 0.5, 2.0);
-```
-
-**Why use ProjectorCamera?**
-
-- Automatically calculates FOV from throw ratio
-- Applies lens shift to projection matrix (simulates physical keystone correction)
-- Matches real projector behavior for accurate preview
-
-**Parameters:**
-
-- `throwRatio`: Distance-to-width ratio (typical range: 0.8 - 2.5)
-- `lensShiftY`: Vertical lens shift as multiplier (1.0 = 100%, 1.1 = 110%)
-- `aspect`: Aspect ratio (width/height)
-- `near`, `far`: Optional near/far clipping planes (default: 0.1, 1000)
-
-### MeshWarper
-
-Low-level warp mesh (advanced usage).
+Direct access to the warp mesh for custom setups.
 
 ```typescript
 const warper = mapper.getWarper();
 
-warper.setDragEnabled(false); // Disable drag interaction
-warper.setWarpMode(WARP_MODE.bicubic); // Set warp mode
-warper.setShouldWarp(true); // Enable/disable warping
+warper.setDragEnabled(false);
+warper.setWarpMode(WARP_MODE.bicubic);
+warper.setShouldWarp(true);
 ```
 
-## Keyboard Shortcuts
-
-Default shortcuts in examples:
-
-| Key | Action                             |
-| --- | ---------------------------------- |
-| G/P | Toggle GUI                         |
-| T   | Toggle testcard                    |
-| H   | Toggle warp UI                     |
-| O   | Open projector window (controller) |
-
-## Project Structure
-
-```
-examples/
-├── single-window/
-│   ├── index.html
-│   └── main.ts
-└── multi-window/
-    ├── controller.html
-    ├── controller.ts
-    ├── projector.html
-    ├── projector.ts
-    └── ProjectionScene.ts
-
-src/
-├── core/              # Main classes
-│   ├── ProjectionMapper.ts
-│   ├── ProjectionMapperGUI.ts
-│   └── ProjectorCamera.ts
-├── warp/              # Warp mesh & geometry
-│   ├── MeshWarper.ts
-│   └── geometry.ts
-├── shaders/           # GLSL shaders
-│   ├── projection.frag
-│   └── warp.vert
-├── utils/             # Math utilities
-│   ├── perspective.ts
-│   └── projection.ts
-├── addons/            # Extensions
-│   └── WindowSync.ts
-├── ipc/               # Type-safe event system
-│   ├── EventChannel.ts
-│   ├── EventTypes.ts
-│   └── EventPayloads.ts
-└── windows/           # Window management
-    └── WindowManager.ts
-```
+---
 
 ## Development
 
 ```bash
-npm install github:bhoffmann93/three-projection-mapper
 npm start          # Dev server at http://localhost:8080
 npm run build      # Production build
 npm run build:lib  # Build library for distribution
 npm test           # Run tests with Vitest
 ```
+
+---
 
 ## License
 
@@ -429,7 +379,7 @@ AGPL-3.0-or-later
 
 The bicubic warp algorithm is adapted to GLSL from the C++ implementation of [Omnidome](https://github.com/WilstonOreo/omnidome) by Michael Winkelmann, licensed under AGPL.
 
-Perspective Transform (Homography Solver) adapted from [perspective-transform](https://github.com/jlouthan/perspective-transform)
+Perspective transform (homography solver) adapted from [perspective-transform](https://github.com/jlouthan/perspective-transform).
 
 ## Note
 
