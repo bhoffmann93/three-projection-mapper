@@ -19,7 +19,7 @@ A projection mapping library for Three.js with interactive warp grid control and
 ## Installation
 
 ```bash
-npm install three-projection-mapping
+npm install github:bhoffmann93/three-projection-mapper
 ```
 
 ## Quick Start
