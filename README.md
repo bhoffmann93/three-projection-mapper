@@ -4,6 +4,21 @@
   <img src="./static/screenshot-warp.png" alt="Project Logo" width="400">
 </p>
 
+<p align="center">
+  <img src="https://img.shields.io/badge/status-in--development-yellow" alt="Status: In Development">
+  <img src="https://img.shields.io/badge/version-v0.1.0--alpha-blue" alt="Version: v0.1.0-alpha">
+</p>
+
+## Project Status: In Development
+
+This project is currently in **Active Development**. 
+
+* **Stability:** Experimental.
+* **API Maturity:** The API and internal architecture are subject to frequent breaking changes without prior notice.
+* **Production Readiness:** Not recommended for production environments at this stage.
+
+---
+
 A projection mapping library for Three.js with interactive warp grid control and multi-window synchronization. Easily add projection mapping capabilities to any Three.js project.
 The library uses a deformable mesh with perspective and or bicubic or bilinear grid interpolation on vertex shader to warp any texture for projection mapping. Pass a Three.js Render Target or Texture to start warping.
 
