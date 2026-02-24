@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/version-v0.1.0--alpha-blue" alt="Version: v0.1.0-alpha">
 </p>
 
-## Project Status: ⚠️ In Development
+## Project Status: In Development
 
 This project is currently in **Active Development**. 
 
