@@ -410,11 +410,11 @@ AGPL-3.0-or-later
 
 The bicubic warp algorithm is adapted to GLSL from the C++ implementation of [Omnidome](https://github.com/WilstonOreo/omnidome) by Michael Winkelmann, licensed under AGPL.
 
-Perspective Transform (Homography Solver) adapted from https://github.com/jlouthan/perspective-transform
+Perspective Transform (Homography Solver) adapted from [perspective-transform](https://github.com/jlouthan/perspective-transform)
 
 ## Note
 
-The following parts have been written with the help of Claude AI:
+The following parts have been developed with AI-Assistance (Claude):
 
 - GUI Local Storage Saving
 - Multi Window System
