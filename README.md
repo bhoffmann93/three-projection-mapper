@@ -98,17 +98,6 @@ function animate() {
 animate();
 ```
 
-### Keyboard Shortcuts (example app)
-
-| Key       | Action                  |
-| --------- | ----------------------- |
-| `G` / `P` | Toggle GUI panel        |
-| `T`       | Toggle testcard         |
-| `H`       | Hide all control points |
-| `O`       | Open projector window   |
-
----
-
 ## Multi-Window Setup
 
 For real installations, you'll typically want two separate browser windows:
