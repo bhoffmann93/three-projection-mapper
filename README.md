@@ -401,7 +401,7 @@ src/
 ## Development
 
 ```bash
-npm install
+npm install github:bhoffmann93/three-projection-mapper
 npm start          # Dev server at http://localhost:8080
 npm run build      # Production build
 npm run build:lib  # Build library for distribution
