@@ -1,7 +1,7 @@
 {
-  "name": "three-projection-mapping",
-  "version": "1.0.0",
-  "description": "A projection mapping library for Three.js with interactive warp grid control",
+  "name": "three-projection-mapper",
+  "version": "0.0.1",
+  "description": "Projection mapping library for Three.js with interactive warp grid control, bicubic interpolation, and multi-window synchronization",
   "type": "module",
   "main": "dist/lib.js",
   "module": "dist/lib.js",
@@ -10,17 +10,23 @@
     ".": {
       "import": "./dist/lib.js",
       "types": "./dist/lib.d.ts"
+    },
+    "./addons": {
+      "import": "./dist/addons/index.js",
+      "types": "./dist/addons/index.d.ts"
     }
   },
   "files": [
     "dist",
-    "src",
-    "glsl"
+    "LICENSE",
+    "README.md"
   ],
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "build:lib": "vite build --config vite.lib.config.ts",
+    "prepare": "npm run build:lib",
+    "prepublishOnly": "npm run build:lib",
     "test": "vitest",
     "preview": "vite preview",
     "start": "npm run dev"
@@ -31,12 +37,30 @@
     "projection-mapping",
     "webgl",
     "warp",
-    "mesh-warping"
+    "mesh-warping",
+    "bicubic",
+    "perspective",
+    "calibration",
+    "projector"
   ],
-  "author": "",
+  "author": "YOUR_NAME <YOUR_EMAIL>",
   "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YOUR_USERNAME/three-projection-mapper.git"
+  },
+  "homepage": "https://github.com/YOUR_USERNAME/three-projection-mapper#readme",
+  "bugs": {
+    "url": "https://github.com/YOUR_USERNAME/three-projection-mapper/issues"
+  },
   "peerDependencies": {
-    "three": ">=0.150.0"
+    "three": ">=0.150.0",
+    "@types/three": ">=0.150.0"
+  },
+  "peerDependenciesMeta": {
+    "@types/three": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
@@ -47,15 +71,15 @@
     "@vitest/ui": "^3.2.4",
     "eslint": "^9.39.1",
     "globals": "^16.5.0",
-        "typescript": "^5.9.3",
+    "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.4",
     "vite": "^7.2.2",
+    "vite-plugin-dts": "^4.5.4",
     "vite-plugin-glsl": "^1.5.4",
     "vitest": "^3.2.4"
   },
   "dependencies": {
     "convex-hull": "^1.0.3",
-    "three": "^0.181.1",
     "tweakpane": "^4.0.5"
   }
 }

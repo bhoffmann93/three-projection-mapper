@@ -6,10 +6,15 @@ import { Line2 } from 'three/addons/lines/Line2.js';
 import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 //@ts-ignore
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
-import PerspT from './perspective';
+import PerspT from '../utils/perspective';
 import { isQuadConcave } from './geometry';
 import { clamp } from 'three/src/math/MathUtils';
-import meshWarpVertexShader from './shaders/warp.vert';
+import meshWarpVertexShader from '../shaders/warp.vert';
+
+export enum WARP_MODE {
+  bilinear = 0,
+  bicubic = 1,
+}
 
 export interface MeshWarperConfig {
   width: number;
@@ -29,6 +34,8 @@ export interface MeshWarperConfig {
 const STORAGE_KEY = 'warp-grid-control-points';
 
 interface StoredControlPoints {
+  /** Grid dimensions at time of save, used for validation on load */
+  gridSize?: { x: number; y: number };
   corners: { x: number; y: number; z: number }[];
   grid: { x: number; y: number; z: number }[];
   referenceGrid: { x: number; y: number; z: number }[];
@@ -108,6 +115,8 @@ export class MeshWarper {
       uBuffer: {
         value: this.config.bufferTexture,
       },
+      uWarpMode: { value: WARP_MODE.bicubic },
+      uShouldWarp: { value: true },
     };
 
     const material = new THREE.ShaderMaterial({
@@ -123,7 +132,7 @@ export class MeshWarper {
       },
     });
 
-    material.side = THREE.DoubleSide;
+    material.side = THREE.FrontSide;
 
     return material;
   }
@@ -167,8 +176,10 @@ export class MeshWarper {
       const x = gridControlPointPositions[i * 3];
       const y = gridControlPointPositions[i * 3 + 1];
 
-      const object = new THREE.Mesh(boxGeometry, new THREE.MeshBasicMaterial({ color: 'rgba(200, 200, 200, 1)' }));
-      object.scale.setScalar(0.3);
+      const object = new THREE.Mesh(
+        boxGeometry,
+        new THREE.MeshBasicMaterial({ color: 'hsl(23, 80%, 80%)', transparent: true, opacity: 0.9 }),
+      );
       object.position.set(x, y, 0);
       object.userData.group = 'grid';
 
@@ -195,8 +206,10 @@ export class MeshWarper {
       const x = quadCorners[i];
       const y = quadCorners[i + 1];
 
-      const object = new THREE.Mesh(boxGeometry, new THREE.MeshBasicMaterial({ color: 'orange' }));
-      object.scale.setScalar(0.4);
+      const object = new THREE.Mesh(
+        boxGeometry,
+        new THREE.MeshBasicMaterial({ color: 'orange', transparent: true, opacity: 0.8 }),
+      );
       object.position.set(x, y, 0);
       object.userData.group = 'corner';
       object.userData.lastValidPosition = object.position.clone();
@@ -222,7 +235,7 @@ export class MeshWarper {
     });
 
     const line = new Line2(outlineGeometry, lineMaterial);
-    line.position.setZ(-0.001);
+    line.position.setZ(0.001);
 
     return line;
   }
@@ -249,7 +262,6 @@ export class MeshWarper {
     const draggedPoint = event.object.position;
     const dragControlCorners = this.dragCornerControlPoints.flatMap((point) => [point.x, point.y]);
 
-    // Check if quad is concave (degenerate)
     if (isQuadConcave(dragControlCorners)) {
       if (object.userData.lastValidPosition && pointGroupName === 'corner') {
         object.position.copy(object.userData.lastValidPosition);
@@ -265,8 +277,9 @@ export class MeshWarper {
     this.updateLine();
 
     this.averageDimensions = this.getAverageDimensions();
-    (this.material.uniforms.uWarpPlaneSize.value as THREE.Vector2).setX(this.averageDimensions.width);
-    (this.material.uniforms.uWarpPlaneSize.value as THREE.Vector2).setX(this.averageDimensions.height);
+    if (this.material.uniforms.uWarpPlaneSize) {
+      this.material.uniforms.uWarpPlaneSize.value.set(this.averageDimensions.width, this.averageDimensions.height);
+    }
   }
 
   perspectiveTransformControlPoints(
@@ -429,8 +442,33 @@ export class MeshWarper {
     }
   }
 
+  public setWarpMode(mode: WARP_MODE): void {
+    this.material.uniforms.uWarpMode.value = mode;
+    this.material.needsUpdate = true;
+  }
+
+  public getWarpMode(): WARP_MODE {
+    return this.material.uniforms.uWarpMode.value;
+  }
+
+  public setShouldWarp(enabled: boolean): void {
+    this.material.uniforms.uShouldWarp.value = enabled;
+  }
+
+  public getShouldWarp(): boolean {
+    return this.material.uniforms.uShouldWarp.value;
+  }
+
   public getMaterial(): THREE.ShaderMaterial {
     return this.material;
+  }
+
+  public updateControlPointsScale(screenScale: number): void {
+    const cornerCubeSize = screenScale * 20.0;
+    const gridControlCubeSize = screenScale * 15.0;
+
+    this.cornerObjects.forEach((obj) => obj.scale.setScalar(cornerCubeSize));
+    this.gridObjects.forEach((obj) => obj.scale.setScalar(gridControlCubeSize));
   }
 
   // Visibility toggles for GUI
@@ -470,72 +508,15 @@ export class MeshWarper {
     this.setOutlineVisible(visible);
   }
 
-  // LocalStorage persistence
-  private saveToStorage(): void {
-    const data: StoredControlPoints = {
-      corners: this.dragCornerControlPoints.map((p) => ({ x: p.x, y: p.y, z: p.z })),
-      grid: this.dragGridControlPoints.map((p) => ({ x: p.x, y: p.y, z: p.z })),
-      referenceGrid: this.referenceGridControlPoints.map((p) => ({ x: p.x, y: p.y, z: p.z })),
-    };
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    } catch (e) {
-      console.warn('Failed to save control points to localStorage:', e);
+  /**
+   * Enable or disable drag controls completely.
+   * When disabled, points cannot be dragged even if visible.
+   * Use this for projector windows that should be receive-only.
+   */
+  public setDragEnabled(enabled: boolean): void {
+    if (this.dragControls) {
+      this.dragControls.enabled = enabled;
     }
-  }
-
-  private loadFromStorage(): void {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (!stored) return;
-
-      const data: StoredControlPoints = JSON.parse(stored);
-
-      // Validate data matches current grid configuration
-      if (
-        data.corners.length !== this.dragCornerControlPoints.length ||
-        data.grid.length !== this.dragGridControlPoints.length
-      ) {
-        console.warn('Stored control points do not match current configuration, ignoring');
-        return;
-      }
-
-      // Apply stored positions
-      data.corners.forEach((pos, i) => {
-        this.dragCornerControlPoints[i].set(pos.x, pos.y, pos.z);
-        this.cornerObjects[i].position.set(pos.x, pos.y, pos.z);
-        this.cornerObjects[i].userData.lastValidPosition = this.cornerObjects[i].position.clone();
-      });
-
-      data.grid.forEach((pos, i) => {
-        this.dragGridControlPoints[i].set(pos.x, pos.y, pos.z);
-      });
-
-      data.referenceGrid.forEach((pos, i) => {
-        this.referenceGridControlPoints[i].set(pos.x, pos.y, pos.z);
-      });
-
-      // Update grid objects positions (they reference dragGridControlPoints but order may differ)
-      this.gridObjects.forEach((obj) => {
-        const idx = this.dragGridControlPoints.findIndex((p) => p === obj.position);
-        if (idx !== -1) {
-          // Position is already a reference, just need to sync visual
-        }
-      });
-
-      // Update visuals
-      this.updateLine();
-      this.averageDimensions = this.getAverageDimensions();
-
-      console.log('Loaded control points from localStorage');
-    } catch (e) {
-      console.warn('Failed to load control points from localStorage:', e);
-    }
-  }
-
-  public resetToDefault(): void {
-    localStorage.removeItem(STORAGE_KEY);
-    console.log('Control points reset - reload page to apply');
   }
 
   // Grid size getters
@@ -580,17 +561,11 @@ export class MeshWarper {
     this.config.gridControlPoints.x = x;
     this.config.gridControlPoints.y = y;
 
-    // Create new control point geometry
     const controlPointPlaneGeometry = new THREE.PlaneGeometry(this.config.width, this.config.height, x - 1, y - 1);
-
-    // Create new grid control points
     this.createGridControlPoints(controlPointPlaneGeometry, x, y);
     controlPointPlaneGeometry.dispose();
-
-    // Add new grid objects to scene
     this.gridObjects.forEach((obj) => this.config.scene.add(obj));
 
-    // Apply visibility state
     if (!this.gridPointsEnabled) {
       this.gridObjects.forEach((obj) => {
         obj.visible = false;
@@ -598,7 +573,6 @@ export class MeshWarper {
       });
     }
 
-    // Transform grid points to match current corner warp
     const dragControlCorners = cornerPositions.flatMap((point) => [point.x, point.y]);
     const perspectiveTransformer = new PerspT(this.quadData.initalCorners, dragControlCorners);
 
@@ -608,10 +582,8 @@ export class MeshWarper {
       this.dragGridControlPoints[i].set(warpedX, warpedY, refPos.z);
     }
 
-    // Reinitialize drag controls
     this.initializeDragControls();
 
-    // Update shader defines and uniforms
     const totalControlPoints = x * y;
     this.material.defines.CONTROL_POINT_AMOUNT = totalControlPoints;
     this.material.uniforms.uControlPoints.value = this.dragGridControlPoints;
@@ -619,9 +591,90 @@ export class MeshWarper {
     this.material.uniforms.uGridSizeY.value = y;
     this.material.needsUpdate = true;
 
-    // Clear stored positions since grid changed
-    localStorage.removeItem(STORAGE_KEY);
+    this.saveToStorage();
 
     console.log(`Grid resized to ${x}x${y}`);
+  }
+
+  // Positions stored normalized (0-1) so calibration survives resolution changes
+
+  private toNormalized(p: THREE.Vector3): { x: number; y: number; z: number } {
+    return {
+      x: (p.x + this.config.width / 2) / this.config.width,
+      y: (p.y + this.config.height / 2) / this.config.height,
+      z: p.z,
+    };
+  }
+
+  private fromNormalized(n: { x: number; y: number; z: number }): { x: number; y: number; z: number } {
+    return {
+      x: n.x * this.config.width - this.config.width / 2,
+      y: n.y * this.config.height - this.config.height / 2,
+      z: n.z,
+    };
+  }
+
+  private saveToStorage(): void {
+    const data: StoredControlPoints = {
+      gridSize: { x: this.xControlPointAmount, y: this.yControlPointAmount },
+      corners: this.dragCornerControlPoints.map((p) => this.toNormalized(p)),
+      grid: this.dragGridControlPoints.map((p) => this.toNormalized(p)),
+      referenceGrid: this.referenceGridControlPoints.map((p) => this.toNormalized(p)),
+    };
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.warn('Failed to save control points to localStorage:', e);
+    }
+  }
+
+  private loadFromStorage(): void {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (!stored) return;
+
+      const data: StoredControlPoints = JSON.parse(stored);
+
+      // Always load corners if valid (always 4)
+      if (data.corners && data.corners.length === 4) {
+        data.corners.forEach((nPos, i) => {
+          const pos = this.fromNormalized(nPos);
+          this.dragCornerControlPoints[i].set(pos.x, pos.y, pos.z);
+          this.cornerObjects[i].position.set(pos.x, pos.y, pos.z);
+          this.cornerObjects[i].userData.lastValidPosition = this.cornerObjects[i].position.clone();
+        });
+      }
+
+      // Validate grid dimensions using stored gridSize metadata
+      const expectedCount = this.xControlPointAmount * this.yControlPointAmount;
+      const gridSizeMatches =
+        data.gridSize?.x === this.xControlPointAmount && data.gridSize?.y === this.yControlPointAmount;
+
+      if (gridSizeMatches && data.grid.length === expectedCount && data.referenceGrid?.length === expectedCount) {
+        data.grid.forEach((nPos, i) => {
+          const pos = this.fromNormalized(nPos);
+          this.dragGridControlPoints[i].set(pos.x, pos.y, pos.z);
+        });
+        data.referenceGrid.forEach((nPos, i) => {
+          const pos = this.fromNormalized(nPos);
+          this.referenceGridControlPoints[i].set(pos.x, pos.y, pos.z);
+        });
+      } else {
+        // Grid size changed: recompute grid positions from loaded corners
+        const corners = this.dragCornerControlPoints.flatMap((p) => [p.x, p.y]);
+        this.perspectiveTransformControlPoints(corners, new THREE.Vector3(), 'corner');
+      }
+
+      this.updateLine();
+      this.averageDimensions = this.getAverageDimensions();
+      this.material.uniforms.uWarpPlaneSize.value.set(this.averageDimensions.width, this.averageDimensions.height);
+    } catch (e) {
+      console.warn('Failed to load control points from localStorage:', e);
+    }
+  }
+
+  public resetToDefault(): void {
+    localStorage.removeItem(STORAGE_KEY);
+    console.log('Control points reset - reload page to apply');
   }
 }

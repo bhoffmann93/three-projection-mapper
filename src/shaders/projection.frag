@@ -1,9 +1,10 @@
 // Renders input texture with optional procedural testcard for alignment
 
 varying vec2 vUv;
+uniform bool uShouldWarp;
 
 uniform sampler2D uBuffer;
-uniform vec2 uResolution;
+uniform vec2 uBufferResolution;
 uniform vec2 uWarpPlaneSize;
 uniform float uTime;
 uniform bool uShowTestCard;
@@ -154,16 +155,6 @@ vec3 testCard(vec2 vUv, vec2 dimensions, float time) {
         color = barColor;
     }
 
-    // Grey gradient
-    if(vUv.y > 0.25 && vUv.y < 0.75 && vUv.x > tileSize.x / 2.0 && vUv.x < tileSize.x * 1.5) {
-        color = mix(BLACK, WHITE, y);
-    }
-
-    // RGB gradient
-    if(vUv.y > 0.25 && vUv.y < 0.75 && vUv.x > 1.0 - tileSize.x * 1.5 && vUv.x < 1.0 - tileSize.x / 2.0) {
-        color = 0.5 + 0.5 * cos((TAU * y - time) + vec3(0.0, 2.094, 4.188));
-    }
-
     // Grey gradient steps
     if(1.0 - vUv.y < tileSize.y * 0.75 && vUv.x > 0.25 && vUv.x < 0.75) {
         color = mix(BLACK, WHITE, floor(x * 8.0) / 7.0);
@@ -198,6 +189,16 @@ vec3 testCard(vec2 vUv, vec2 dimensions, float time) {
     color = mix(color, WHITE, max(leftLine, rightLine));
     color = mix(color, WHITE, max(bottomLine, topLine));
 
+        // Grey gradient
+    if(vUv.y > 0.25 && vUv.y < 0.75 && vUv.x > tileSize.x / 2.0 && vUv.x < tileSize.x * 1.5) {
+        color = mix(BLACK, WHITE, y);
+    }
+
+    // RGB gradient
+    if(vUv.y > 0.25 && vUv.y < 0.75 && vUv.x > 1.0 - tileSize.x * 1.5 && vUv.x < 1.0 - tileSize.x / 2.0) {
+        color = 0.5 + 0.5 * cos((TAU * y - time) + vec3(0.0, 2.094, 4.188));
+    }
+
     // Red corners
     float cornerSize = 1.0 / tileCount.y * 0.5;
     if(vUv.x < cornerSize && vUv.y < cornerSize * ratio)
@@ -209,40 +210,52 @@ vec3 testCard(vec2 vUv, vec2 dimensions, float time) {
     if(vUv.x > 1.0 - cornerSize && vUv.y > 1.0 - cornerSize * ratio)
         color = RED;
 
-    float timeDigits = printValue((uv - vec2(0.385, 0.48)) * 30.0, time, 2.0, 2.0);
+    float timeDigits = printValue((uv - vec2(0.385, 0.3)) * 30.0, time, 2.0, 2.0);
     color = mix(color, WHITE, timeDigits);
     return color;
 }
 
 float drawControlLines(vec2 uv, vec2 gridSize) {
     vec2 fw = fwidth(uv);
-
-    float thicknessInPixel = 20.0;
+    float thicknessInPixel = 2.0;
     vec2 lineThickness = fw * thicknessInPixel * 0.5;
     vec2 tileCount = vec2(gridSize.x - 1.0, gridSize.y - 1.0);
-    vec2 tileSize = 1.0 / gridSize;
-    vec2 gridLineThickness = tileCount * lineThickness * 0.5;
-    vec2 gridUV = fract(uv * tileCount);
-    vec2 dGrid = vec2(abs(gridUV.x), abs(gridUV.y));
-    float fineGridLines = max((1.0 - aastep(gridLineThickness.x, dGrid.x)), (1.0 - aastep(gridLineThickness.y, dGrid.y)));
-    return fineGridLines;
+    vec2 gridLineThickness = tileCount * lineThickness;
+    vec2 gridUv = fract(uv * tileCount);
+    float startLines = max((1.0 - step(gridLineThickness.x, gridUv.x)), (1.0 - step(gridLineThickness.y, gridUv.y)));
+    float endLines = max(step(1.0 - gridLineThickness.x, gridUv.x), step(1.0 - gridLineThickness.y, gridUv.y));
+    return clamp(0.0, 1.0, max(startLines, endLines));
+}
 
+float drawBorderLines(vec2 uv) {
+    float thicknessInPixel = 2.0;
+    float leftLine = 1.0 - aastep(fwidth(vUv.x) * thicknessInPixel, vUv.x);
+    float rightLine = 1.0 - aastep(fwidth(vUv.x) * thicknessInPixel, 1.0 - vUv.x);
+    float bottomLine = 1.0 - aastep(fwidth(vUv.y) * thicknessInPixel, vUv.y);
+    float topLine = 1.0 - aastep(fwidth(vUv.y) * thicknessInPixel, 1.0 - vUv.y);
+    return clamp(max(leftLine, max(rightLine, max(bottomLine, topLine))), 0.0, 1.0);
 }
 
 void main() {
     vec3 color;
 
+    //test card always gets displayed at full res (render res)
     if(uShowTestCard) {
-        color = testCard(vUv, uWarpPlaneSize, uTime);
+        color = testCard(vUv, uShouldWarp ? uWarpPlaneSize : uBufferResolution, uTime);
     } else {
         color = texture2D(uBuffer, vUv).rgb;
     }
 
-    if(uShowControlLines) {
-        float lines = drawControlLines(vUv, vec2(float(uGridSizeX), float(uGridSizeY)));
-        color = mix(color, vec3(0.8), lines);
+    if(uShouldWarp == false || uShowControlLines) {
+        float borderLines = drawBorderLines(vUv);
+        color = mix(color, vec3(0.75), borderLines);
     }
 
-    color += (1.0 / 255.0) * hash12(gl_FragCoord.xy) - (0.5 / 255.0);
+    if(uShowControlLines) {
+        float lines = drawControlLines(vUv, vec2(float(uGridSizeX), float(uGridSizeY)));
+        color = mix(color, vec3(0.75), lines);
+    }
+
+    // color += (1.0 / 255.0) * hash12(gl_FragCoord.xy) - (0.5 / 255.0);
     gl_FragColor = vec4(color, 1.0);
 }
