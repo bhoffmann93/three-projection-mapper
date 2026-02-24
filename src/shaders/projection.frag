@@ -1,5 +1,3 @@
-// Renders input texture with optional procedural testcard for alignment
-
 varying vec2 vUv;
 uniform bool uShouldWarp;
 
@@ -27,33 +25,28 @@ uniform int uGridSizeY;
 #define MAGENTA vec3(1.0, 0.0, 1.0)
 #define YELLOW vec3(1.0, 1.0, 0.0)
 
-// Corner constants
 const vec2 bottomLeft01 = vec2(0.0, 0.0);
 const vec2 bottomRight01 = vec2(1.0, 0.0);
 const vec2 topLeft01 = vec2(0.0, 1.0);
 const vec2 topRight01 = vec2(1.0, 1.0);
 
-// Hash function for dithering
 float hash12(vec2 p) {
     vec3 p3 = fract(vec3(p.xyx) * .1031);
     p3 += dot(p3, p3.yzx + 33.33);
     return fract((p3.x + p3.y) * p3.z);
 }
 
-// Aspect correction for UV coordinates
 vec2 aspect01(vec2 uv, vec2 resolution) {
     float aspect = resolution.x / resolution.y;
     vec2 scale = resolution.x > resolution.y ? vec2(aspect, 1.0) : vec2(1.0, 1.0 / aspect);
     return (uv - 0.5) * scale + 0.5;
 }
 
-// Anti-aliased step function
 float aastep(float edge, float value) {
     float afwidth = fwidth(value);
     return smoothstep(edge - afwidth, edge + afwidth, value);
 }
 
-// Signed distance to line segment
 float sdLine(vec2 p, vec2 a, vec2 b) {
     vec2 pa = p - a;
     vec2 ba = b - a;
@@ -61,51 +54,10 @@ float sdLine(vec2 p, vec2 a, vec2 b) {
     return length(pa - ba * h);
 }
 
-// Checkerboard pattern
 float checkerboard(vec2 uv, vec2 tiles) {
     return mod(floor(uv.x * tiles.x) + floor(uv.y * tiles.y), 2.0);
 }
 
-// Number printing functions
-float digitBin(const int x) {
-    return x == 0 ? 480599.0 : x == 1 ? 139810.0 : x == 2 ? 476951.0 : x == 3 ? 476999.0 : x == 4 ? 350020.0 : x == 5 ? 464711.0 : x == 6 ? 464727.0 : x == 7 ? 476228.0 : x == 8 ? 481111.0 : x == 9 ? 481095.0 : 0.0;
-}
-
-float printValue(vec2 vStringCoords, float fValue, float fMaxDigits, float fDecimalPlaces) {
-    if((vStringCoords.y < 0.0) || (vStringCoords.y >= 1.0))
-        return 0.0;
-
-    bool bNeg = (fValue < 0.0);
-    fValue += 1e-5;
-    fValue = abs(fValue);
-
-    float fLog10Value = log2(abs(fValue)) / log2(10.0);
-    float fBiggestIndex = max(floor(fLog10Value), 0.0);
-    float fDigitIndex = fMaxDigits - floor(vStringCoords.x);
-    float fCharBin = 0.0;
-    if(fDigitIndex > (-fDecimalPlaces - 1.01)) {
-        if(fDigitIndex > fBiggestIndex) {
-            if((bNeg) && (fDigitIndex < (fBiggestIndex + 1.5)))
-                fCharBin = 1792.0;
-        } else {
-            if(fDigitIndex == -1.0) {
-                if(fDecimalPlaces > 0.0)
-                    fCharBin = 2.0;
-            } else {
-                float fReducedRangeValue = fValue;
-                if(fDigitIndex < 0.0) {
-                    fReducedRangeValue = fract(fValue);
-                    fDigitIndex += 1.0;
-                }
-                float fDigitValue = (abs(fReducedRangeValue / (pow(10.0, fDigitIndex))));
-                fCharBin = digitBin(int(floor(mod(fDigitValue, 10.0))));
-            }
-        }
-    }
-    return floor(mod((fCharBin / pow(2.0, floor(fract(vStringCoords.x) * 4.0) + (floor(vStringCoords.y * 5.0) * 4.0))), 2.0));
-}
-
-//procedural resolution & aspect independent testcard 
 vec3 testCard(vec2 vUv, vec2 dimensions, float time) {
     vec2 uv = aspect01(vUv, dimensions);
 
@@ -210,8 +162,6 @@ vec3 testCard(vec2 vUv, vec2 dimensions, float time) {
     if(vUv.x > 1.0 - cornerSize && vUv.y > 1.0 - cornerSize * ratio)
         color = RED;
 
-    float timeDigits = printValue((uv - vec2(0.385, 0.3)) * 30.0, time, 2.0, 2.0);
-    color = mix(color, WHITE, timeDigits);
     return color;
 }
 
@@ -256,6 +206,5 @@ void main() {
         color = mix(color, vec3(0.75), lines);
     }
 
-    // color += (1.0 / 255.0) * hash12(gl_FragCoord.xy) - (0.5 / 255.0);
     gl_FragColor = vec4(color, 1.0);
 }

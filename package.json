@@ -1,6 +1,6 @@
 {
   "name": "three-projection-mapper",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Projection mapping library for Three.js with interactive warp grid control, bicubic interpolation, and multi-window synchronization",
   "type": "module",
   "main": "dist/lib.js",
@@ -43,15 +43,15 @@
     "calibration",
     "projector"
   ],
-  "author": "YOUR_NAME <YOUR_EMAIL>",
+  "author": "Bernhard Hoffmann",
   "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/YOUR_USERNAME/three-projection-mapper.git"
+    "url": "git+https://github.com/bhoffmann93/three-projection-mapper.git"
   },
-  "homepage": "https://github.com/YOUR_USERNAME/three-projection-mapper#readme",
+  "homepage": "https://github.com/bhoffmann93/three-projection-mapper#readme",
   "bugs": {
-    "url": "https://github.com/YOUR_USERNAME/three-projection-mapper/issues"
+    "url": "https://github.com/bhoffmann93/three-projection-mapper/issues"
   },
   "peerDependencies": {
     "three": ">=0.150.0",

@@ -42,10 +42,6 @@ export class ProjectionScene {
     });
   }
 
-  public animate(): void {
-    this.cube.rotation.y += 0.01;
-  }
-
   public render(renderer: THREE.WebGLRenderer): void {
     renderer.setRenderTarget(this.renderTarget);
     renderer.render(this.scene, this.camera);
@@ -104,5 +100,9 @@ export class ProjectionScene {
   private addGrid(): void {
     const grid = new THREE.GridHelper(2.0, 20, 0xff0000, 0xffffff);
     this.scene.add(grid);
+  }
+
+  public animate(): void {
+    this.cube.rotation.y += 0.01;
   }
 }
