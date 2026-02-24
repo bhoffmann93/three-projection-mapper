@@ -1,6 +1,6 @@
 {
   "name": "three-projection-mapper",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Projection mapping library for Three.js with interactive warp grid control, bicubic interpolation, and multi-window synchronization",
   "type": "module",
   "main": "dist/lib.js",
