@@ -1,4 +1,4 @@
-# Three.js Projection Mapping
+# Three Projection Mapper
 
 <p align="center">
   <img src="./static/screenshot-warp.png" alt="Project Logo" width="400">
