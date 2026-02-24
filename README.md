@@ -189,6 +189,12 @@ function animate() {
   mapper.render();
 }
 animate();
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'g' || e.key === 'p') gui.toggle();
+  if (e.key === 't') gui.toggleTestCard();
+  if (e.key === 'h') gui.toggleWarpUI();
+});
 ```
 
 **Step 3 — Projector window:**
@@ -287,6 +293,13 @@ gui.toggle();
 gui.show();
 gui.hide();
 gui.dispose();
+
+//add those shortcuts to your project
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'g' || e.key === 'p') gui.toggle();
+  if (e.key === 't') gui.toggleTestCard();
+  if (e.key === 'h') gui.toggleWarpUI();
+});
 ```
 
 ---
