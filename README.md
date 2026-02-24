@@ -1,20 +1,22 @@
 # Three.js Projection Mapping
 
 A projection mapping library for Three.js with interactive warp grid control and multi-window synchronization. Easily add projection mapping capabilities to any Three.js project.
+The library uses a deformable mesh with perspective and or bicubic or bilinear grid interpolation on vertex shader to warp any texture for projection mapping. Pass a Three.js Render Target or Texture to start warping.
 
 **[Live Examples](https://bhoffmann93.github.io/three-projection-mapper/)**
 
 ## Features
 
-- **Bicubic warp mesh** - Smooth perspective correction using Catmull-Rom interpolation
-- **Interactive control points** - Drag corners and grid points to adjust warping
-- **Hardware-optics support** - Specialized camera class for physical lens shift and throw ratio correction
-- **Multi-window sync** - Separate controller and projector windows with real-time sync
-- **Testcard overlay** - Built-in test pattern for projection alignment
+- **Perspective + Bilinear or Bicubic Grid Warp**
+- **Corner control points (4)** - Define the outer quad for perspective correction (Perspective Homography)
+- **Grid control points (configurable)** - Internal points for fine adjustments with Bilinear or Bicubic warping on vertex shader
+- **GUI** - Tweakpane-based interface for calibration
 - **Persistence** - Control point positions saved to localStorage
+- **Testcard overlay** - Built-in procedural Resolution independant test pattern shader for projection alignment
+- **Multi-window sync Option** - Separate controller and projector windows with real-time sync
+- **Hardware-optics support** - Specialized camera class for physical lens shift and throw ratio correction
+- **BroadcastChannel IPC** - Real-time sync between controller and projector windows
 - **Type-safe events** - BroadcastChannel IPC with strict TypeScript types
-- **Optional GUI** - Tweakpane-based interface for calibration
-- **Production-ready** - Clean architecture with zero redundant dependencies
 
 ## Installation
 
@@ -42,7 +44,7 @@ scene.add(cube);
 
 const renderTarget = new THREE.WebGLRenderTarget(1280, 800);
 const mapper = new ProjectionMapper(renderer, renderTarget.texture);
-const gui = new ProjectionMapperGUI(mapper, 'Projection Mapper', GUI_ANCHOR.LEFT);
+const gui = new ProjectionMapperGUI(mapper, { title: 'Projection Mapper', anchor: GUI_ANCHOR.LEFT });
 
 function animate() {
   requestAnimationFrame(animate);
@@ -209,30 +211,35 @@ new ProjectionMapper(
 
 ```typescript
 interface ProjectionMapperConfig {
-  resolution?: { width: number; height: number }; // Default: { width: 1920, height: 1080 }
+  resolution?: { width: number; height: number }; // Default: input texture size
   segments?: number; // Mesh segments (default: 50)
-  gridControlPoints?: { x: number; y: number }; // Grid density (default: { x: 5, y: 5 })
+  gridControlPoints?: { x: number; y: number }; // Grid density (auto-calculated if omitted)
   antialias?: boolean; // Enable SMAA (default: true)
-  planeScale?: number; // Plane fill factor (default: 0.9)
+  planeScale?: number; // Plane fill factor (default: 0.5)
 }
 ```
 
 #### Methods
 
-| Method                            | Description                         |
-| --------------------------------- | ----------------------------------- |
-| `render()`                        | Render the projection mapped output |
-| `setTexture(texture)`             | Change the input texture            |
-| `setShowTestCard(show)`           | Toggle testcard display             |
-| `resize(width, height)`           | Handle window resize                |
-| `setControlsVisible(visible)`     | Show/hide all control points        |
-| `setGridPointsVisible(visible)`   | Show/hide grid points               |
-| `setCornerPointsVisible(visible)` | Show/hide corner points             |
-| `setOutlineVisible(visible)`      | Show/hide outline                   |
-| `setGridSize(x, y)`               | Change grid density (2-10)          |
-| `setPlaneScale(scale)`            | Set plane fill factor (0-1)         |
-| `getWarper()`                     | Get the internal MeshWarper         |
-| `dispose()`                       | Clean up resources                  |
+| Method                            | Description                          |
+| --------------------------------- | ------------------------------------ |
+| `render()`                        | Render the projection mapped output  |
+| `setTexture(texture)`             | Change the input texture             |
+| `setShowTestCard(show)`           | Toggle testcard display              |
+| `setShowControlLines(show)`       | Show/hide control line overlay       |
+| `resize(width, height)`           | Handle window resize                 |
+| `setControlsVisible(visible)`     | Show/hide all control points         |
+| `setGridPointsVisible(visible)`   | Show/hide grid points                |
+| `setCornerPointsVisible(visible)` | Show/hide corner points              |
+| `setOutlineVisible(visible)`      | Show/hide outline                    |
+| `setGridSize(x, y)`               | Change grid density (2-10)           |
+| `setPlaneScale(scale)`            | Set plane fill factor (0-1)          |
+| `setShouldWarp(enabled)`          | Enable/disable warping               |
+| `setCameraOffset(x, y)`           | Offset the orthographic camera       |
+| `getCameraOffset()`               | Get current camera offset            |
+| `reset()`                         | Reset warp to default and clear save |
+| `getWarper()`                     | Get the internal MeshWarper          |
+| `dispose()`                       | Clean up resources                   |
 
 ### ProjectionMapperGUI
 
@@ -241,11 +248,10 @@ Optional GUI for single-window calibration.
 ```typescript
 import { ProjectionMapperGUI, GUI_ANCHOR } from 'three-projection-mapping';
 
-const gui = new ProjectionMapperGUI(
-  mapper,
-  'My Projection',
-  GUI_ANCHOR.LEFT, // or GUI_ANCHOR.RIGHT
-);
+const gui = new ProjectionMapperGUI(mapper, {
+  title: 'My Projection',
+  anchor: GUI_ANCHOR.LEFT, // or GUI_ANCHOR.RIGHT
+});
 
 gui.toggle();
 gui.show();
@@ -259,9 +265,9 @@ For multi-window projection setups, pass `eventChannel` and `windowManager` to e
 
 ```typescript
 import { ProjectionMapperGUI, GUI_ANCHOR } from 'three-projection-mapping';
-import { WindowSync } from 'three-projection-mapping/addons';
+import { WindowSync, WINDOW_SYNC_MODE } from 'three-projection-mapping/addons';
 
-const sync = new WindowSync(mapper, { mode: 'controller' });
+const sync = new WindowSync(mapper, { mode: WINDOW_SYNC_MODE.CONTROLLER });
 
 const gui = new ProjectionMapperGUI(mapper, {
   title: 'Controller',
@@ -372,7 +378,11 @@ src/
 ├── warp/              # Warp mesh & geometry
 │   ├── MeshWarper.ts
 │   └── geometry.ts
-├── utils/             # Utilities
+├── shaders/           # GLSL shaders
+│   ├── projection.frag
+│   └── warp.vert
+├── utils/             # Math utilities
+│   ├── perspective.ts
 │   └── projection.ts
 ├── addons/            # Extensions
 │   └── WindowSync.ts
@@ -394,28 +404,18 @@ npm run build:lib  # Build library for distribution
 npm test           # Run tests with Vitest
 ```
 
-## How It Works
-
-The library uses a deformable mesh with bicubic interpolation to warp any texture for projection mapping:
-
-1. **Corner control points (4)** - Define the outer quad for perspective correction
-2. **Grid control points (configurable)** - Internal points for fine adjustments
-3. **Perspective homography** - Automatic transformation when corners are moved
-4. **Bicubic Catmull-Rom interpolation** - Smooth warping between control points
-5. **BroadcastChannel IPC** - Real-time sync between controller and projector windows
-
-## Architecture Principles
-
-- **Single Responsibility** - Each module has one clear purpose
-- **Information Hiding** - Implementation details are private
-- **Type Safety** - Strict TypeScript with no magic strings
-- **Zero Redundant Comments** - Self-documenting code with clear naming
-- **Decoupled Architecture** - Clean separation between core, warp, GUI, and addons
-
 ## License
 
 AGPL-3.0-or-later
 
-The bicubic warp algorithm is adapted from [Omnidome](https://github.com/WilstonOreo/omnidome) by Michael Winkelmann, licensed under AGPL.
+The bicubic warp algorithm is adapted to GLSL from the C++ implementation of [Omnidome](https://github.com/WilstonOreo/omnidome) by Michael Winkelmann, licensed under AGPL.
 
-Perspective Transform adapted from https://github.com/jlouthan/perspective-transform
+Perspective Transform (Homography Solver) adapted from https://github.com/jlouthan/perspective-transform
+
+## Note
+
+The following parts have been written with the help of Claude AI:
+
+- GUI Local Storage Saving
+- Multi Window System
+- Readme
