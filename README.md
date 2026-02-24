@@ -52,28 +52,35 @@ npm install github:bhoffmann93/three-projection-mapper
 
 ## Quick Start
 
-The core idea: render your scene to a `WebGLRenderTarget`, then hand its texture to `ProjectionMapper`. In your animation loop, call `mapper.render()` last.
+The core idea: Render your scene to a WebGLRenderTarget, then hand its texture to ProjectionMapper.
+
+Resolution & Quality: While you should at least match your projector's native resolution, it is highly recommended to oversample the RenderTarget (e.g., 1.5x or 2x). This prevents aliasing artifacts and maintains sharpness when the texture is stretched or compressed during the warping process.
+
+In your animation loop, simply call mapper.render() as the final step.
 
 ```typescript
 import * as THREE from 'three';
 import { ProjectionMapper, ProjectionMapperGUI, GUI_ANCHOR } from 'three-projection-mapping';
 
-// Standard Three.js setup
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
+const projectorRes = { width: 1280, height: 800 };
+const aspect = projectorRes.width / projectorRes.height;
+
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75, 1280 / 800, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
 scene.add(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshNormalMaterial()));
 
-// Render your scene off-screen into this target
-const renderTarget = new THREE.WebGLRenderTarget(1280, 800);
+// Render your scene off-screen into target
+const oversampling = 1.5;
+const renderTarget = new THREE.WebGLRenderTarget(
+  projectorRes.width * oversampling, 
+  projectorRes.height * oversampling
+);
 
-// Pass the texture to ProjectionMapper
 const mapper = new ProjectionMapper(renderer, renderTarget.texture);
-
-// Optional: add the calibration GUI
 const gui = new ProjectionMapperGUI(mapper, { title: 'Projection Mapper', anchor: GUI_ANCHOR.LEFT });
 
 function animate() {
@@ -169,7 +176,7 @@ const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
-const projectionScene = new ProjectionScene({ width: 1280, height: 800 });
+const projectionScene = new ProjectionScene({ width: 1280, height: 800 }); //Projector Resolution
 const mapper = new ProjectionMapper(renderer, projectionScene.getTexture());
 const sync = new WindowSync(mapper, { mode: WINDOW_SYNC_MODE.CONTROLLER });
 
@@ -307,7 +314,7 @@ const camera = new ProjectorCamera(
   1.0, // lensShiftY: vertical lens shift (1.0 = 100%)
   16 / 10, // aspect ratio
 );
-camera.position.set(0, 0.5, 2.0);
+camera.position.set(0, 0.5, 2.0); // The Y position is the lens center
 ```
 
 **Parameters:**
