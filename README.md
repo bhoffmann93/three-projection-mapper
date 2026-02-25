@@ -285,7 +285,7 @@ interface ProjectionMapperConfig {
 
 ### `ProjectionMapperGUI`
 
-Optional calibration interface built on Tweakpane.
+Calibration interface built on Tweakpane.
 
 ```typescript
 import { ProjectionMapperGUI, GUI_ANCHOR } from 'three-projection-mapping';
