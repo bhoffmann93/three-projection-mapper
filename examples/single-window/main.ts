@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { ProjectionMapper } from '../../src/core/ProjectionMapper';
 import { ProjectionMapperGUI, GUI_ANCHOR } from '../../src/core/ProjectionMapperGUI';
 import { ProjectorCamera } from '../../src/core/ProjectorCamera';
@@ -13,35 +14,58 @@ document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 
-const oversamplingFactor = 1.0;
+const oversamplingFactor = 1.25;
 const projectionResolution = new THREE.Vector2(1920, 1080);
 
 const aspect = projectionResolution.x / projectionResolution.y;
 const throwRatio = 1.65; // Acer X1383WH
 const lensShiftY = 1.0;
-const camera = new ProjectorCamera(throwRatio, lensShiftY, aspect, 0.1, 1000);
-//pos z zooom
-//pos y move content up down without destroying perspective
+
+// 1 unit = 1 metre. Camera ~40m away, 1.7m eye height, near/far for outdoor scene.
+const camera = new ProjectorCamera(throwRatio, lensShiftY, aspect, 0.5, 500);
 camera.updateProjectionMatrix();
-camera.position.set(0, 0.05, 1.5);
+camera.position.set(0, 1.7, 40);
 
-const cubeSize = 0.2;
-const cubeGeometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
-cubeGeometry.translate(0, -cubeSize / 2, 0); // Pivot at bottom instead of center
-const cube = new THREE.Mesh(cubeGeometry, new THREE.MeshNormalMaterial());
-cube.position.set(0, 0.17, 0);
-cube.rotation.set(Math.PI, Math.PI * 0.25, 0);
-scene.add(cube);
+let bergi: THREE.Object3D | null = null;
 
-const light = new THREE.DirectionalLight(0xffffff, 1);
-light.position.set(1, 1, 1);
-scene.add(light);
-scene.add(new THREE.AmbientLight(0x404040));
+const loader = new OBJLoader();
+loader.load('/bergi.obj', (obj) => {
+  obj.traverse((child) => {
+    if ((child as THREE.Mesh).isMesh) {
+      (child as THREE.Mesh).material = new THREE.MeshPhongMaterial({
+        color: new THREE.Color().setHSL(0.1, 0.15, 0.78), // warm stone
+      });
+    }
+  });
+  const box = new THREE.Box3().setFromObject(obj);
+  const size = box.getSize(new THREE.Vector3());
+  const scale = 20 / Math.max(size.x, size.y, size.z);
+  obj.scale.setScalar(scale);
+  box.setFromObject(obj);
+  obj.position.set(0, -box.min.y * 1.5, 0);
+  obj.rotation.y -= Math.PI / 2.0;
+  scene.add(obj);
+  bergi = obj;
+});
 
-const grid = new THREE.GridHelper(2.0, 20, 0xff0000, 0xffffff);
+const hemiLight = new THREE.HemisphereLight(
+  new THREE.Color().setHSL(0.6, 0.4, 0.7), // sky blue
+  new THREE.Color().setHSL(0.25, 0.3, 0.15), // ground green-dark
+  0.25,
+);
+scene.add(hemiLight);
+
+const redLight = new THREE.PointLight(new THREE.Color().setHSL(0.0, 1.0, 0.5), 160, 30);
+redLight.position.set(-5, 1, 8);
+scene.add(redLight);
+
+const blueLight = new THREE.PointLight(new THREE.Color().setHSL(0.62, 1.0, 0.5), 180, 30);
+blueLight.position.set(5, 1, 8);
+scene.add(blueLight);
+
+const grid = new THREE.GridHelper(200, 40, 0x334433, 0x445544);
 scene.add(grid);
 
-//increase resolution for warping
 projectionResolution.multiplyScalar(oversamplingFactor);
 
 const renderTarget = new THREE.WebGLRenderTarget(projectionResolution.x, projectionResolution.y, {
@@ -69,10 +93,15 @@ window.addEventListener('resize', () => {
   mapper.resize(window.innerWidth, window.innerHeight);
 });
 
-function animate() {
-  cube.rotation.y += 0.01;
+const clock = new THREE.Clock();
 
+function animate() {
   requestAnimationFrame(animate);
+
+  const t = clock.getElapsedTime();
+
+  redLight.position.set(-5 + Math.sin(t * 0.8) * 4, 5 + Math.cos(t * 1.1) * 3, 8);
+  blueLight.position.set(5 + Math.sin(t * 0.8 + Math.PI) * 4, 6 + Math.cos(t * 1.1 + Math.PI) * 3, 8);
 
   renderer.setRenderTarget(renderTarget);
   renderer.render(scene, camera);
