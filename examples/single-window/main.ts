@@ -71,14 +71,14 @@ loader.load(`${import.meta.env.BASE_URL}bergi.obj`, (obj) => {
 const hemiLight = new THREE.HemisphereLight(
   new THREE.Color().setHSL(0.6, 0.4, 0.7),
   new THREE.Color().setHSL(0.25, 0.3, 0.15),
-  1.25,
+  0.75,
 );
 scene.add(hemiLight);
 
-const redLight = new THREE.PointLight(new THREE.Color().setHSL(0.0, 1.0, 0.5), 200, 40);
+const redLight = new THREE.PointLight(new THREE.Color().setHSL(0.0, 1.0, 0.5), 325, 40);
 scene.add(redLight);
 
-const blueLight = new THREE.PointLight(new THREE.Color().setHSL(0.62, 1.0, 0.5), 200, 40);
+const blueLight = new THREE.PointLight(new THREE.Color().setHSL(0.62, 1.0, 0.5), 320, 40);
 scene.add(blueLight);
 
 const grid = new THREE.GridHelper(200, 40, 0x334433, 0x445544);

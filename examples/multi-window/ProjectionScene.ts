@@ -76,14 +76,14 @@ export class ProjectionScene {
     const hemi = new THREE.HemisphereLight(
       new THREE.Color().setHSL(0.6, 0.4, 0.7),
       new THREE.Color().setHSL(0.25, 0.3, 0.15),
-      1.25,
+      0.75,
     );
     this.scene.add(hemi);
 
-    const redLight = new THREE.PointLight(new THREE.Color().setHSL(0.0, 1.0, 0.5), 200, 40);
+    const redLight = new THREE.PointLight(new THREE.Color().setHSL(0.0, 1.0, 0.5), 325, 40);
     this.scene.add(redLight);
 
-    const blueLight = new THREE.PointLight(new THREE.Color().setHSL(0.62, 1.0, 0.5), 200, 40);
+    const blueLight = new THREE.PointLight(new THREE.Color().setHSL(0.62, 1.0, 0.5), 320, 40);
     this.scene.add(blueLight);
 
     return { redLight, blueLight };
