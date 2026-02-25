@@ -28,13 +28,31 @@ camera.position.set(0, 1.7, 40);
 
 let bergi: THREE.Object3D | null = null;
 
+const texLoader = new THREE.TextureLoader();
+const texBase = '/concrete_0019_1k_K4mRwL/concrete_0019';
+
+function loadTex(suffix: string, colorSpace = THREE.NoColorSpace) {
+  const t = texLoader.load(`${texBase}${suffix}`);
+  t.colorSpace = colorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(10, 6);
+  return t;
+}
+
+const concreteMat = new THREE.MeshStandardMaterial({
+  //@ts-ignore
+  map: loadTex('_color_1k.jpg', THREE.SRGBColorSpace),
+  normalMap: loadTex('_normal_opengl_1k.png'),
+  roughnessMap: loadTex('_roughness_1k.jpg'),
+  roughness: 1.0,
+  metalness: 0.1,
+});
+
 const loader = new OBJLoader();
 loader.load('/bergi.obj', (obj) => {
   obj.traverse((child) => {
     if ((child as THREE.Mesh).isMesh) {
-      (child as THREE.Mesh).material = new THREE.MeshPhongMaterial({
-        color: new THREE.Color().setHSL(0.1, 0.15, 0.78), // warm stone
-      });
+      (child as THREE.Mesh).material = concreteMat;
     }
   });
   const box = new THREE.Box3().setFromObject(obj);
@@ -49,18 +67,16 @@ loader.load('/bergi.obj', (obj) => {
 });
 
 const hemiLight = new THREE.HemisphereLight(
-  new THREE.Color().setHSL(0.6, 0.4, 0.7), // sky blue
-  new THREE.Color().setHSL(0.25, 0.3, 0.15), // ground green-dark
-  0.25,
+  new THREE.Color().setHSL(0.6, 0.4, 0.7),
+  new THREE.Color().setHSL(0.25, 0.3, 0.15),
+  1.25,
 );
 scene.add(hemiLight);
 
-const redLight = new THREE.PointLight(new THREE.Color().setHSL(0.0, 1.0, 0.5), 160, 40);
-redLight.position.set(-5, 1, 8);
+const redLight = new THREE.PointLight(new THREE.Color().setHSL(0.0, 1.0, 0.5), 200, 40);
 scene.add(redLight);
 
-const blueLight = new THREE.PointLight(new THREE.Color().setHSL(0.62, 1.0, 0.5), 180, 40);
-blueLight.position.set(5, 1, 8);
+const blueLight = new THREE.PointLight(new THREE.Color().setHSL(0.62, 1.0, 0.5), 200, 40);
 scene.add(blueLight);
 
 const grid = new THREE.GridHelper(200, 40, 0x334433, 0x445544);
@@ -100,8 +116,8 @@ function animate() {
 
   const t = clock.getElapsedTime();
 
-  redLight.position.set(-5 + Math.sin(t * 0.8) * 4, 5 + Math.cos(t * 1.1) * 3, 8);
-  blueLight.position.set(5 + Math.sin(t * 0.8 + Math.PI) * 4, 6 + Math.cos(t * 1.1 + Math.PI) * 3, 8);
+  redLight.position.set(-7 + Math.sin(t * 0.8) * 4, 5 + Math.cos(t * 1.1) * 3, 8);
+  blueLight.position.set(7 + Math.sin(t * 0.8 + Math.PI) * 4, 6 + Math.cos(t * 1.1 + Math.PI) * 3, 8);
 
   renderer.setRenderTarget(renderTarget);
   renderer.render(scene, camera);
