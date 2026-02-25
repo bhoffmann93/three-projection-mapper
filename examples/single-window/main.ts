@@ -29,7 +29,7 @@ camera.position.set(0, 1.7, 40);
 let bergi: THREE.Object3D | null = null;
 
 const texLoader = new THREE.TextureLoader();
-const texBase = '/concrete_0019_1k_K4mRwL/concrete_0019';
+const texBase = `${import.meta.env.BASE_URL}concrete_0019_1k_K4mRwL/concrete_0019`;
 
 function loadTex(suffix: string, colorSpace = THREE.NoColorSpace) {
   const t = texLoader.load(`${texBase}${suffix}`);
@@ -49,7 +49,8 @@ const concreteMat = new THREE.MeshStandardMaterial({
 });
 
 const loader = new OBJLoader();
-loader.load('/bergi.obj', (obj) => {
+//@ts-ignore
+loader.load(`${import.meta.env.BASE_URL}bergi.obj`, (obj) => {
   obj.traverse((child) => {
     if ((child as THREE.Mesh).isMesh) {
       (child as THREE.Mesh).material = concreteMat;
