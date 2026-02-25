@@ -1,4 +1,4 @@
-# Three Projection Mapper
+# three-projection-mapper
 
 <p align="center">
   <img src="./static/screenshot-warp.png" alt="Warp grid control interface" width="400">
@@ -35,7 +35,7 @@ Your Three.js Scene → RenderTarget → ProjectionMapper → Projector
 ## Features
 
 - **Corner control points** — 4 outer points for broad perspective correction
-- **Grid control points** — configurable inner grid for fine-grained surface warping (Bilinear or Bicubic)
+- **Grid control points** — configurable inner grid for fine-grained surface warping (Bilinear or Bicubic Warping)
 - **Testcard overlay** — procedural pattern (resolution-independent)
 - **GUI** — Tweakpane based UI included
 - **Auto-save** — warp positions saved to `localStorage`, restored on reload
@@ -96,6 +96,12 @@ function animate() {
 }
 
 animate();
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'g' || e.key === 'p') gui.toggle();
+  if (e.key === 't') gui.toggleTestCard();
+  if (e.key === 'h') gui.toggleWarpUI();
+});
 ```
 
 ## Multi-Window Setup
@@ -381,6 +387,17 @@ npm test           # Run tests with Vitest
 ```
 
 ---
+
+## Roadmap
+
+- [ ] Image Adjustments (Brightness, Contrast, Gamma)
+- [ ] Option to draw SDF-Based Beziert Mask in Fragment Shader
+- [ ] Save and Load Warp Settings (JSON Export Import)
+- [ ] Tutorial: Optical Alignment of Virtual Threejs Camera with the Physical Projector
+- [ ] Test React Three Fiber Compatibility
+
+- [ ] Optional: Option to add multiple Meshes like [p5 Mapper](https://github.com/jdeboi/p5.mapper)
+- [ ] Optional: [Edge Blending](https://paulbourke.net/miscellaneous/edgeblend/) for Multiple Projector Setups
 
 ## License
 
