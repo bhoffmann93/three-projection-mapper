@@ -13,7 +13,7 @@
 
 ---
 
-A projection mapping library for [Three.js](https://threejs.org/). Warp and align any Three.js scene onto physical surfaces — without leaving the browser.
+A projection mapping library for [Three.js](https://threejs.org/).
 
 **[Live Examples](https://bhoffmann93.github.io/three-projection-mapper/)**
 
@@ -21,7 +21,7 @@ A projection mapping library for [Three.js](https://threejs.org/). Warp and alig
 
 ## How it works
 
-You render your Three.js scene into a texture, pass it to `ProjectionMapper`, and it gives you interactive control points to warp, stretch, and align the output to match your projection surface. All calibration data is saved automatically so your setup persists across sessions.
+You render your Three.js scene into a texture, pass it to `ProjectionMapper`, and it gives you interactive control points to warp and align the output to match your projection surface. All calibration data is saved automatically so your setup persists across sessions.
 
 ```
 Your Three.js Scene → RenderTarget → ProjectionMapper → Projector
