@@ -27,7 +27,7 @@ export class ProjectionScene {
 
     this.scene = new THREE.Scene();
     this.camera = new ProjectorCamera(throwRatio, lensShiftY, aspect, 0.5, 500);
-    this.camera.position.set(0, 1.7, 40);
+    this.camera.position.set(0, 0.05, 4.25);
     this.camera.updateProjectionMatrix();
 
     const { redLight, blueLight } = this.addLights();
@@ -80,10 +80,10 @@ export class ProjectionScene {
     );
     this.scene.add(hemi);
 
-    const redLight = new THREE.PointLight(new THREE.Color().setHSL(0.0, 1.0, 0.5), 325, 40);
+    const redLight = new THREE.PointLight(new THREE.Color().setHSL(0.0, 1.0, 0.5), 8, 4);
     this.scene.add(redLight);
 
-    const blueLight = new THREE.PointLight(new THREE.Color().setHSL(0.62, 1.0, 0.5), 320, 40);
+    const blueLight = new THREE.PointLight(new THREE.Color().setHSL(0.62, 1.0, 0.5), 8, 4);
     this.scene.add(blueLight);
 
     return { redLight, blueLight };
@@ -104,7 +104,7 @@ export class ProjectionScene {
       const t = texLoader.load(`${texBase}${suffix}`);
       t.colorSpace = colorSpace;
       t.wrapS = t.wrapT = THREE.RepeatWrapping;
-      t.repeat.set(10, 6);
+      t.repeat.set(2, 1.2);
       return t;
     }
 
@@ -127,10 +127,10 @@ export class ProjectionScene {
       });
       const box = new THREE.Box3().setFromObject(obj);
       const size = box.getSize(new THREE.Vector3());
-      const scale = 20 / Math.max(size.x, size.y, size.z);
+      const scale = 2 / Math.max(size.x, size.y, size.z);
       obj.scale.setScalar(scale);
       box.setFromObject(obj);
-      obj.position.set(0, -box.min.y * 1.45, 0);
+      obj.position.set(0, -box.min.y * 1.3, 0);
       obj.rotation.y -= Math.PI / 2.0;
       this.scene.add(obj);
       this.model = obj;
@@ -138,7 +138,7 @@ export class ProjectionScene {
   }
 
   public animate(t: number): void {
-    this.redLight.position.set(-7 + Math.sin(t * 0.8) * 4, 5 + Math.cos(t * 1.1) * 3, 8);
-    this.blueLight.position.set(7 + Math.sin(t * 0.8 + Math.PI) * 4, 6 + Math.cos(t * 1.1 + Math.PI) * 3, 8);
+    this.redLight.position.set(-0.7 + Math.sin(t * 0.8) * 0.4, 0.5 + Math.cos(t * 1.1) * 0.3, 0.8);
+    this.blueLight.position.set(0.7 + Math.sin(t * 0.8 + Math.PI) * 0.4, 0.6 + Math.cos(t * 1.1 + Math.PI) * 0.3, 0.8);
   }
 }

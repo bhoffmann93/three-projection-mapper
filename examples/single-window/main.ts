@@ -21,10 +21,10 @@ const aspect = projectionResolution.x / projectionResolution.y;
 const throwRatio = 1.65; // Acer X1383WH
 const lensShiftY = 1.0;
 
-// 1 unit = 1 metre. Camera ~40m away, 1.7m eye height, near/far for outdoor scene.
+// 1 unit = 1 m, Y pos = lens center
 const camera = new ProjectorCamera(throwRatio, lensShiftY, aspect, 0.5, 500);
 camera.updateProjectionMatrix();
-camera.position.set(0, 1.7, 40);
+camera.position.set(0, 0.05, 4.25);
 
 let bergi: THREE.Object3D | null = null;
 
@@ -36,7 +36,7 @@ function loadTex(suffix: string, colorSpace = THREE.NoColorSpace) {
   const t = texLoader.load(`${texBase}${suffix}`);
   t.colorSpace = colorSpace;
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.repeat.set(10, 6);
+  t.repeat.set(2, 1.2);
   return t;
 }
 
@@ -59,10 +59,10 @@ loader.load(`${import.meta.env.BASE_URL}bergi.obj`, (obj) => {
   });
   const box = new THREE.Box3().setFromObject(obj);
   const size = box.getSize(new THREE.Vector3());
-  const scale = 20 / Math.max(size.x, size.y, size.z);
+  const scale = 2 / Math.max(size.x, size.y, size.z);
   obj.scale.setScalar(scale);
   box.setFromObject(obj);
-  obj.position.set(0, -box.min.y * 1.45, 0);
+  obj.position.set(0, -box.min.y * 1.3, 0);
   obj.rotation.y -= Math.PI / 2.0;
   scene.add(obj);
   bergi = obj;
@@ -75,10 +75,10 @@ const hemiLight = new THREE.HemisphereLight(
 );
 scene.add(hemiLight);
 
-const redLight = new THREE.PointLight(new THREE.Color().setHSL(0.0, 1.0, 0.5), 325, 40);
+const redLight = new THREE.PointLight(new THREE.Color().setHSL(0.0, 1.0, 0.5), 8, 4);
 scene.add(redLight);
 
-const blueLight = new THREE.PointLight(new THREE.Color().setHSL(0.62, 1.0, 0.5), 320, 40);
+const blueLight = new THREE.PointLight(new THREE.Color().setHSL(0.62, 1.0, 0.5), 8, 4);
 scene.add(blueLight);
 
 const grid = new THREE.GridHelper(200, 40, 0x334433, 0x445544);
@@ -118,8 +118,8 @@ function animate() {
 
   const t = clock.getElapsedTime();
 
-  redLight.position.set(-7 + Math.sin(t * 0.8) * 4, 5 + Math.cos(t * 1.1) * 3, 8);
-  blueLight.position.set(7 + Math.sin(t * 0.8 + Math.PI) * 4, 6 + Math.cos(t * 1.1 + Math.PI) * 3, 8);
+  redLight.position.set(-0.7 + Math.sin(t * 0.8) * 0.4, 0.5 + Math.cos(t * 1.1) * 0.3, 0.8);
+  blueLight.position.set(0.7 + Math.sin(t * 0.8 + Math.PI) * 0.4, 0.6 + Math.cos(t * 1.1 + Math.PI) * 0.3, 0.8);
 
   renderer.setRenderTarget(renderTarget);
   renderer.render(scene, camera);
