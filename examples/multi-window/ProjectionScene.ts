@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { ProjectorCamera } from '../../src/core/ProjectorCamera';
 
 export interface ProjectionSceneConfig {
@@ -14,26 +15,26 @@ export class ProjectionScene {
   public readonly camera: ProjectorCamera;
   public readonly renderTarget: THREE.WebGLRenderTarget;
 
-  private readonly cube: THREE.Mesh;
+  private readonly redLight: THREE.PointLight;
+  private readonly blueLight: THREE.PointLight;
   private readonly lensShiftY: number;
+  private model: THREE.Object3D | null = null;
 
   constructor(config: ProjectionSceneConfig) {
-    const {
-      width,
-      height,
-      aspect = 1280 / 800,
-      throwRatio = 1.65, // Acer X1383WH
-      lensShiftY = 1.0, // Acer X1383WH has 100% vertical offset
-    } = config;
+    const { width, height, aspect = 1920 / 1080, throwRatio = 1.65, lensShiftY = 1.0 } = config;
 
     this.lensShiftY = lensShiftY;
 
-    this.scene = this.createScene();
-    this.camera = this.createCamera(aspect, throwRatio, lensShiftY);
-    this.cube = this.createCube();
-    this.scene.add(this.cube);
-    this.addLights();
+    this.scene = new THREE.Scene();
+    this.camera = new ProjectorCamera(throwRatio, lensShiftY, aspect, 0.5, 500);
+    this.camera.position.set(0, 1.7, 40);
+    this.camera.updateProjectionMatrix();
+
+    const { redLight, blueLight } = this.addLights();
+    this.redLight = redLight;
+    this.blueLight = blueLight;
     this.addGrid();
+    this.loadModel();
 
     this.renderTarget = new THREE.WebGLRenderTarget(width, height, {
       minFilter: THREE.LinearFilter,
@@ -45,7 +46,6 @@ export class ProjectionScene {
   public render(renderer: THREE.WebGLRenderer): void {
     renderer.setRenderTarget(this.renderTarget);
     renderer.render(this.scene, this.camera);
-
     this.camera.updateProjectionMatrix();
   }
 
@@ -61,48 +61,84 @@ export class ProjectionScene {
 
   public dispose(): void {
     this.renderTarget.dispose();
-    this.cube.geometry.dispose();
-    if (this.cube.material instanceof THREE.Material) {
-      this.cube.material.dispose();
+    if (this.model) {
+      this.model.traverse((child) => {
+        const mesh = child as THREE.Mesh;
+        if (mesh.isMesh) {
+          mesh.geometry.dispose();
+          if (mesh.material instanceof THREE.Material) mesh.material.dispose();
+        }
+      });
     }
   }
 
-  private createScene(): THREE.Scene {
-    return new THREE.Scene();
-  }
+  private addLights(): { redLight: THREE.PointLight; blueLight: THREE.PointLight } {
+    const hemi = new THREE.HemisphereLight(
+      new THREE.Color().setHSL(0.6, 0.4, 0.7),
+      new THREE.Color().setHSL(0.25, 0.3, 0.15),
+      1.25,
+    );
+    this.scene.add(hemi);
 
-  private createCamera(aspect: number, throwRatio: number, lensShiftY: number): ProjectorCamera {
-    const camera = new ProjectorCamera(throwRatio, lensShiftY, aspect, 0.1, 1000);
-    camera.position.set(0, 0.05, 1.5);
-    camera.updateProjectionMatrix();
-    return camera;
-  }
+    const redLight = new THREE.PointLight(new THREE.Color().setHSL(0.0, 1.0, 0.5), 200, 40);
+    this.scene.add(redLight);
 
-  private createCube(): THREE.Mesh {
-    const cubeSize = 0.2;
-    const geometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
-    geometry.translate(0, -cubeSize / 2, 0); // Pivot at bottom instead of center
+    const blueLight = new THREE.PointLight(new THREE.Color().setHSL(0.62, 1.0, 0.5), 200, 40);
+    this.scene.add(blueLight);
 
-    const cube = new THREE.Mesh(geometry, new THREE.MeshNormalMaterial());
-    cube.position.set(0, 0.17, 0);
-    cube.rotation.set(Math.PI, Math.PI * 0.25, 0);
-
-    return cube;
-  }
-
-  private addLights(): void {
-    const light = new THREE.DirectionalLight(0xffffff, 1);
-    light.position.set(1, 1, 1);
-    this.scene.add(light);
-    this.scene.add(new THREE.AmbientLight(0x404040));
+    return { redLight, blueLight };
   }
 
   private addGrid(): void {
-    const grid = new THREE.GridHelper(2.0, 20, 0xff0000, 0xffffff);
+    const grid = new THREE.GridHelper(200, 40, 0x334433, 0x445544);
     this.scene.add(grid);
   }
 
-  public animate(): void {
-    this.cube.rotation.y += 0.01;
+  private loadModel(): void {
+    //@ts-ignore
+    const base = import.meta.env.BASE_URL;
+    const texLoader = new THREE.TextureLoader();
+    const texBase = `${base}concrete_0019_1k_K4mRwL/concrete_0019`;
+
+    function loadTex(suffix: string, colorSpace = THREE.NoColorSpace) {
+      const t = texLoader.load(`${texBase}${suffix}`);
+      t.colorSpace = colorSpace;
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.repeat.set(10, 6);
+      return t;
+    }
+
+    const concreteMat = new THREE.MeshStandardMaterial({
+      //@ts-ignore
+      map: loadTex('_color_1k.jpg', THREE.SRGBColorSpace),
+      normalMap: loadTex('_normal_opengl_1k.png'),
+      roughnessMap: loadTex('_roughness_1k.jpg'),
+      roughness: 1.0,
+      metalness: 0.1,
+    });
+
+    const loader = new OBJLoader();
+    //@ts-ignore
+    loader.load(`${base}bergi.obj`, (obj: THREE.Object3D) => {
+      obj.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh) {
+          (child as THREE.Mesh).material = concreteMat;
+        }
+      });
+      const box = new THREE.Box3().setFromObject(obj);
+      const size = box.getSize(new THREE.Vector3());
+      const scale = 20 / Math.max(size.x, size.y, size.z);
+      obj.scale.setScalar(scale);
+      box.setFromObject(obj);
+      obj.position.set(0, -box.min.y * 1.45, 0);
+      obj.rotation.y -= Math.PI / 2.0;
+      this.scene.add(obj);
+      this.model = obj;
+    });
+  }
+
+  public animate(t: number): void {
+    this.redLight.position.set(-7 + Math.sin(t * 0.8) * 4, 5 + Math.cos(t * 1.1) * 3, 8);
+    this.blueLight.position.set(7 + Math.sin(t * 0.8 + Math.PI) * 4, 6 + Math.cos(t * 1.1 + Math.PI) * 3, 8);
   }
 }

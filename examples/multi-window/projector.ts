@@ -23,9 +23,11 @@ const projectionScene = new ProjectionScene({ width: bufferResolution.width, hei
 const mapper = new ProjectionMapper(renderer, projectionScene.getTexture());
 const sync = new WindowSync(mapper, { mode: WINDOW_SYNC_MODE.PROJECTOR });
 
+const clock = new THREE.Clock();
+
 function animate() {
   requestAnimationFrame(animate);
-  projectionScene.animate();
+  projectionScene.animate(clock.getElapsedTime());
   projectionScene.render(renderer);
   renderer.setRenderTarget(null);
   mapper.render();

@@ -29,6 +29,7 @@ camera.position.set(0, 1.7, 40);
 let bergi: THREE.Object3D | null = null;
 
 const texLoader = new THREE.TextureLoader();
+//@ts-ignore
 const texBase = `${import.meta.env.BASE_URL}concrete_0019_1k_K4mRwL/concrete_0019`;
 
 function loadTex(suffix: string, colorSpace = THREE.NoColorSpace) {

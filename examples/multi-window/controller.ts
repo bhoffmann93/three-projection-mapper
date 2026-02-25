@@ -41,9 +41,11 @@ window.addEventListener('resize', () => {
   mapper.resize(window.innerWidth, window.innerHeight);
 });
 
+const clock = new THREE.Clock();
+
 function animate() {
   requestAnimationFrame(animate);
-  projectionScene.animate();
+  projectionScene.animate(clock.getElapsedTime());
   projectionScene.render(renderer);
   renderer.setRenderTarget(null);
   mapper.render();
