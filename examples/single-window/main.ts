@@ -42,7 +42,7 @@ loader.load('/bergi.obj', (obj) => {
   const scale = 20 / Math.max(size.x, size.y, size.z);
   obj.scale.setScalar(scale);
   box.setFromObject(obj);
-  obj.position.set(0, -box.min.y * 1.5, 0);
+  obj.position.set(0, -box.min.y * 1.45, 0);
   obj.rotation.y -= Math.PI / 2.0;
   scene.add(obj);
   bergi = obj;
@@ -55,11 +55,11 @@ const hemiLight = new THREE.HemisphereLight(
 );
 scene.add(hemiLight);
 
-const redLight = new THREE.PointLight(new THREE.Color().setHSL(0.0, 1.0, 0.5), 160, 30);
+const redLight = new THREE.PointLight(new THREE.Color().setHSL(0.0, 1.0, 0.5), 160, 40);
 redLight.position.set(-5, 1, 8);
 scene.add(redLight);
 
-const blueLight = new THREE.PointLight(new THREE.Color().setHSL(0.62, 1.0, 0.5), 180, 30);
+const blueLight = new THREE.PointLight(new THREE.Color().setHSL(0.62, 1.0, 0.5), 180, 40);
 blueLight.position.set(5, 1, 8);
 scene.add(blueLight);
 
