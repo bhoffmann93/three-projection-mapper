@@ -7,6 +7,15 @@
     <link rel="stylesheet" href="/css/style.css" />
   </head>
   <body>
+    <div id="desktop-only-warning">
+      Desktop browser required.
+      <p>This demo uses mouse drag controls and is not designed for touch devices.</p>
+    </div>
+    <script>
+      if (navigator.maxTouchPoints > 0) {
+        document.getElementById('desktop-only-warning').style.display = 'flex';
+      }
+    </script>
     <script type="module" src="/examples/fullscreen-shader/main.ts"></script>
   </body>
 </html>
