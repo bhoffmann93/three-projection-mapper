@@ -14,10 +14,14 @@ const projectionRes = { width: 1920, height: 1080 };
 
 const shaderCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 const shaderScene = new THREE.Scene();
+//@ts-ignore
+const texture = new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}industrial-facade.png`);
+
 const shaderMaterial = new THREE.ShaderMaterial({
   uniforms: {
     uTime: { value: 0 },
     uResolution: { value: new THREE.Vector2(projectionRes.width, projectionRes.height) },
+    uTexture: { value: texture },
   },
   vertexShader: /* glsl */ `
     void main() {
@@ -25,13 +29,13 @@ const shaderMaterial = new THREE.ShaderMaterial({
     }
   `,
   fragmentShader: /* glsl */ `
-  //Bernhard Hoffmann
-  //https://www.shadertoy.com/view/W3dSD7
+
+    
     uniform float uTime;
     uniform vec2 uResolution;
+    uniform sampler2D uTexture;
 
     #define PI 3.14159265358979
-
 
     //Tonemapping from https://www.shadertoy.com/view/4ccBRB
     vec3 acesApprox(vec3 v) {
@@ -53,6 +57,20 @@ const shaderMaterial = new THREE.ShaderMaterial({
         return a + b * cos(6.28318 * (c * t + d));
     }
 
+    //https://github.com/jamieowen/glsl-blend/blob/master/overlay.glsl
+
+    float blendOverlay(float base, float blend) {
+	    return base<0.5?(2.0*base*blend):(1.0-2.0*(1.0-base)*(1.0-blend));
+    }
+
+    vec3 blendOverlay(vec3 base, vec3 blend) {
+      return vec3(blendOverlay(base.r,blend.r),blendOverlay(base.g,blend.g),blendOverlay(base.b,blend.b));
+    }
+
+    vec3 blendOverlay(vec3 base, vec3 blend, float opacity) {
+	    return (blendOverlay(base, blend) * opacity + base * (1.0 - opacity));
+    } 
+    
     void main() {
       vec2 uv = gl_FragCoord.xy / uResolution.xy;
       
@@ -61,8 +79,8 @@ const shaderMaterial = new THREE.ShaderMaterial({
       float amount = 10.0;
       float index = 0.0;
       
+      //https://www.shadertoy.com/view/W3dSD7
       vec3 sumColor = vec3(0.0);
-      
       for(float i = 1.0; i <= amount; i++) {
           float n = i / amount;
           float osc = -cos(time * 4.0 * PI - i) * 0.5 + 0.5;
@@ -92,7 +110,7 @@ const shaderMaterial = new THREE.ShaderMaterial({
               weight *= 1.5;// add more variation             
           
           float b = -cos(uv.x - n * PI * 2.0 - time) * 0.5 + 0.5;
-          b = mix(0.2, 0.7, b);
+          b = mix(0.3, 0.6, b);
           vec3 waveColor = paletteEarthy(b);
           
           float brightness = 0.09 / amount;
@@ -100,8 +118,9 @@ const shaderMaterial = new THREE.ShaderMaterial({
       }
       
       sumColor = acesApprox(sumColor);
-      
-      vec4 finalColor = vec4(sumColor, 1.0);
+
+      vec3 facade = texture2D(uTexture, uv).rgb;
+      vec4 finalColor = vec4(blendOverlay(facade, sumColor, 0.875), 1.0);
       gl_FragColor = finalColor;
     }
   `,

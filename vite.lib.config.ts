@@ -15,9 +15,13 @@ export default defineConfig({
   build: {
     lib: {
       //@ts-ignore
-      entry: resolve(__dirname, 'src/lib.ts'),
+      entry: {
+        //@ts-ignore
+        lib: resolve(__dirname, 'src/lib.ts'),
+        //@ts-ignore
+        'addons/index': resolve(__dirname, 'src/addons/index.ts'),
+      },
       name: 'ThreeProjectionMapping',
-      fileName: 'lib',
       formats: ['es'],
     },
     rollupOptions: {
