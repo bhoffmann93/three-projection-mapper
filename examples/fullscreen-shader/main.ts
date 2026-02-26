@@ -105,7 +105,7 @@ const shaderMaterial = new THREE.ShaderMaterial({
       
       sumColor = acesApprox(sumColor);
 
-      vec3 facade = texture2D(uTexture, uv).rgb;
+      vec3 facade = texture2D(uTexture, (uv - 0.5) * 0.8 + vec2(0.46, 0.5)).rgb;
       vec4 finalColor = vec4(0.5 * facade + sumColor  * 2.0 * facade.r, 1.0);
       gl_FragColor = finalColor;
     }
