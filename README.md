@@ -399,6 +399,7 @@ npm test           # Run tests with Vitest
 - [ ] Save and Load Warp Settings (JSON Export Import)
 - [ ] Tutorial: Optical Alignment of Virtual Threejs Camera with the Physical Projector
 - [ ] Test React Three Fiber Compatibility
+- [ ] Publish on npm
 
 - [ ] Optional: Option to add multiple Meshes like [p5 Mapper](https://github.com/jdeboi/p5.mapper)
 - [ ] Optional: [Edge Blending](https://paulbourke.net/miscellaneous/edgeblend/) for Multiple Projector Setups
