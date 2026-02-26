@@ -21,7 +21,7 @@ A projection mapping library for [Three.js](https://threejs.org/).
 
 ## How it works
 
-You render your Three.js scene into a texture, pass it to `ProjectionMapper`, and it gives you interactive control points to warp and align the output to match your projection surface. All calibration data is saved automatically so your setup persists across sessions.
+You render your Three.js scene – 3D or Fullscreen Quad with a Texture (Shader, Canvas, …) – into a RenderTarget, pass it to `ProjectionMapper`, and it gives you interactive control points to warp and align the output to match your projection surface. All calibration data is saved automatically so your setup persists across sessions.
 
 ```
 Your Three.js Scene → RenderTarget → ProjectionMapper → Projector
