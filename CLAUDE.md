@@ -67,5 +67,5 @@ The library exports from `src/lib.ts`:
 
 - `G` / `P` - Toggle GUI panel
 - `T` - Toggle testcard
-- `H` - Hide all controls
+- `W` - Hide all controls
 - `S` - Show all controls
