@@ -24,8 +24,8 @@ interface TileModule {
 
 //Grid by Bernhard Hoffmann
 const sketch = (s: p5) => {
-  const GRID_TILES_X = 9;
-  const GRID_TILES_Y = 9;
+  const GRID_TILES_X = 6;
+  const GRID_TILES_Y = 4;
   // (TILES_Y - 1) rows × (TILES_X - 1) cols
   const modules: TileModule[][] = Array.from({ length: GRID_TILES_Y - 1 }, () =>
     Array.from({ length: GRID_TILES_X - 1 }, () => ({ w: 0, h: 0 })),
