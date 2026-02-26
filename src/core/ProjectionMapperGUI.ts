@@ -117,7 +117,7 @@ export class ProjectionMapperGUI {
     if (this.isMultiWindowMode()) {
       this.pane.addBlade({
         view: 'text',
-        label: '[G] GUI [H] Warp',
+        label: '[G] GUI [W] Warp',
         value: '[T] Test  [O] Projector',
         parse: (v: string) => v,
         disabled: true,
@@ -126,7 +126,7 @@ export class ProjectionMapperGUI {
       this.pane.addBlade({
         view: 'text',
         label: '[G] GUI',
-        value: '[H] Warp UI  [T] Test',
+        value: '[W] Warp UI  [T] Test',
         parse: (v: string) => v,
         disabled: true,
       } as Record<string, unknown>);

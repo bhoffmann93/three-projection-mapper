@@ -102,7 +102,7 @@ animate();
 window.addEventListener('keydown', (e) => {
   if (e.key === 'g' || e.key === 'p') gui.toggle();
   if (e.key === 't') gui.toggleTestCard();
-  if (e.key === 'h') gui.toggleWarpUI();
+  if (e.key === 'w') gui.toggleWarpUI();
 });
 ```
 
@@ -203,7 +203,7 @@ animate();
 window.addEventListener('keydown', (e) => {
   if (e.key === 'g' || e.key === 'p') gui.toggle();
   if (e.key === 't') gui.toggleTestCard();
-  if (e.key === 'h') gui.toggleWarpUI();
+  if (e.key === 'w') gui.toggleWarpUI();
 });
 ```
 
@@ -308,7 +308,7 @@ gui.dispose();
 window.addEventListener('keydown', (e) => {
   if (e.key === 'g' || e.key === 'p') gui.toggle();
   if (e.key === 't') gui.toggleTestCard();
-  if (e.key === 'h') gui.toggleWarpUI();
+  if (e.key === 'w') gui.toggleWarpUI();
 });
 ```
 

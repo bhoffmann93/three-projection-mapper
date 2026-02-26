@@ -22,6 +22,7 @@ interface TileModule {
   h: number;
 }
 
+//Grid by Bernhard Hoffmann
 const sketch = (s: p5) => {
   const GRID_TILES_X = 9;
   const GRID_TILES_Y = 9;
@@ -45,7 +46,12 @@ const sketch = (s: p5) => {
       const waveY = ampWaveY * Math.sin(iY * freqY + s.frameCount * 0.01) * 0.5 + 0.5;
 
       for (let iX = 1; iX < GRID_TILES_X; iX++) {
-        const tileW = tileWo; // waveX = 1, no horizontal modulation
+        const freqX = 0.3;
+        const ampWaveX = 0.7;
+        const waveX =
+          ampWaveX * Math.sin(iX * freqX + s.frameCount * 0.01 + (iY / GRID_TILES_Y) * Math.PI * 2.0) * 0.5 + 0.5;
+
+        const tileW = tileWo * waveX;
         const tileH = tileHo * waveY;
 
         modules[iY - 1][iX - 1] = { w: tileW, h: tileH };
@@ -115,7 +121,7 @@ new p5(sketch);
 window.addEventListener('keydown', (e) => {
   if ((e.key === 'g' || e.key === 'p') && gui) gui.toggle();
   if (e.key === 't' && gui) gui.toggleTestCard();
-  if (e.key === 'h' && gui) gui.toggleWarpUI();
+  if (e.key === 'w' && gui) gui.toggleWarpUI();
 });
 
 window.addEventListener('resize', () => {

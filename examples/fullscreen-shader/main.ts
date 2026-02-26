@@ -25,6 +25,7 @@ const shaderMaterial = new THREE.ShaderMaterial({
     }
   `,
   fragmentShader: /* glsl */ `
+  //Bernhard Hoffmann
   //https://www.shadertoy.com/view/W3dSD7
     uniform float uTime;
     uniform vec2 uResolution;
@@ -127,7 +128,7 @@ const gui = new ProjectionMapperGUI(mapper, {
 window.addEventListener('keydown', (e) => {
   if (e.key === 'g' || e.key === 'p') gui.toggle();
   if (e.key === 't') gui.toggleTestCard();
-  if (e.key === 'h') gui.toggleWarpUI();
+  if (e.key === 'w') gui.toggleWarpUI();
 });
 
 window.addEventListener('resize', () => {
@@ -155,5 +156,5 @@ console.log('Fullscreen Shader Example');
 console.log('Controls:');
 console.log('  G/P - Toggle GUI');
 console.log('  T   - Toggle testcard');
-console.log('  H   - Toggle warp UI');
+console.log('  W   - Toggle warp UI');
 console.log('  Drag corners/grid points to warp');
