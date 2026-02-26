@@ -25,6 +25,7 @@ export default defineConfig({
         'multi-window-controller': resolve(__dirname, 'examples/multi-window/controller.html'),
         'multi-window-projector': resolve(__dirname, 'examples/multi-window/projector.html'),
         'fullscreen-shader': resolve(__dirname, 'examples/fullscreen-shader/index.html'),
+        'p5-canvas': resolve(__dirname, 'examples/p5-canvas/index.html'),
       },
     },
   },

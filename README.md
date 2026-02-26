@@ -21,14 +21,16 @@ A projection mapping library for [Three.js](https://threejs.org/).
 
 ## How it works
 
-You render your Three.js scene into a texture, pass it to `ProjectionMapper`, and it gives you interactive control points to warp and align the output to match your projection surface. All calibration data is saved automatically so your setup persists across sessions.
+Pass any `THREE.Texture` to `ProjectionMapper` and it gives you interactive control points to warp and align the output to match your projection surface. All calibration data is saved automatically so your setup persists across sessions.
 
 ```
-Your Three.js Scene → RenderTarget → ProjectionMapper → Projector
-                                           ↕
-                                    Drag control points
-                                    to align on surface
+Texture source → ProjectionMapper → Projector
+                       ↕
+              Drag control points
+              to align on surface
 ```
+
+The texture source can be a **3D scene** rendered into a `WebGLRenderTarget`, a plain **HTML canvas** or **p5.js sketch** wrapped with `THREE.CanvasTexture`, a static image, or anything else that produces a `THREE.Texture`.
 
 ---
 
@@ -103,6 +105,8 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'h') gui.toggleWarpUI();
 });
 ```
+
+> **Canvas / p5.js:** If you're drawing with p5.js or a plain 2D canvas instead of a 3D scene, skip the render target — wrap the canvas element directly with `new THREE.CanvasTexture(canvasEl)` and set `canvasTexture.needsUpdate = true` each frame. See [`/examples/p5-canvas`](./examples/p5-canvas/) for a working example.
 
 ## Multi-Window Setup
 
