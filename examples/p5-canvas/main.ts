@@ -11,11 +11,7 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 document.body.appendChild(renderer.domElement);
 
-const CANVAS_W = 1280;
-const CANVAS_H = 720;
-
-const TILES_X = 9;
-const TILES_Y = 9;
+const projectionResolution = { width: 1920, height: 1080 };
 
 let canvasTexture: THREE.CanvasTexture | null = null;
 let mapper: ProjectionMapper | null = null;
@@ -27,26 +23,28 @@ interface TileModule {
 }
 
 const sketch = (s: p5) => {
+  const GRID_TILES_X = 9;
+  const GRID_TILES_Y = 9;
   // (TILES_Y - 1) rows × (TILES_X - 1) cols
-  const modules: TileModule[][] = Array.from({ length: TILES_Y - 1 }, () =>
-    Array.from({ length: TILES_X - 1 }, () => ({ w: 0, h: 0 })),
+  const modules: TileModule[][] = Array.from({ length: GRID_TILES_Y - 1 }, () =>
+    Array.from({ length: GRID_TILES_X - 1 }, () => ({ w: 0, h: 0 })),
   );
   const scaleFactors: { x: number; y: number }[] = [];
   const scaleFactor = { x: 1, y: 1 };
 
   function calcGrid() {
-    const tileWo = s.width / TILES_X;
-    const tileHo = s.height / TILES_Y;
+    const tileWo = s.width / GRID_TILES_X;
+    const tileHo = s.height / GRID_TILES_Y;
     let sumHeight = 0;
 
-    for (let iY = 1; iY < TILES_Y; iY++) {
+    for (let iY = 1; iY < GRID_TILES_Y; iY++) {
       let sumWidth = 0;
 
       const freqY = 0.3;
       const ampWaveY = 0.7;
       const waveY = ampWaveY * Math.sin(iY * freqY + s.frameCount * 0.01) * 0.5 + 0.5;
 
-      for (let iX = 1; iX < TILES_X; iX++) {
+      for (let iX = 1; iX < GRID_TILES_X; iX++) {
         const tileW = tileWo; // waveX = 1, no horizontal modulation
         const tileH = tileHo * waveY;
 
@@ -67,23 +65,21 @@ const sketch = (s: p5) => {
     s.noStroke();
 
     let tempPosY = 0;
-    for (let iY = 1; iY < TILES_Y; iY++) {
+    for (let iY = 1; iY < GRID_TILES_Y; iY++) {
       let tempPosX = 0;
       let tempHeight = 0;
 
-      for (let iX = 1; iX < TILES_X; iX++) {
+      for (let iX = 1; iX < GRID_TILES_X; iX++) {
         const { w, h } = modules[iY - 1][iX - 1];
         const sf = scaleFactors[iY - 1];
         const tileW = w * sf.x;
         const tileH = h * scaleFactor.y;
 
         s.push();
+
         s.translate(tempPosX, tempPosY);
-        s.beginShape();
-        s.vertex(0, 0);
-        s.vertex(tileW, 0);
-        s.vertex(tileW, tileH);
-        s.endShape();
+        s.translate(tileW / 2, tileH / 2);
+        s.ellipse(0, 0, tileW, tileH);
         s.pop();
 
         tempPosX += tileW;
@@ -95,12 +91,12 @@ const sketch = (s: p5) => {
   }
 
   s.setup = () => {
-    s.pixelDensity(1); // disable retina scaling so canvas is exactly CANVAS_W × CANVAS_H
-    const cnv = s.createCanvas(CANVAS_W, CANVAS_H);
+    s.pixelDensity(1); // disable retina scaling so canvas is pixel-perfect
+    const cnv = s.createCanvas(projectionResolution.width, projectionResolution.height);
     (cnv.elt as HTMLCanvasElement).style.display = 'none';
 
     canvasTexture = new THREE.CanvasTexture(cnv.elt as HTMLCanvasElement);
-    mapper = new ProjectionMapper(renderer, canvasTexture);
+    mapper = new ProjectionMapper(renderer, canvasTexture, { resolution: projectionResolution });
     gui = new ProjectionMapperGUI(mapper, {
       title: 'Projection Mapper',
       anchor: GUI_ANCHOR.LEFT,
