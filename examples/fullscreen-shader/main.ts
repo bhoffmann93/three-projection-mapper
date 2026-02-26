@@ -14,14 +14,11 @@ const projectionRes = { width: 1920, height: 1080 };
 
 const shaderCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 const shaderScene = new THREE.Scene();
-//@ts-ignore
-const texture = new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}industrial-facade.png`);
 
 const shaderMaterial = new THREE.ShaderMaterial({
   uniforms: {
     uTime: { value: 0 },
     uResolution: { value: new THREE.Vector2(projectionRes.width, projectionRes.height) },
-    uTexture: { value: texture },
   },
   vertexShader: /* glsl */ `
     void main() {
@@ -29,11 +26,9 @@ const shaderMaterial = new THREE.ShaderMaterial({
     }
   `,
   fragmentShader: /* glsl */ `
-
     
     uniform float uTime;
     uniform vec2 uResolution;
-    uniform sampler2D uTexture;
 
     #define PI 3.14159265358979
 
@@ -99,14 +94,13 @@ const shaderMaterial = new THREE.ShaderMaterial({
           b = mix(0.3, 0.6, b);
           vec3 waveColor = paletteEarthy(b);
           
-          float brightness = 0.09 / amount;
+          float brightness = 0.3 / amount;
           sumColor += waveColor * weight * brightness;
       }
       
       sumColor = acesApprox(sumColor);
 
-      vec3 facade = texture2D(uTexture, (uv - 0.5) * 0.8 + vec2(0.46, 0.5)).rgb;
-      vec4 finalColor = vec4(0.5 * facade + sumColor  * 2.0 * facade.r, 1.0);
+      vec4 finalColor = vec4(vec3(sumColor), 1.0);
       gl_FragColor = finalColor;
     }
   `,
