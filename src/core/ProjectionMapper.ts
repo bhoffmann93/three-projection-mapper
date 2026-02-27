@@ -11,6 +11,7 @@ export const GUI_STORAGE_KEY = 'projection-mapper-gui-settings';
 export interface ImageSettings {
   maskEnabled: boolean;
   feather: number;
+  tonemap: boolean;
   gamma: number;
   contrast: number;
   hue: number;
@@ -19,6 +20,7 @@ export interface ImageSettings {
 export const DEFAULT_IMAGE_SETTINGS: Readonly<ImageSettings> = {
   maskEnabled: false,
   feather: 0.05,
+  tonemap: false,
   gamma: 1.0,
   contrast: 1.0,
   hue: 0.0,
@@ -70,6 +72,7 @@ export class ProjectionMapper {
     uShowControlLines: { value: boolean };
     uMaskEnabled: { value: boolean };
     uFeather: { value: number };
+    uTonemap: { value: boolean };
     uGamma: { value: number };
     uContrast: { value: number };
     uHue: { value: number };
@@ -114,7 +117,6 @@ export class ProjectionMapper {
       planeScale: config.planeScale ?? DEFAULT_PLANE_SCALE,
     };
 
-    // Setup scene
     this.scene = new THREE.Scene();
 
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
@@ -122,7 +124,6 @@ export class ProjectionMapper {
     this.camera.lookAt(0, 0, 0);
     this.updateCameraFrustum();
 
-    // Setup uniforms
     this.uniforms = {
       uBuffer: { value: inputTexture },
       uBufferResolution: {
@@ -135,13 +136,13 @@ export class ProjectionMapper {
       uShowTestCard: { value: false },
       uShowControlLines: { value: true },
       uMaskEnabled: { value: DEFAULT_IMAGE_SETTINGS.maskEnabled },
-      uFeather:     { value: DEFAULT_IMAGE_SETTINGS.feather },
-      uGamma:       { value: DEFAULT_IMAGE_SETTINGS.gamma },
-      uContrast:    { value: DEFAULT_IMAGE_SETTINGS.contrast },
-      uHue:         { value: DEFAULT_IMAGE_SETTINGS.hue },
+      uFeather: { value: DEFAULT_IMAGE_SETTINGS.feather },
+      uTonemap: { value: DEFAULT_IMAGE_SETTINGS.tonemap },
+      uGamma: { value: DEFAULT_IMAGE_SETTINGS.gamma },
+      uContrast: { value: DEFAULT_IMAGE_SETTINGS.contrast },
+      uHue: { value: DEFAULT_IMAGE_SETTINGS.hue },
     };
 
-    // Setup mesh warper using normalized world units
     const warperConfig: MeshWarperConfig = {
       width: this.worldWidth,
       height: this.worldHeight,
@@ -159,7 +160,6 @@ export class ProjectionMapper {
 
     this.meshWarper = new MeshWarper(warperConfig);
 
-    // Setup post-processing
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
 
@@ -233,19 +233,21 @@ export class ProjectionMapper {
 
   setImageSettings(settings: Partial<ImageSettings>): void {
     if (settings.maskEnabled !== undefined) this.uniforms.uMaskEnabled.value = settings.maskEnabled;
-    if (settings.feather    !== undefined) this.uniforms.uFeather.value     = settings.feather;
-    if (settings.gamma      !== undefined) this.uniforms.uGamma.value       = settings.gamma;
-    if (settings.contrast   !== undefined) this.uniforms.uContrast.value    = settings.contrast;
-    if (settings.hue        !== undefined) this.uniforms.uHue.value         = settings.hue;
+    if (settings.feather !== undefined) this.uniforms.uFeather.value = settings.feather;
+    if (settings.tonemap !== undefined) this.uniforms.uTonemap.value = settings.tonemap;
+    if (settings.gamma !== undefined) this.uniforms.uGamma.value = settings.gamma;
+    if (settings.contrast !== undefined) this.uniforms.uContrast.value = settings.contrast;
+    if (settings.hue !== undefined) this.uniforms.uHue.value = settings.hue;
   }
 
   getImageSettings(): ImageSettings {
     return {
       maskEnabled: this.uniforms.uMaskEnabled.value,
-      feather:     this.uniforms.uFeather.value,
-      gamma:       this.uniforms.uGamma.value,
-      contrast:    this.uniforms.uContrast.value,
-      hue:         this.uniforms.uHue.value,
+      feather: this.uniforms.uFeather.value,
+      tonemap: this.uniforms.uTonemap.value,
+      gamma: this.uniforms.uGamma.value,
+      contrast: this.uniforms.uContrast.value,
+      hue: this.uniforms.uHue.value,
     };
   }
 

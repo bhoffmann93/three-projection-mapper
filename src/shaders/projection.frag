@@ -12,6 +12,7 @@ uniform int uGridSizeY;
 
 uniform bool uMaskEnabled;
 uniform float uFeather;
+uniform bool uTonemap;
 uniform float uGamma;
 uniform float uContrast;
 uniform float uHue;
@@ -194,46 +195,30 @@ float drawBorderLines(vec2 uv) {
     return clamp(max(leftLine, max(rightLine, max(bottomLine, topLine))), 0.0, 1.0);
 }
 
-// https://www.shadertoy.com/view/ltSfWV
-// continuity is independent of steepness parameter s
-// at x = 1/2: 3rd derivative = 0 for s = 1;  2rd derivative = 0 for all values of s
-float smootheststep(float x, float s) {
-    const float ss = 2.88539;// 2.0 / log(2.0)
-    s *= ss;
-    x = clamp(x, 0.0, 1.0);
-    return 1.0 / (1.0 + exp2(tan(x * PI - PI * 0.5) * -s));
+// Gaussian Filtered Rectangle 
+// https://www.shadertoy.com/view/NsVSWy
+
+// Err function approximation
+float erf(in float x) {
+    return sign(x) * sqrt(1.0 - exp2(-1.787776 * x * x));
 }
 
-float smootherstep(float edge0, float edge1, float x) {
-    x = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
-    return x * x * x * (x * (x * 6.0 - 15.0) + 10.0);
+// Gaussian filtered blurry rectangle
+float gaussianRect(in vec2 p, in vec2 b, in float w) {
+    float u = erf((p.x + b.x) / w) - erf((p.x - b.x) / w);
+    float v = erf((p.y + b.y) / w) - erf((p.y - b.y) / w);
+    return u * v / 4.0;
 }
 
-float sdBox(vec2 p, vec2 size) {
-    vec2 r = abs(p) - size;
-    return min(max(r.x, r.y), 0.0) + length(max(r, vec2(0, 0)));
+float gaussianRectMask(vec2 uv, vec2 res, float soft) {
+    float aspect = res.x / res.y;
+    vec2 p = (uv - 0.5) * vec2(aspect, 1.0);
+
+    vec2 baseSize = vec2(aspect, 1.0) * 0.5;
+    vec2 insetSize = baseSize - (soft * 1.5);
+    float rectmask = gaussianRect(p, insetSize, soft);
+    return rectmask;
 }
-
-// UV-space mask: always fits the plane (vUv 0-1), feather inward by soft units
-// SDF is negative inside, 0 at boundary — transition from -soft (opaque) to 0 (black)
-float getRoundedMask(vec2 uv, float soft, float radius) {
-    vec2 p = uv - 0.5;
-    vec2 innerSize = vec2(0.5) - radius;
-
-    float dist = sdBox(p, vec2(0.5 - radius)) - radius;
-    return 1.0 - smoothstep(-soft, 0.0, dist);
-}
-
-// float getRoundedMask(vec2 uv, vec2 res, float soft, float radius) {
-//     float aspect = res.x / res.y;
-//     vec2 p = (uv - 0.5) * vec2(aspect, 1.0);
-//     vec2 size = vec2(aspect, 1.0) * 0.5 - radius;
-
-//     float dist = sdBox(p, size) - radius;
-
-//     // Kehrt die SDF um: innen 1, außen 0
-//     return 1.0 - smoothstep(-soft, 0.0, dist);
-// }
 
 vec3 acesTonemap(vec3 v) {
     v *= 0.6;
@@ -257,11 +242,16 @@ vec3 brightnessContrast(vec3 col, float brightness, float contrast) {
 }
 
 vec3 imageAdjust(vec3 color) {
+    if(uTonemap)
+        color = acesTonemap(color); //hdr to 0.0-1.0 range
+
     color = brightnessContrast(color, 0.0, uContrast);
+
     if(abs(uHue) > 0.001)
         color = hueShift(color, uHue);
+
     color = pow(max(color, 0.0), vec3(1.0 / uGamma)); //gamma
-    return color;
+    return clamp(color, 0.0, 1.0);
 }
 
 void main() {
@@ -272,7 +262,6 @@ void main() {
         color = testCard(vUv, uShouldWarp ? uWarpPlaneSize : uBufferResolution, uTime);
     } else {
         color = texture2D(uBuffer, vUv).rgb;
-        // color = acesTonemap(color);
     }
 
     if(uShouldWarp == false || uShowControlLines) {
@@ -286,17 +275,14 @@ void main() {
     }
 
     color = imageAdjust(color);
-    // color = fract(color);
-    color = clamp(color, 0.0, 1.0);
+    // color = vec3(checkerboard(vUv, vec2(7.0, 4.0)));
 
     // Feather mask
     if(uMaskEnabled) {
-        float mask = getRoundedMask(vUv, uFeather, 0.0);
+        float soft = mix(0.0, 0.25, uFeather);
+        float mask = gaussianRectMask(vUv, uShouldWarp ? uWarpPlaneSize : uBufferResolution, soft);
         color = mix(vec3(0.0), color, mask);
     }
-
-    float mask = 1.0;
-    color = vec3(mask);
 
     gl_FragColor = vec4(color, 1.0);
 }

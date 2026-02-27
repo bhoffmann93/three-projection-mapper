@@ -203,6 +203,14 @@ export class ProjectionMapperGUI {
       });
 
     imageFolder
+      .addBinding(this.settings, 'tonemap', { label: 'ACES Tonemap' })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        this.mapper.setImageSettings({ tonemap: e.value as boolean });
+        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
+        this.saveSettings();
+      });
+
+    imageFolder
       .addBinding(this.settings, 'gamma', { label: 'Gamma', min: 0.5, max: 2.0, step: 0.01 })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setImageSettings({ gamma: e.value as number });
