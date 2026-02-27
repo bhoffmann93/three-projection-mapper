@@ -10,11 +10,10 @@
  * For multi-window support, import from 'three-projection-mapper/addons'
  */
 
-export { ProjectionMapper, type ProjectionMapperConfig } from './core/ProjectionMapper';
+export { ProjectionMapper, GUI_STORAGE_KEY, DEFAULT_IMAGE_SETTINGS, type ProjectionMapperConfig, type ImageSettings } from './core/ProjectionMapper';
 export {
   ProjectionMapperGUI,
   GUI_ANCHOR,
-  GUI_STORAGE_KEY,
   type ProjectionMapperGUISettings,
   type ProjectionMapperGUIConfig
 } from './core/ProjectionMapperGUI';

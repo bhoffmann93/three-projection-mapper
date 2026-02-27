@@ -1,4 +1,5 @@
 import { ProjectionEventType } from './EventTypes';
+import type { ImageSettings } from '../core/ProjectionMapper';
 
 /**
  * Normalized point format (0-1 range) for resolution-independent serialization
@@ -48,6 +49,9 @@ export interface FullProjectionState {
 
   // Camera/view settings
   cameraOffset: CameraOffset;
+
+  // Image adjustments
+  imageSettings: ImageSettings;
 }
 
 /**
@@ -69,5 +73,6 @@ export interface ProjectionEventPayloads {
   [ProjectionEventType.PROJECTOR_READY]: {};
   [ProjectionEventType.REQUEST_FULL_STATE]: {};
   [ProjectionEventType.FULL_STATE_SYNC]: { state: FullProjectionState };
+  [ProjectionEventType.IMAGE_SETTINGS_CHANGED]: { settings: ImageSettings };
   [ProjectionEventType.RESET_WARP]: {};
 }

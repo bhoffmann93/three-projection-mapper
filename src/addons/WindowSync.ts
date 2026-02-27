@@ -19,6 +19,7 @@
 
 import * as THREE from 'three';
 import { ProjectionMapper } from '../core/ProjectionMapper';
+import type { ImageSettings } from '../core/ProjectionMapper';
 import { EventChannel } from '../ipc/EventChannel';
 import { WindowManager } from '../windows/WindowManager';
 import { ProjectionEventType } from '../ipc/EventTypes';
@@ -158,6 +159,10 @@ export class WindowSync {
       this.mapper.setCameraOffset(offset.x, offset.y);
     });
 
+    this.eventChannel.on(ProjectionEventType.IMAGE_SETTINGS_CHANGED, ({ settings }) => {
+      this.mapper.setImageSettings(settings as ImageSettings);
+    });
+
     this.eventChannel.on(ProjectionEventType.RESET_WARP, () => {
       this.mapper.reset();
       setTimeout(() => window.location.reload(), 100);
@@ -231,6 +236,7 @@ export class WindowSync {
       showControlLines: this.mapper.isShowingControlLines(),
       showControls: false, // Projector controls default to hidden
       cameraOffset: this.mapper.getCameraOffset(),
+      imageSettings: this.mapper.getImageSettings(),
     };
   }
 
@@ -282,6 +288,9 @@ export class WindowSync {
 
     // 7. Apply camera offset
     this.mapper.setCameraOffset(state.cameraOffset.x, state.cameraOffset.y);
+
+    // 8. Apply image settings
+    this.mapper.setImageSettings(state.imageSettings);
 
     // Update mesh
     (warper as any).updateLine();

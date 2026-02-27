@@ -5,7 +5,24 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import projectionFragmentShader from '../shaders/projection.frag';
 import { calculateGridPoints } from '../warp/geometry';
-import { GUI_STORAGE_KEY } from './ProjectionMapperGUI';
+
+export const GUI_STORAGE_KEY = 'projection-mapper-gui-settings';
+
+export interface ImageSettings {
+  maskEnabled: boolean;
+  feather: number;
+  gamma: number;
+  contrast: number;
+  hue: number;
+}
+
+export const DEFAULT_IMAGE_SETTINGS: Readonly<ImageSettings> = {
+  maskEnabled: false,
+  feather: 0.05,
+  gamma: 1.0,
+  contrast: 1.0,
+  hue: 0.0,
+};
 
 export interface ProjectionMapperConfig {
   /** Projection resolution in pixels (default: { width: 1920, height: 1080 }) */
@@ -117,11 +134,11 @@ export class ProjectionMapper {
       uTime: { value: 0 },
       uShowTestCard: { value: false },
       uShowControlLines: { value: true },
-      uMaskEnabled: { value: false },
-      uFeather: { value: 0.05 },
-      uGamma: { value: 1.0 },
-      uContrast: { value: 1.0 },
-      uHue: { value: 0.0 },
+      uMaskEnabled: { value: DEFAULT_IMAGE_SETTINGS.maskEnabled },
+      uFeather:     { value: DEFAULT_IMAGE_SETTINGS.feather },
+      uGamma:       { value: DEFAULT_IMAGE_SETTINGS.gamma },
+      uContrast:    { value: DEFAULT_IMAGE_SETTINGS.contrast },
+      uHue:         { value: DEFAULT_IMAGE_SETTINGS.hue },
     };
 
     // Setup mesh warper using normalized world units
@@ -214,44 +231,22 @@ export class ProjectionMapper {
     return this.uniforms.uShowControlLines.value;
   }
 
-  setMaskEnabled(enabled: boolean): void {
-    this.uniforms.uMaskEnabled.value = enabled;
+  setImageSettings(settings: Partial<ImageSettings>): void {
+    if (settings.maskEnabled !== undefined) this.uniforms.uMaskEnabled.value = settings.maskEnabled;
+    if (settings.feather    !== undefined) this.uniforms.uFeather.value     = settings.feather;
+    if (settings.gamma      !== undefined) this.uniforms.uGamma.value       = settings.gamma;
+    if (settings.contrast   !== undefined) this.uniforms.uContrast.value    = settings.contrast;
+    if (settings.hue        !== undefined) this.uniforms.uHue.value         = settings.hue;
   }
 
-  isMaskEnabled(): boolean {
-    return this.uniforms.uMaskEnabled.value;
-  }
-
-  setFeather(amount: number): void {
-    this.uniforms.uFeather.value = amount;
-  }
-
-  getFeather(): number {
-    return this.uniforms.uFeather.value;
-  }
-
-  setGamma(gamma: number): void {
-    this.uniforms.uGamma.value = gamma;
-  }
-
-  getGamma(): number {
-    return this.uniforms.uGamma.value;
-  }
-
-  setContrast(contrast: number): void {
-    this.uniforms.uContrast.value = contrast;
-  }
-
-  getContrast(): number {
-    return this.uniforms.uContrast.value;
-  }
-
-  setHue(hue: number): void {
-    this.uniforms.uHue.value = hue;
-  }
-
-  getHue(): number {
-    return this.uniforms.uHue.value;
+  getImageSettings(): ImageSettings {
+    return {
+      maskEnabled: this.uniforms.uMaskEnabled.value,
+      feather:     this.uniforms.uFeather.value,
+      gamma:       this.uniforms.uGamma.value,
+      contrast:    this.uniforms.uContrast.value,
+      hue:         this.uniforms.uHue.value,
+    };
   }
 
   private updateCameraFrustum(): void {

@@ -218,14 +218,52 @@ float sdBox(vec2 p, vec2 size) {
 // SDF is negative inside, 0 at boundary — transition from -soft (opaque) to 0 (black)
 float getRoundedMask(vec2 uv, float soft, float radius) {
     vec2 p = uv - 0.5;
+    vec2 innerSize = vec2(0.5) - radius;
+
     float dist = sdBox(p, vec2(0.5 - radius)) - radius;
     return 1.0 - smoothstep(-soft, 0.0, dist);
 }
 
+// float getRoundedMask(vec2 uv, vec2 res, float soft, float radius) {
+//     float aspect = res.x / res.y;
+//     vec2 p = (uv - 0.5) * vec2(aspect, 1.0);
+//     vec2 size = vec2(aspect, 1.0) * 0.5 - radius;
+
+//     float dist = sdBox(p, size) - radius;
+
+//     // Kehrt die SDF um: innen 1, außen 0
+//     return 1.0 - smoothstep(-soft, 0.0, dist);
+// }
+
+vec3 acesTonemap(vec3 v) {
+    v *= 0.6;
+    float a = 2.51;
+    float b = 0.03;
+    float c = 2.43;
+    float d = 0.59;
+    float e = 0.14;
+    return clamp((v * (a * v + b)) / (v * (c * v + d) + e), 0.0, 1.0);
+}
+
+//0-TAU
 vec3 hueShift(vec3 color, float hue) {
-    vec3 k = vec3(0.57735);
+    const vec3 k = vec3(0.57735, 0.57735, 0.57735);
     float cosAngle = cos(hue * TAU);
     return color * cosAngle + cross(k, color) * sin(hue * TAU) + k * dot(k, color) * (1.0 - cosAngle);
+}
+
+vec3 brightnessContrast(vec3 col, float brightness, float contrast) {
+    return (col - 0.5) * contrast + 0.5 + brightness;
+}
+
+vec3 imageAdjust(vec3 color) {
+    // Image adjustments
+    //hue -0.5-0.5
+    color = brightnessContrast(color, 0.0, uContrast);
+    if(abs(uHue) > 0.001)
+        color = hueShift(color, uHue);
+    color = pow(max(color, 0.0), vec3(1.0 / uGamma)); //gamma
+    return color;
 }
 
 void main() {
@@ -236,6 +274,7 @@ void main() {
         color = testCard(vUv, uShouldWarp ? uWarpPlaneSize : uBufferResolution, uTime);
     } else {
         color = texture2D(uBuffer, vUv).rgb;
+        // color = acesTonemap(color);
     }
 
     if(uShouldWarp == false || uShowControlLines) {
@@ -248,12 +287,9 @@ void main() {
         color = mix(color, vec3(0.75), lines);
     }
 
-    // Image adjustments
-    color = (color - 0.5) * uContrast + 0.5;
-    if(abs(uHue) > 0.001) {
-        color = hueShift(color, uHue);
-    }
-    color = pow(max(color, 0.0), vec3(1.0 / uGamma));
+    color = imageAdjust(color);
+    // color = fract(color);
+    color = clamp(color, 0.0, 1.0);
 
     // Feather mask
     if(uMaskEnabled) {
