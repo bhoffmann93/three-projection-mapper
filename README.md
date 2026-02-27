@@ -409,7 +409,7 @@ The bicubic warp algorithm is adapted to GLSL from the C++ implementation of [Om
 
 Perspective transform (homography solver) adapted from [perspective-transform](https://github.com/jlouthan/perspective-transform).
 
-The Soft Rectangle Mask is adapted from the Shadertoy sketch [Gaussian Filtered Rectangle] (https://www.shadertoy.com/view/NsVSWy)
+The Soft Rectangle Mask is adapted from the Shadertoy sketch [Gaussian Filtered Rectangle](https://www.shadertoy.com/view/NsVSWy)
 
 ## Note
 
