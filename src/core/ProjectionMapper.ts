@@ -51,6 +51,11 @@ export class ProjectionMapper {
     uTime: { value: number };
     uShowTestCard: { value: boolean };
     uShowControlLines: { value: boolean };
+    uMaskEnabled: { value: boolean };
+    uFeather: { value: number };
+    uGamma: { value: number };
+    uContrast: { value: number };
+    uHue: { value: number };
   };
 
   /** Resolution in pixels, passed through to shaders */
@@ -112,6 +117,11 @@ export class ProjectionMapper {
       uTime: { value: 0 },
       uShowTestCard: { value: false },
       uShowControlLines: { value: true },
+      uMaskEnabled: { value: false },
+      uFeather: { value: 0.05 },
+      uGamma: { value: 1.0 },
+      uContrast: { value: 1.0 },
+      uHue: { value: 0.0 },
     };
 
     // Setup mesh warper using normalized world units
@@ -202,6 +212,46 @@ export class ProjectionMapper {
 
   isShowingControlLines(): boolean {
     return this.uniforms.uShowControlLines.value;
+  }
+
+  setMaskEnabled(enabled: boolean): void {
+    this.uniforms.uMaskEnabled.value = enabled;
+  }
+
+  isMaskEnabled(): boolean {
+    return this.uniforms.uMaskEnabled.value;
+  }
+
+  setFeather(amount: number): void {
+    this.uniforms.uFeather.value = amount;
+  }
+
+  getFeather(): number {
+    return this.uniforms.uFeather.value;
+  }
+
+  setGamma(gamma: number): void {
+    this.uniforms.uGamma.value = gamma;
+  }
+
+  getGamma(): number {
+    return this.uniforms.uGamma.value;
+  }
+
+  setContrast(contrast: number): void {
+    this.uniforms.uContrast.value = contrast;
+  }
+
+  getContrast(): number {
+    return this.uniforms.uContrast.value;
+  }
+
+  setHue(hue: number): void {
+    this.uniforms.uHue.value = hue;
+  }
+
+  getHue(): number {
+    return this.uniforms.uHue.value;
   }
 
   private updateCameraFrustum(): void {

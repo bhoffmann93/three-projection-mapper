@@ -10,6 +10,12 @@ uniform bool uShowControlLines;
 uniform int uGridSizeX;
 uniform int uGridSizeY;
 
+uniform bool uMaskEnabled;
+uniform float uFeather;
+uniform float uGamma;
+uniform float uContrast;
+uniform float uHue;
+
 #define PI 3.14159265359
 #define TAU 6.28318530718
 
@@ -30,6 +36,8 @@ const vec2 bottomRight01 = vec2(1.0, 0.0);
 const vec2 topLeft01 = vec2(0.0, 1.0);
 const vec2 topRight01 = vec2(1.0, 1.0);
 
+// Hash without Sine 
+// https://www.shadertoy.com/view/4djSRW
 float hash12(vec2 p) {
     vec3 p3 = fract(vec3(p.xyx) * .1031);
     p3 += dot(p3, p3.yzx + 33.33);
@@ -186,6 +194,40 @@ float drawBorderLines(vec2 uv) {
     return clamp(max(leftLine, max(rightLine, max(bottomLine, topLine))), 0.0, 1.0);
 }
 
+// https://www.shadertoy.com/view/ltSfWV
+// continuity is independent of steepness parameter s
+// at x = 1/2: 3rd derivative = 0 for s = 1;  2rd derivative = 0 for all values of s
+float smootheststep(float x, float s) {
+    const float ss = 2.88539;// 2.0 / log(2.0)
+    s *= ss;
+    x = clamp(x, 0.0, 1.0);
+    return 1.0 / (1.0 + exp2(tan(x * PI - PI * 0.5) * -s));
+}
+
+float smootherstep(float edge0, float edge1, float x) {
+    x = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
+    return x * x * x * (x * (x * 6.0 - 15.0) + 10.0);
+}
+
+float sdBox(vec2 p, vec2 size) {
+    vec2 r = abs(p) - size;
+    return min(max(r.x, r.y), 0.0) + length(max(r, vec2(0, 0)));
+}
+
+// UV-space mask: always fits the plane (vUv 0-1), feather inward by soft units
+// SDF is negative inside, 0 at boundary — transition from -soft (opaque) to 0 (black)
+float getRoundedMask(vec2 uv, float soft, float radius) {
+    vec2 p = uv - 0.5;
+    float dist = sdBox(p, vec2(0.5 - radius)) - radius;
+    return 1.0 - smoothstep(-soft, 0.0, dist);
+}
+
+vec3 hueShift(vec3 color, float hue) {
+    vec3 k = vec3(0.57735);
+    float cosAngle = cos(hue * TAU);
+    return color * cosAngle + cross(k, color) * sin(hue * TAU) + k * dot(k, color) * (1.0 - cosAngle);
+}
+
 void main() {
     vec3 color;
 
@@ -204,6 +246,19 @@ void main() {
     if(uShowControlLines) {
         float lines = drawControlLines(vUv, vec2(float(uGridSizeX), float(uGridSizeY)));
         color = mix(color, vec3(0.75), lines);
+    }
+
+    // Image adjustments
+    color = (color - 0.5) * uContrast + 0.5;
+    if(abs(uHue) > 0.001) {
+        color = hueShift(color, uHue);
+    }
+    color = pow(max(color, 0.0), vec3(1.0 / uGamma));
+
+    // Feather mask
+    if(uMaskEnabled) {
+        float mask = getRoundedMask(vUv, uFeather, 0.0);
+        color = mix(vec3(0.0), color, mask);
     }
 
     gl_FragColor = vec4(color, 1.0);

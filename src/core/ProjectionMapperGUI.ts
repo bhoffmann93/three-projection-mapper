@@ -32,6 +32,15 @@ export interface ProjectionMapperGUISettings {
 }
 
 export const GUI_STORAGE_KEY = 'projection-mapper-gui-settings';
+export const IMAGE_STORAGE_KEY = 'projection-mapper-image-settings';
+
+export interface ImageSettings {
+  maskEnabled: boolean;
+  feather: number;
+  gamma: number;
+  contrast: number;
+  hue: number;
+}
 
 export class ProjectionMapperGUI {
   private mapper: ProjectionMapper;
@@ -46,6 +55,13 @@ export class ProjectionMapperGUI {
   private cornersOutlineState = { enabled: true };
 
   private readonly STORAGE_KEY = GUI_STORAGE_KEY;
+  private imageSettings: ImageSettings = {
+    maskEnabled: false,
+    feather: 0.05,
+    gamma: 1.0,
+    contrast: 1.0,
+    hue: 0.0,
+  };
 
   constructor(mapper: ProjectionMapper, config: ProjectionMapperGUIConfig = {}) {
     this.mapper = mapper;
@@ -71,6 +87,8 @@ export class ProjectionMapperGUI {
 
     this.loadSettings();
     this.applySettings();
+    this.loadImageSettings();
+    this.applyImageSettings();
 
     this.pane = new Pane({ title });
 
@@ -172,6 +190,57 @@ export class ProjectionMapperGUI {
         this.saveSettings();
         // NOTE: Zoom is controller-local only, not broadcast to projector
       });
+
+    // Image settings folder
+    const imageFolder = this.pane.addFolder({ title: 'Image', expanded: false });
+
+    imageFolder
+      .addBinding(this.imageSettings, 'maskEnabled', { label: 'Mask' })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        this.mapper.setMaskEnabled(e.value as boolean);
+        this.saveImageSettings();
+      });
+
+    imageFolder
+      .addBinding(this.imageSettings, 'feather', { label: 'Feather', min: 0.0, max: 0.5, step: 0.01 })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        this.mapper.setFeather(e.value as number);
+        this.saveImageSettings();
+      });
+
+    imageFolder
+      .addBinding(this.imageSettings, 'gamma', { label: 'Gamma', min: 0.5, max: 3.0, step: 0.01 })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        this.mapper.setGamma(e.value as number);
+        this.saveImageSettings();
+      });
+
+    imageFolder
+      .addBinding(this.imageSettings, 'contrast', { label: 'Contrast', min: 0.5, max: 2.0, step: 0.01 })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        this.mapper.setContrast(e.value as number);
+        this.saveImageSettings();
+      });
+
+    imageFolder
+      .addBinding(this.imageSettings, 'hue', { label: 'Hue', min: -1.0, max: 1.0, step: 0.01 })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        this.mapper.setHue(e.value as number);
+        this.saveImageSettings();
+      });
+
+    imageFolder.addBlade({ view: 'separator' });
+
+    imageFolder.addButton({ title: 'Reset Image' }).on('click', () => {
+      this.imageSettings.maskEnabled = false;
+      this.imageSettings.feather = 0.05;
+      this.imageSettings.gamma = 1.0;
+      this.imageSettings.contrast = 1.0;
+      this.imageSettings.hue = 0.0;
+      this.applyImageSettings();
+      this.pane.refresh();
+      this.saveImageSettings();
+    });
 
     // Warp UI
     this.warpFolder = this.pane.addFolder({ title: 'Warping', expanded: true });
@@ -419,6 +488,35 @@ export class ProjectionMapperGUI {
 
   collapse(): void {
     this.pane.expanded = false;
+  }
+
+  private saveImageSettings(): void {
+    if (this.isMultiWindowMode()) return;
+    try {
+      localStorage.setItem(IMAGE_STORAGE_KEY, JSON.stringify(this.imageSettings));
+    } catch (error) {
+      console.warn('Failed to save image settings:', error);
+    }
+  }
+
+  private loadImageSettings(): void {
+    if (this.isMultiWindowMode()) return;
+    try {
+      const saved = localStorage.getItem(IMAGE_STORAGE_KEY);
+      if (!saved) return;
+      const loaded = JSON.parse(saved) as Partial<ImageSettings>;
+      Object.assign(this.imageSettings, loaded);
+    } catch (error) {
+      console.warn('Failed to load image settings:', error);
+    }
+  }
+
+  private applyImageSettings(): void {
+    this.mapper.setMaskEnabled(this.imageSettings.maskEnabled);
+    this.mapper.setFeather(this.imageSettings.feather);
+    this.mapper.setGamma(this.imageSettings.gamma);
+    this.mapper.setContrast(this.imageSettings.contrast);
+    this.mapper.setHue(this.imageSettings.hue);
   }
 
   private saveSettings(): void {
