@@ -77,10 +77,7 @@ scene.add(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshNormalMaterial()
 
 // Render your scene off-screen into target
 const oversampling = 1.5;
-const renderTarget = new THREE.WebGLRenderTarget(
-  projectorRes.width * oversampling, 
-  projectorRes.height * oversampling
-);
+const renderTarget = new THREE.WebGLRenderTarget(projectorRes.width * oversampling, projectorRes.height * oversampling);
 
 const mapper = new ProjectionMapper(renderer, renderTarget.texture);
 const gui = new ProjectionMapperGUI(mapper, { title: 'Projection Mapper', anchor: GUI_ANCHOR.LEFT });
@@ -401,7 +398,6 @@ npm test           # Run tests with Vitest
 - [ ] Test React Three Fiber Compatibility
 - [ ] Publish on npm
 
-- [ ] Optional: Option to add multiple Meshes like [p5 Mapper](https://github.com/jdeboi/p5.mapper)
 - [ ] Optional: [Edge Blending](https://paulbourke.net/miscellaneous/edgeblend/) for Multiple Projector Setups
 
 ## License
