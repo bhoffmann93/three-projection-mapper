@@ -264,6 +264,16 @@ void main() {
         color = texture2D(uBuffer, vUv).rgb;
     }
 
+    // color = vec3(checkerboard(vUv, vec2(7.0, 4.0))); //for development tests
+    color = imageAdjust(color);
+
+    // Feather mask
+    if(uMaskEnabled) {
+        float soft = mix(0.0, 0.25, uFeather);
+        float mask = gaussianRectMask(vUv, uShouldWarp ? uWarpPlaneSize : uBufferResolution, soft);
+        color = mix(vec3(0.0), color, mask);
+    }
+
     if(uShouldWarp == false || uShowControlLines) {
         float borderLines = drawBorderLines(vUv);
         color = mix(color, vec3(0.75), borderLines);
@@ -274,15 +284,8 @@ void main() {
         color = mix(color, vec3(0.75), lines);
     }
 
-    color = imageAdjust(color);
-    // color = vec3(checkerboard(vUv, vec2(7.0, 4.0)));
-
-    // Feather mask
-    if(uMaskEnabled) {
-        float soft = mix(0.0, 0.25, uFeather);
-        float mask = gaussianRectMask(vUv, uShouldWarp ? uWarpPlaneSize : uBufferResolution, soft);
-        color = mix(vec3(0.0), color, mask);
-    }
+    color += (1.0 / 255.0) * hash12(gl_FragCoord.xy + fract(uTime)) - (0.5 / 255.0); //dither banding reduction
+    color = clamp(color, 0.0, 1.0);
 
     gl_FragColor = vec4(color, 1.0);
 }

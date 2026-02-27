@@ -189,13 +189,15 @@ export class ProjectionMapperGUI {
     imageFolder
       .addBinding(this.settings, 'maskEnabled', { label: 'Mask' })
       .on('change', (e: TpChangeEvent<unknown>) => {
-        this.mapper.setImageSettings({ maskEnabled: e.value as boolean });
+        const enabled = e.value as boolean;
+        this.mapper.setImageSettings({ maskEnabled: enabled });
+        featherBinding.disabled = !enabled;
         this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
         this.saveSettings();
       });
 
-    imageFolder
-      .addBinding(this.settings, 'feather', { label: 'Feather', min: 0.0, max: 0.5, step: 0.01 })
+    const featherBinding = imageFolder
+      .addBinding(this.settings, 'feather', { label: 'Feather', min: 0.0, max: 0.5, step: 0.01, disabled: !this.settings.maskEnabled })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setImageSettings({ feather: e.value as number });
         this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
