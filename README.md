@@ -392,8 +392,7 @@ npm test           # Run tests with Vitest
 
 ## Roadmap
 
-- [ ] Image Adjustments (Brightness, Contrast, Gamma)
-- [ ] Option to draw SDF-Based Beziert Mask in Fragment Shader
+- [ ] Option to draw SDF-Based Bezier Mask in Fragment Shader
 - [ ] Save and Load Warp Settings (JSON Export Import)
 - [ ] Tutorial: Optical Alignment of Virtual Threejs Camera with the Physical Projector
 - [ ] Test React Three Fiber Compatibility
