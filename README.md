@@ -38,9 +38,10 @@ The texture source can be a **3D scene** rendered into a `WebGLRenderTarget`, a 
 
 - **Corner control points** — 4 outer points for broad perspective correction
 - **Grid control points** — configurable inner grid for fine-grained surface warping (Bilinear or Bicubic Warping)
+- **Image adjustments** — contrast, hue, gamma, ACES tonemapping, feather mask
 - **Testcard overlay** — procedural pattern (resolution-independent)
 - **GUI** — Tweakpane based UI included
-- **Auto-save** — warp positions saved to `localStorage`, restored on reload
+- **Auto-save** — all settings saved to `localStorage`, restored on reload
 - **Multi-window mode** — separate controller and projector windows, synced in real time (no server needed)
 - **Hardware optics support** — camera class for physical throw ratio and lens shift correction
 
@@ -407,6 +408,8 @@ AGPL-3.0-or-later
 The bicubic warp algorithm is adapted to GLSL from the C++ implementation of [Omnidome](https://github.com/WilstonOreo/omnidome) by Michael Winkelmann, licensed under AGPL.
 
 Perspective transform (homography solver) adapted from [perspective-transform](https://github.com/jlouthan/perspective-transform).
+
+The Soft Rectangle Mask is adapted from the Shadertoy sketch [Gaussian Filtered Rectangle](https://www.shadertoy.com/view/NsVSWy)
 
 ## Note
 

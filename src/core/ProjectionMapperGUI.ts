@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { FolderApi, Pane, TpChangeEvent } from 'tweakpane';
-import { ProjectionMapper } from './ProjectionMapper';
+import { ProjectionMapper, GUI_STORAGE_KEY, DEFAULT_IMAGE_SETTINGS } from './ProjectionMapper';
+import type { ImageSettings } from './ProjectionMapper';
 import { WARP_MODE } from '../warp/MeshWarper';
 import { EventChannel } from '../ipc/EventChannel';
 import { WindowManager } from '../windows/WindowManager';
@@ -19,7 +20,7 @@ export interface ProjectionMapperGUIConfig {
   windowManager?: WindowManager; // Optional: enables projector window button
 }
 
-export interface ProjectionMapperGUISettings {
+export interface ProjectionMapperGUISettings extends ImageSettings {
   shouldWarp: boolean;
   showTestcard: boolean;
   showControlLines: boolean;
@@ -29,9 +30,11 @@ export interface ProjectionMapperGUISettings {
   showGridPoints: boolean;
   showCornerPoints: boolean;
   showOutline: boolean;
+  imageExpanded: boolean;
 }
 
-export const GUI_STORAGE_KEY = 'projection-mapper-gui-settings';
+export { GUI_STORAGE_KEY, DEFAULT_IMAGE_SETTINGS } from './ProjectionMapper';
+export type { ImageSettings } from './ProjectionMapper';
 
 export class ProjectionMapperGUI {
   private mapper: ProjectionMapper;
@@ -55,7 +58,7 @@ export class ProjectionMapperGUI {
     const anchor = config.anchor || GUI_ANCHOR.RIGHT;
 
     this.settings = {
-      shouldWarp: mapper.isShouldWarp(),
+      shouldWarp: mapper.isWarpEnabled(),
       showTestcard: mapper.isShowingTestCard(),
       showControlLines: mapper.isShowingControlLines(),
       warpMode: mapper.getWarper().getWarpMode(),
@@ -67,6 +70,8 @@ export class ProjectionMapperGUI {
       showGridPoints: true,
       showCornerPoints: true,
       showOutline: true,
+      imageExpanded: false,
+      ...DEFAULT_IMAGE_SETTINGS,
     };
 
     this.loadSettings();
@@ -172,6 +177,72 @@ export class ProjectionMapperGUI {
         this.saveSettings();
         // NOTE: Zoom is controller-local only, not broadcast to projector
       });
+
+    // Image settings folder
+    const imageFolder = this.pane.addFolder({ title: 'Image', expanded: this.settings.imageExpanded });
+
+    imageFolder.on('fold', () => {
+      this.settings.imageExpanded = imageFolder.expanded;
+      this.saveSettings();
+    });
+
+    imageFolder
+      .addBinding(this.settings, 'maskEnabled', { label: 'Mask' })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        this.mapper.setImageSettings({ maskEnabled: e.value as boolean });
+        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
+        this.saveSettings();
+      });
+
+    imageFolder
+      .addBinding(this.settings, 'feather', { label: 'Feather', min: 0.0, max: 0.5, step: 0.01 })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        this.mapper.setImageSettings({ feather: e.value as number });
+        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
+        this.saveSettings();
+      });
+
+    imageFolder
+      .addBinding(this.settings, 'tonemap', { label: 'ACES Tonemap' })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        this.mapper.setImageSettings({ tonemap: e.value as boolean });
+        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
+        this.saveSettings();
+      });
+
+    imageFolder
+      .addBinding(this.settings, 'gamma', { label: 'Gamma', min: 0.5, max: 2.0, step: 0.01 })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        this.mapper.setImageSettings({ gamma: e.value as number });
+        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
+        this.saveSettings();
+      });
+
+    imageFolder
+      .addBinding(this.settings, 'contrast', { label: 'Contrast', min: 1.0, max: 2.0, step: 0.01 })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        this.mapper.setImageSettings({ contrast: e.value as number });
+        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
+        this.saveSettings();
+      });
+
+    imageFolder
+      .addBinding(this.settings, 'hue', { label: 'Hue', min: -0.5, max: 0.5, step: 0.01 })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        this.mapper.setImageSettings({ hue: e.value as number });
+        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
+        this.saveSettings();
+      });
+
+    imageFolder.addBlade({ view: 'separator' });
+
+    imageFolder.addButton({ title: 'Reset Image' }).on('click', () => {
+      Object.assign(this.settings, DEFAULT_IMAGE_SETTINGS);
+      this.mapper.setImageSettings(DEFAULT_IMAGE_SETTINGS);
+      this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
+      this.pane.refresh();
+      this.saveSettings();
+    });
 
     // Warp UI
     this.warpFolder = this.pane.addFolder({ title: 'Warping', expanded: true });
@@ -389,6 +460,13 @@ export class ProjectionMapperGUI {
     this.mapper.getWarper().setWarpMode(this.settings.warpMode);
     this.mapper.setPlaneScale(this.settings.zoom);
     this.applyVisibility();
+    this.mapper.setImageSettings({
+      maskEnabled: this.settings.maskEnabled,
+      feather: this.settings.feather,
+      gamma: this.settings.gamma,
+      contrast: this.settings.contrast,
+      hue: this.settings.hue,
+    });
   }
 
   toggleTestCard(): void {
@@ -422,9 +500,6 @@ export class ProjectionMapperGUI {
   }
 
   private saveSettings(): void {
-    // Only controller should manage localStorage to avoid race conditions
-    if (this.isMultiWindowMode()) return;
-
     try {
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.settings));
     } catch (error) {
@@ -433,10 +508,6 @@ export class ProjectionMapperGUI {
   }
 
   private loadSettings(): void {
-    // Only controller should load from localStorage
-    // Projector will receive state via FULL_STATE_SYNC
-    if (this.isMultiWindowMode()) return;
-
     try {
       const saved = localStorage.getItem(this.STORAGE_KEY);
       if (!saved) return;

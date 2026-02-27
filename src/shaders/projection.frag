@@ -10,6 +10,13 @@ uniform bool uShowControlLines;
 uniform int uGridSizeX;
 uniform int uGridSizeY;
 
+uniform bool uMaskEnabled;
+uniform float uFeather;
+uniform bool uTonemap;
+uniform float uGamma;
+uniform float uContrast;
+uniform float uHue;
+
 #define PI 3.14159265359
 #define TAU 6.28318530718
 
@@ -30,6 +37,8 @@ const vec2 bottomRight01 = vec2(1.0, 0.0);
 const vec2 topLeft01 = vec2(0.0, 1.0);
 const vec2 topRight01 = vec2(1.0, 1.0);
 
+// Hash without Sine 
+// https://www.shadertoy.com/view/4djSRW
 float hash12(vec2 p) {
     vec3 p3 = fract(vec3(p.xyx) * .1031);
     p3 += dot(p3, p3.yzx + 33.33);
@@ -186,6 +195,65 @@ float drawBorderLines(vec2 uv) {
     return clamp(max(leftLine, max(rightLine, max(bottomLine, topLine))), 0.0, 1.0);
 }
 
+// Gaussian Filtered Rectangle 
+// https://www.shadertoy.com/view/NsVSWy
+
+// Err function approximation
+float erf(in float x) {
+    return sign(x) * sqrt(1.0 - exp2(-1.787776 * x * x));
+}
+
+// Gaussian filtered blurry rectangle
+float gaussianRect(in vec2 p, in vec2 b, in float w) {
+    float u = erf((p.x + b.x) / w) - erf((p.x - b.x) / w);
+    float v = erf((p.y + b.y) / w) - erf((p.y - b.y) / w);
+    return u * v / 4.0;
+}
+
+float gaussianRectMask(vec2 uv, vec2 res, float soft) {
+    float aspect = res.x / res.y;
+    vec2 p = (uv - 0.5) * vec2(aspect, 1.0);
+
+    vec2 baseSize = vec2(aspect, 1.0) * 0.5;
+    vec2 insetSize = baseSize - (soft * 1.5);
+    float rectmask = gaussianRect(p, insetSize, soft);
+    return rectmask;
+}
+
+vec3 acesTonemap(vec3 v) {
+    v *= 0.6;
+    float a = 2.51;
+    float b = 0.03;
+    float c = 2.43;
+    float d = 0.59;
+    float e = 0.14;
+    return clamp((v * (a * v + b)) / (v * (c * v + d) + e), 0.0, 1.0);
+}
+
+//0-TAU
+vec3 hueShift(vec3 color, float hue) {
+    const vec3 k = vec3(0.57735, 0.57735, 0.57735);
+    float cosAngle = cos(hue * TAU);
+    return color * cosAngle + cross(k, color) * sin(hue * TAU) + k * dot(k, color) * (1.0 - cosAngle);
+}
+
+vec3 brightnessContrast(vec3 col, float brightness, float contrast) {
+    return (col - 0.5) * contrast + 0.5 + brightness;
+}
+
+vec3 imageAdjust(vec3 color) {
+    if(uTonemap)
+        color = acesTonemap(color); //hdr to 0.0-1.0 range
+
+    color = brightnessContrast(color, 0.0, uContrast);
+
+    if(abs(uHue) > 0.001)
+        color = hueShift(color, uHue);
+
+    color = pow(max(color, 0.0), vec3(1.0 / uGamma)); //gamma
+    return clamp(color, 0.0, 1.0);
+}
+
 void main() {
     vec3 color;
 
@@ -204,6 +272,16 @@ void main() {
     if(uShowControlLines) {
         float lines = drawControlLines(vUv, vec2(float(uGridSizeX), float(uGridSizeY)));
         color = mix(color, vec3(0.75), lines);
+    }
+
+    color = imageAdjust(color);
+    // color = vec3(checkerboard(vUv, vec2(7.0, 4.0)));
+
+    // Feather mask
+    if(uMaskEnabled) {
+        float soft = mix(0.0, 0.25, uFeather);
+        float mask = gaussianRectMask(vUv, uShouldWarp ? uWarpPlaneSize : uBufferResolution, soft);
+        color = mix(vec3(0.0), color, mask);
     }
 
     gl_FragColor = vec4(color, 1.0);
