@@ -257,8 +257,6 @@ vec3 brightnessContrast(vec3 col, float brightness, float contrast) {
 }
 
 vec3 imageAdjust(vec3 color) {
-    // Image adjustments
-    //hue -0.5-0.5
     color = brightnessContrast(color, 0.0, uContrast);
     if(abs(uHue) > 0.001)
         color = hueShift(color, uHue);
@@ -296,6 +294,9 @@ void main() {
         float mask = getRoundedMask(vUv, uFeather, 0.0);
         color = mix(vec3(0.0), color, mask);
     }
+
+    float mask = 1.0;
+    color = vec3(mask);
 
     gl_FragColor = vec4(color, 1.0);
 }

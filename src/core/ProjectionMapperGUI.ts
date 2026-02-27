@@ -58,7 +58,7 @@ export class ProjectionMapperGUI {
     const anchor = config.anchor || GUI_ANCHOR.RIGHT;
 
     this.settings = {
-      shouldWarp: mapper.isShouldWarp(),
+      shouldWarp: mapper.isWarpEnabled(),
       showTestcard: mapper.isShowingTestCard(),
       showControlLines: mapper.isShowingControlLines(),
       warpMode: mapper.getWarper().getWarpMode(),

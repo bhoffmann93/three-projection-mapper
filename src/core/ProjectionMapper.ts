@@ -305,7 +305,7 @@ export class ProjectionMapper {
     this.meshWarper.setShouldWarp(enabled);
   }
 
-  isShouldWarp(): boolean {
+  isWarpEnabled(): boolean {
     return this.meshWarper.getShouldWarp();
   }
 
