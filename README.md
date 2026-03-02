@@ -39,7 +39,7 @@ The texture source can be a **3D scene** rendered into a `WebGLRenderTarget`, a 
 - **Corner control points** — 4 outer points for broad perspective correction
 - **Grid control points** — configurable inner grid for fine-grained surface warping (Bilinear or Bicubic Warping)
 - **Image adjustments** — contrast, hue, gamma, ACES tonemapping, feather mask
-- **Testcard overlay** — procedural pattern (resolution-independent)
+- **Testcard overlay** — procedural pattern (resolution- and aspectindependent)
 - **GUI** — Tweakpane based UI included
 - **Auto-save** — all settings saved to `localStorage`, restored on reload
 - **Multi-window mode** — separate controller and projector windows, synced in real time (no server needed)
@@ -402,13 +402,16 @@ npm test           # Run tests with Vitest
 
 ## License
 
-AGPL-3.0-or-later
+MIT
 
-The bicubic warp algorithm is adapted to GLSL from the C++ implementation of [Omnidome](https://github.com/WilstonOreo/omnidome) by Michael Winkelmann, licensed under AGPL.
+This library is licensed under the MIT License.
 
-Perspective transform (homography solver) adapted from [perspective-transform](https://github.com/jlouthan/perspective-transform).
+### Third-Party Credits
 
-The Soft Rectangle Mask is adapted from the Shadertoy sketch [Gaussian Filtered Rectangle](https://www.shadertoy.com/view/NsVSWy)
+- **Bicubic Warp Algorithm**: Adapted to GLSL from [Omnidome](https://github.com/WilstonOreo/omnidome) by Michael Winkelmann. Used with explicit permission to re-license from AGPL to MIT for this project.
+- **Perspective Transform**: Homography solver adapted from [perspective-transform](https://github.com/jlouthan/perspective-transform) (MIT).
+- **Soft Mask**: Gaussian Filtered Rectangle adapted from [One Shade](https://www.shadertoy.com/view/NsVSWy) and [Raph Levien](https://raphlinus.github.io/graphics/2020/04/21/blurred-rounded-rects.html).
+- **Dithering**: Hash without Sine by [Dave Hoskins](https://www.shadertoy.com/view/4djSRW) (MIT).
 
 ## Note
 

@@ -1,3 +1,14 @@
+/**
+ * @license
+ * Copyright (c) 2026 Bernhard Hoffmann | three-projection-mapper
+ * Licensed under the MIT License.
+ * * * Developed by Bernhard Hoffmann:
+ * - Resolution-independent procedural Testcard with Anti-Aliasing.
+ * * * Third-Party Credits:
+ * - Hash without Sine: (c) 2014 David Hoskins (MIT).
+ * - Gaussian Rect: Based on erf approximation oneshade (https://www.shadertoy.com/view/NsVSWy).
+ */
+
 varying vec2 vUv;
 uniform bool uShouldWarp;
 
@@ -37,7 +48,7 @@ const vec2 bottomRight01 = vec2(1.0, 0.0);
 const vec2 topLeft01 = vec2(0.0, 1.0);
 const vec2 topRight01 = vec2(1.0, 1.0);
 
-// Hash without Sine 
+// Hash without Sine by Dave Hoskins (MIT)
 // https://www.shadertoy.com/view/4djSRW
 float hash12(vec2 p) {
     vec3 p3 = fract(vec3(p.xyx) * .1031);
@@ -67,6 +78,10 @@ float checkerboard(vec2 uv, vec2 tiles) {
     return mod(floor(uv.x * tiles.x) + floor(uv.y * tiles.y), 2.0);
 }
 
+/** * Procedural Testcard by Bernhard Hoffmann (MIT)
+ * Fully resolution-independent using screen-space derivatives (fwidth).
+ * Features: Color bars, grey steps, crosshair, and circle for aspect ratio check.
+ */
 vec3 testCard(vec2 vUv, vec2 dimensions, float time) {
     vec2 uv = aspect01(vUv, dimensions);
 
@@ -196,9 +211,9 @@ float drawBorderLines(vec2 uv) {
 }
 
 // Gaussian Filtered Rectangle 
-// https://www.shadertoy.com/view/NsVSWy
-
-// Err function approximation
+// Mathematically based on the Error Function (erf) approximation.
+// Reference: https://www.shadertoy.com/view/NsVSWy
+// More Information: https://raphlinus.github.io/graphics/2020/04/21/blurred-rounded-rects.html
 float erf(in float x) {
     return sign(x) * sqrt(1.0 - exp2(-1.787776 * x * x));
 }
