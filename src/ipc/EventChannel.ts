@@ -37,6 +37,13 @@ export class EventChannel {
       source: this.source,
     };
     this.channel.postMessage(message);
+
+    // Also deliver to local handlers since BroadcastChannel
+    // only delivers messages to OTHER browsing contexts
+    const handlers = this.handlers.get(type);
+    if (handlers) {
+      handlers.forEach((handler) => handler(payload));
+    }
   }
 
   /**
