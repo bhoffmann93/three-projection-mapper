@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import p5 from 'p5';
-import { ProjectionMapper } from '../../src/core/ProjectionMapper';
-import { ProjectionMapperGUI, GUI_ANCHOR } from '../../src/core/ProjectionMapperGUI';
+import { ProjectionMapper, ProjectionMapperGUI, GUI_ANCHOR } from '../../src/lib';
 
 const renderer = new THREE.WebGLRenderer({
   powerPreference: 'high-performance',
