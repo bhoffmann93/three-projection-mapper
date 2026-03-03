@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { ProjectionMapper } from '../../src/core/ProjectionMapper';
-import { WindowSync, WINDOW_SYNC_MODE } from '../../src/addons/WindowSync';
+import { ProjectionMapper } from '../../src/lib';
+import { WindowSync, WINDOW_SYNC_MODE } from '../../src/addons';
 import { ProjectionScene } from './ProjectionScene';
 import MUTLI_WINDOW_CONFIG from './multi-window.config';
 

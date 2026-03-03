@@ -1,8 +1,6 @@
 import * as THREE from 'three';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
-import { ProjectionMapper } from '../../src/core/ProjectionMapper';
-import { ProjectionMapperGUI, GUI_ANCHOR } from '../../src/core/ProjectionMapperGUI';
-import { ProjectorCamera } from '../../src/core/ProjectorCamera';
+import { ProjectionMapper, ProjectionMapperGUI, GUI_ANCHOR, ProjectorCamera } from '../../src/lib';
 
 const renderer = new THREE.WebGLRenderer({
   powerPreference: 'high-performance',

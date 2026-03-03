@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
-import { ProjectorCamera } from '../../src/core/ProjectorCamera';
+import { ProjectorCamera } from '../../src/lib';
 
 export interface ProjectionSceneConfig {
   width: number;
