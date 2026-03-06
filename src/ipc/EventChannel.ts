@@ -37,15 +37,19 @@ export class EventChannel {
       source: this.source,
     };
     this.channel.postMessage(message);
+
+    // Also deliver to local handlers since BroadcastChannel
+    // only delivers messages to OTHER browsing contexts
+    const handlers = this.handlers.get(type);
+    if (handlers) {
+      handlers.forEach((handler) => handler(payload));
+    }
   }
 
   /**
    * Register a type-safe event handler
    */
-  on<T extends ProjectionEventType>(
-    type: T,
-    handler: (payload: ProjectionEventPayloads[T]) => void
-  ): void {
+  on<T extends ProjectionEventType>(type: T, handler: (payload: ProjectionEventPayloads[T]) => void): void {
     if (!this.handlers.has(type)) {
       this.handlers.set(type, new Set());
     }
@@ -55,10 +59,7 @@ export class EventChannel {
   /**
    * Unregister an event handler
    */
-  off<T extends ProjectionEventType>(
-    type: T,
-    handler: (payload: ProjectionEventPayloads[T]) => void
-  ): void {
+  off<T extends ProjectionEventType>(type: T, handler: (payload: ProjectionEventPayloads[T]) => void): void {
     const handlers = this.handlers.get(type);
     if (handlers) {
       handlers.delete(handler);
