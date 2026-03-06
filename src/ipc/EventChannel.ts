@@ -49,10 +49,7 @@ export class EventChannel {
   /**
    * Register a type-safe event handler
    */
-  on<T extends ProjectionEventType>(
-    type: T,
-    handler: (payload: ProjectionEventPayloads[T]) => void
-  ): void {
+  on<T extends ProjectionEventType>(type: T, handler: (payload: ProjectionEventPayloads[T]) => void): void {
     if (!this.handlers.has(type)) {
       this.handlers.set(type, new Set());
     }
@@ -62,10 +59,7 @@ export class EventChannel {
   /**
    * Unregister an event handler
    */
-  off<T extends ProjectionEventType>(
-    type: T,
-    handler: (payload: ProjectionEventPayloads[T]) => void
-  ): void {
+  off<T extends ProjectionEventType>(type: T, handler: (payload: ProjectionEventPayloads[T]) => void): void {
     const handlers = this.handlers.get(type);
     if (handlers) {
       handlers.delete(handler);
