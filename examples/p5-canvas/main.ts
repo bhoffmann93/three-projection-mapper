@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import p5 from 'p5';
-import { ProjectionMapper, ProjectionMapperGUI, GUI_ANCHOR } from '../../src/lib';
+import { ProjectionMapper, ProjectionMapperGUI } from '../../src/lib';
 
 const renderer = new THREE.WebGLRenderer({
   powerPreference: 'high-performance',
@@ -104,7 +104,7 @@ const sketch = (s: p5) => {
     mapper = new ProjectionMapper(renderer, canvasTexture, { resolution: projectionResolution });
     gui = new ProjectionMapperGUI(mapper, {
       title: 'Projection Mapper',
-      anchor: GUI_ANCHOR.LEFT,
+      anchor: 'left',
     });
   };
 

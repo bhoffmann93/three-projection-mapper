@@ -8,14 +8,11 @@ import { WindowManager } from '../windows/WindowManager';
 import { ProjectionEventType } from '../ipc/EventTypes';
 import type { ProjectionEventPayloads } from '../ipc/EventPayloads';
 
-export const enum GUI_ANCHOR {
-  LEFT = 'left',
-  RIGHT = 'right',
-}
+export type GUIAnchor = 'left' | 'right';
 
 export interface ProjectionMapperGUIConfig {
   title?: string;
-  anchor?: GUI_ANCHOR;
+  anchor?: GUIAnchor;
   eventChannel?: EventChannel; // Optional: enables event broadcasting
   windowManager?: WindowManager; // Optional: enables projector window button
 }
@@ -55,7 +52,7 @@ export class ProjectionMapperGUI {
     this.config = config;
 
     const title = config.title || 'Projection Mapper';
-    const anchor = config.anchor || GUI_ANCHOR.RIGHT;
+    const anchor = config.anchor || 'right';
 
     this.settings = {
       shouldWarp: mapper.isWarpEnabled(),
@@ -82,7 +79,7 @@ export class ProjectionMapperGUI {
     const wrapper = this.pane.element.closest('.tp-dfwv') as HTMLElement;
     if (wrapper) {
       wrapper.style.width = '240px';
-      if (anchor === GUI_ANCHOR.LEFT) {
+      if (anchor === 'left') {
         wrapper.style.right = 'auto';
         wrapper.style.left = '8px';
       }

@@ -63,7 +63,7 @@ In your animation loop, simply call mapper.render() as the final step.
 
 ```typescript
 import * as THREE from 'three';
-import { ProjectionMapper, ProjectionMapperGUI, GUI_ANCHOR } from 'three-projection-mapping';
+import { ProjectionMapper, ProjectionMapperGUI } from 'three-projection-mapping';
 
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -81,7 +81,7 @@ const oversampling = 1.5;
 const renderTarget = new THREE.WebGLRenderTarget(projectorRes.width * oversampling, projectorRes.height * oversampling);
 
 const mapper = new ProjectionMapper(renderer, renderTarget.texture);
-const gui = new ProjectionMapperGUI(mapper, { title: 'Projection Mapper', anchor: GUI_ANCHOR.LEFT });
+const gui = new ProjectionMapperGUI(mapper, { title: 'Projection Mapper', anchor: 'left' });
 
 function animate() {
   requestAnimationFrame(animate);
@@ -165,7 +165,7 @@ export class ProjectionScene {
 ```typescript
 // controller.ts
 import * as THREE from 'three';
-import { ProjectionMapper, ProjectionMapperGUI, GUI_ANCHOR } from 'three-projection-mapping';
+import { ProjectionMapper, ProjectionMapperGUI } from 'three-projection-mapping';
 import { WindowSync, WINDOW_SYNC_MODE } from 'three-projection-mapping/addons';
 import { ProjectionScene } from './ProjectionScene';
 
@@ -179,7 +179,7 @@ const sync = new WindowSync(mapper, { mode: WINDOW_SYNC_MODE.CONTROLLER });
 
 const gui = new ProjectionMapperGUI(mapper, {
   title: 'Controller',
-  anchor: GUI_ANCHOR.LEFT,
+  anchor: 'left',
   eventChannel: sync.getEventChannel(),
   windowManager: sync.getWindowManager(),
 });
@@ -290,11 +290,11 @@ interface ProjectionMapperConfig {
 Calibration interface built on Tweakpane.
 
 ```typescript
-import { ProjectionMapperGUI, GUI_ANCHOR } from 'three-projection-mapping';
+import { ProjectionMapperGUI } from 'three-projection-mapping';
 
 const gui = new ProjectionMapperGUI(mapper, {
   title: 'My Projection',
-  anchor: GUI_ANCHOR.LEFT, // or GUI_ANCHOR.RIGHT
+  anchor: 'left', // or 'right'
 });
 
 gui.toggle();

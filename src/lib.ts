@@ -13,7 +13,7 @@
 export { ProjectionMapper, DEFAULT_IMAGE_SETTINGS, type ProjectionMapperConfig, type ImageSettings } from './core/ProjectionMapper';
 export {
   ProjectionMapperGUI,
-  GUI_ANCHOR,
+  type GUIAnchor,
   type ProjectionMapperGUIConfig
 } from './core/ProjectionMapperGUI';
 export { ProjectorCamera } from './core/ProjectorCamera';

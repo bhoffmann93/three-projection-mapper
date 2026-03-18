@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ProjectionMapper, ProjectionMapperGUI, GUI_ANCHOR } from '../../src/lib';
+import { ProjectionMapper, ProjectionMapperGUI } from '../../src/lib';
 import { WindowSync, WINDOW_SYNC_MODE } from '../../src/addons';
 import { ProjectionScene } from './ProjectionScene';
 import MUTLI_WINDOW_CONFIG from './multi-window.config';
@@ -22,7 +22,7 @@ const sync = new WindowSync(mapper, { mode: WINDOW_SYNC_MODE.CONTROLLER });
 
 const gui = new ProjectionMapperGUI(mapper, {
   title: 'Controller',
-  anchor: GUI_ANCHOR.LEFT,
+  anchor: 'left',
   eventChannel: sync.getEventChannel(),
   windowManager: sync.getWindowManager(),
 });

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
-import { ProjectionMapper, ProjectionMapperGUI, GUI_ANCHOR, ProjectorCamera } from '../../src/lib';
+import { ProjectionMapper, ProjectionMapperGUI, ProjectorCamera } from '../../src/lib';
 
 const renderer = new THREE.WebGLRenderer({
   powerPreference: 'high-performance',
@@ -93,7 +93,7 @@ const renderTarget = new THREE.WebGLRenderTarget(projectionResolution.x, project
 const mapper = new ProjectionMapper(renderer, renderTarget.texture);
 const gui = new ProjectionMapperGUI(mapper, {
   title: 'Projection Mapper',
-  anchor: GUI_ANCHOR.LEFT,
+  anchor: 'left',
 });
 
 window.addEventListener('keydown', (e) => {

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ProjectionMapper, ProjectionMapperGUI, GUI_ANCHOR } from '../../src/lib';
+import { ProjectionMapper, ProjectionMapperGUI } from '../../src/lib';
 
 const renderer = new THREE.WebGLRenderer({
   powerPreference: 'high-performance',
@@ -120,7 +120,7 @@ const mapper = new ProjectionMapper(renderer, renderTarget.texture);
 
 const gui = new ProjectionMapperGUI(mapper, {
   title: 'Projection Mapper',
-  anchor: GUI_ANCHOR.LEFT,
+  anchor: 'left',
 });
 
 window.addEventListener('keydown', (e) => {
