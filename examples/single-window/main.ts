@@ -96,8 +96,14 @@ const gui = new ProjectionMapperGUI(mapper, {
   anchor: 'left',
 });
 
+const hint = document.createElement('div');
+hint.style.cssText = 'position:fixed;bottom:16px;left:16px;color:rgba(255,255,255,0.5);font:12px/1.6 monospace;pointer-events:none;transition:opacity 0.3s';
+hint.innerHTML = '<span>G</span> toggle UI<br><span>T</span> test card<br><span>W</span> warp controls';
+document.body.appendChild(hint);
+
+let uiVisible = true;
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'g' || e.key === 'p') gui.toggle();
+  if (e.key === 'g' || e.key === 'p') { gui.toggle(); uiVisible = !uiVisible; hint.style.opacity = uiVisible ? '1' : '0'; }
   if (e.key === 't') gui.toggleTestCard();
   if (e.key === 'w') gui.toggleWarpUI();
 });
