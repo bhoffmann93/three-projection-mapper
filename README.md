@@ -97,6 +97,12 @@ function animate() {
 
 animate();
 
+// Hotkeys are not built into the library — wire them yourself:
+const hint = document.createElement('div');
+hint.style.cssText = 'position:fixed;bottom:16px;left:16px;color:rgba(255,255,255,0.5);font:12px/1.6 monospace;pointer-events:none';
+hint.innerHTML = '<span>G</span> toggle UI<br><span>T</span> test card<br><span>W</span> warp controls';
+document.body.appendChild(hint);
+
 window.addEventListener('keydown', (e) => {
   if (e.key === 'g' || e.key === 'p') gui.toggle();
   if (e.key === 't') gui.toggleTestCard();
@@ -184,8 +190,16 @@ const gui = new ProjectionMapperGUI(mapper, {
   windowManager: sync.getWindowManager(),
 });
 
-// Press O to open the projector window
+// Hotkeys are not built into the library — wire them yourself:
+const hint = document.createElement('div');
+hint.style.cssText = 'position:fixed;bottom:16px;left:16px;color:rgba(255,255,255,0.5);font:12px/1.6 monospace;pointer-events:none';
+hint.innerHTML = '<span>G</span> toggle UI<br><span>T</span> test card<br><span>W</span> warp controls<br><span>O</span> open projector';
+document.body.appendChild(hint);
+
 window.addEventListener('keydown', (e) => {
+  if (e.key === 'g' || e.key === 'p') gui.toggle();
+  if (e.key === 't') gui.toggleTestCard();
+  if (e.key === 'w') gui.toggleWarpUI();
   if (e.key === 'o') sync.openProjectorWindow();
 });
 
@@ -197,12 +211,6 @@ function animate() {
   mapper.render();
 }
 animate();
-
-window.addEventListener('keydown', (e) => {
-  if (e.key === 'g' || e.key === 'p') gui.toggle();
-  if (e.key === 't') gui.toggleTestCard();
-  if (e.key === 'w') gui.toggleWarpUI();
-});
 ```
 
 **Step 3 — Projector window:**
@@ -297,12 +305,15 @@ const gui = new ProjectionMapperGUI(mapper, {
   anchor: 'left', // or 'right'
 });
 
-gui.toggle();
+gui.toggle();        // show/hide the GUI panel
 gui.show();
 gui.hide();
+gui.toggleTestCard(); // toggle testcard overlay
+gui.toggleWarpUI();   // toggle warp control points
+gui.collapse();
 gui.dispose();
 
-//add those shortcuts to your project
+// Hotkeys are not built in — wire keydown to the public methods yourself:
 window.addEventListener('keydown', (e) => {
   if (e.key === 'g' || e.key === 'p') gui.toggle();
   if (e.key === 't') gui.toggleTestCard();

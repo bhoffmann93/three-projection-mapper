@@ -101,7 +101,7 @@ export class ProjectionMapperGUI {
   private initPane(): void {
     // Conditional: Add projector window button in multi-window mode
     if (this.config.windowManager) {
-      this.pane.addButton({ title: 'Open Projector [O]' }).on('click', () => {
+      this.pane.addButton({ title: 'Open Projector' }).on('click', () => {
         this.config.windowManager!.openProjectorWindow();
       });
       this.pane.addBlade({ view: 'separator' });
@@ -114,25 +114,6 @@ export class ProjectionMapperGUI {
       parse: (v: unknown) => v,
       disabled: true,
     });
-
-    // Shortcuts - different based on mode
-    if (this.isMultiWindowMode()) {
-      this.pane.addBlade({
-        view: 'text',
-        label: '[G] GUI [W] Warp',
-        value: '[T] Test  [O] Projector',
-        parse: (v: string) => v,
-        disabled: true,
-      } as Record<string, unknown>);
-    } else {
-      this.pane.addBlade({
-        view: 'text',
-        label: '[G] GUI',
-        value: '[W] Warp UI  [T] Test',
-        parse: (v: string) => v,
-        disabled: true,
-      } as Record<string, unknown>);
-    }
 
     this.pane.addBlade({ view: 'separator' });
 
