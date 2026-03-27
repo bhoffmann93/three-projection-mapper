@@ -2,10 +2,13 @@
 MeshWarper
 -----------
 This class manages interactive warping of a plane mesh using draggable grid and corner control points.
-Conceptually, imagine a regular (unit) grid in the background: this is the reference grid. When you move the visible control points, you are warping this grid into a new shape via a perspective (homography) transform.
+Conceptually, imagine a regular (reference) grid in the background: this is the reference grid. When you move the visible control points, you are warping this grid into a new shape via a perspective (homography) transform.
 Dragging a grid point updates its position in the warped (output) space, but to keep the mapping consistent, we use the inverse transform to update its corresponding position in the reference (input) grid. 
-This ensures smooth, predictable warping and allows for correct interpolation in the vertex shader.
+The Control points live in world space.
 The warped grid control points are passed to the vertex shader for bilinear or bicubic interpolation, enabling flexible projection mapping and perspective correction.
+4 Corner Points (world space) → Homography → Grid Control Points (world space) → Vertex Shader
+interpolates vertex positions between grid points → flat UVs passed through unchanged → Fragment Shader
+receives original flat UV (they are baked into mesh geometry and passed from the displaced vertex)
 */
 import * as THREE from 'three';
 import { DragControls } from 'three/examples/jsm/controls/DragControls.js';
@@ -19,6 +22,8 @@ import PerspT from '../utils/perspective';
 import { isQuadConcave } from './geometry';
 import { clamp } from 'three/src/math/MathUtils';
 import meshWarpVertexShader from '../shaders/warp.vert';
+
+const STORAGE_KEY = 'warp-grid-control-points';
 
 export enum WARP_MODE {
   bilinear = 0,
@@ -39,8 +44,6 @@ export interface MeshWarperConfig {
   globalDefines: Record<string, unknown>;
   bufferTexture: THREE.Texture;
 }
-
-const STORAGE_KEY = 'warp-grid-control-points';
 
 interface StoredControlPoints {
   /** Grid dimensions at time of save, used for validation on load */
