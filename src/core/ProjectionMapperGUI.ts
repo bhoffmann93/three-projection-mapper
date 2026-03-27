@@ -37,10 +37,8 @@ export class ProjectionMapperGUI {
   private mapper: ProjectionMapper;
   private pane: Pane;
   private settings: ProjectionMapperGUISettings;
-  private savedVisibility: Pick<
-    ProjectionMapperGUISettings,
-    'showGrid' | 'showCornerPoints' | 'showOutline'
-  > | null = null;
+  private savedVisibility: Pick<ProjectionMapperGUISettings, 'showGrid' | 'showCornerPoints' | 'showOutline'> | null =
+    null;
   private warpFolder!: FolderApi;
   private config: ProjectionMapperGUIConfig;
   private cornersOutlineState = { enabled: true };
@@ -174,7 +172,13 @@ export class ProjectionMapperGUI {
       });
 
     const featherBinding = imageFolder
-      .addBinding(this.settings, 'feather', { label: 'Feather', min: 0.0, max: 0.5, step: 0.01, disabled: !this.settings.maskEnabled })
+      .addBinding(this.settings, 'feather', {
+        label: 'Feather',
+        min: 0.0,
+        max: 0.5,
+        step: 0.01,
+        disabled: !this.settings.maskEnabled,
+      })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setImageSettings({ feather: e.value as number });
         this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
@@ -334,15 +338,13 @@ export class ProjectionMapperGUI {
         }
       });
 
-    gridFolder
-      .addBinding(this.settings, 'showGrid', { label: 'Show' })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        const show = e.value as boolean;
-        this.mapper.setGridPointsVisible(show);
-        this.mapper.setShowControlLines(show);
-        this.saveSettings();
-        this.broadcast(ProjectionEventType.CONTROL_LINES_TOGGLED, { show });
-      });
+    gridFolder.addBinding(this.settings, 'showGrid', { label: 'Show' }).on('change', (e: TpChangeEvent<unknown>) => {
+      const show = e.value as boolean;
+      this.mapper.setGridPointsVisible(show);
+      this.mapper.setShowControlLines(show);
+      this.saveSettings();
+      this.broadcast(ProjectionEventType.CONTROL_LINES_TOGGLED, { show });
+    });
 
     this.warpFolder.addBlade({ view: 'separator' });
 
@@ -363,7 +365,7 @@ export class ProjectionMapperGUI {
   }
 
   private initMasksFolder(): void {
-    const masksFolder = this.pane.addFolder({ title: 'Masks', expanded: false });
+    const masksFolder = this.pane.addFolder({ title: 'Masks', expanded: true });
 
     const polygonMaskState = { enabled: true, feather: 0.005, showHandles: true };
     let polygonSubFolder: FolderApi | null = null;
@@ -419,10 +421,7 @@ export class ProjectionMapperGUI {
   }
 
   public toggleWarpUI(forceState?: boolean): void {
-    const anyVisible =
-      this.settings.showGrid ||
-      this.settings.showCornerPoints ||
-      this.settings.showOutline;
+    const anyVisible = this.settings.showGrid || this.settings.showCornerPoints || this.settings.showOutline;
 
     const shouldHide = forceState !== undefined ? !forceState : anyVisible;
 

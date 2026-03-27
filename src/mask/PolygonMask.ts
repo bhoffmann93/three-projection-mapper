@@ -28,7 +28,6 @@ export class PolygonMask {
   private outlinePositions!: Float32Array;
   private dragControls!: DragControls;
 
-  private _isDragging = false;
   private _inverseTransform: ((x: number, y: number) => THREE.Vector2) | null = null;
 
   public onChanged: () => void = () => {};
@@ -100,12 +99,8 @@ export class PolygonMask {
 
   private initDragControls(): void {
     this.dragControls = new DragControls(this.anchorObjects, this.camera, this.renderer.domElement);
-    this.dragControls.addEventListener('dragstart', () => {
-      this._isDragging = true;
-    });
     this.dragControls.addEventListener('drag', this.handleDrag.bind(this));
     this.dragControls.addEventListener('dragend', () => {
-      this._isDragging = false;
       this.saveToStorage();
     });
   }
@@ -132,7 +127,6 @@ export class PolygonMask {
     inverseTransform: (x: number, y: number) => THREE.Vector2,
   ): void {
     this._inverseTransform = inverseTransform;
-    if (this._isDragging) return;
 
     for (let i = 0; i < this._nodes.length; i++) {
       const flat = this.uvToWorld(this._nodes[i]);

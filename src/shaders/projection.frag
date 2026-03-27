@@ -68,6 +68,11 @@ vec2 aspect01(vec2 uv, vec2 resolution) {
     return (uv - 0.5) * scale + 0.5;
 }
 
+float smootherstep(float edge0, float edge1, float x) {
+    x = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
+    return x * x * x * (x * (x * 6.0 - 15.0) + 10.0);
+}
+
 float aastep(float edge, float value) {
     float afwidth = fwidth(value);
     return smoothstep(edge - afwidth, edge + afwidth, value);
@@ -325,7 +330,7 @@ void main() {
     // Polygon mask
     if(uPolygonMaskEnabled && uPolygonPointCount >= 3) {
         float dist = sdPolygon(vUv);
-        float mask = 1.0 - smoothstep(-uPolygonFeather, uPolygonFeather, dist);
+        float mask = 1.0 - smootherstep(-uPolygonFeather, uPolygonFeather, dist);
         color = mix(vec3(0.0), color, mask);
     }
 
