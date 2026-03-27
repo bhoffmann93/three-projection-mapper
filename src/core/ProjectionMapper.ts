@@ -7,6 +7,7 @@ import projectionFragmentShader from '../shaders/projection.frag';
 import { calculateGridPoints } from '../warp/geometry';
 import { GUI_STORAGE_KEY, DEFAULT_IMAGE_SETTINGS } from './defaults';
 import type { ImageSettings } from './defaults';
+import { PolygonMask, type UVPoint } from '../mask/PolygonMask';
 
 export { GUI_STORAGE_KEY, DEFAULT_IMAGE_SETTINGS };
 export type { ImageSettings };
@@ -61,7 +62,13 @@ export class ProjectionMapper {
     uGamma: { value: number };
     uContrast: { value: number };
     uHue: { value: number };
+    uPolygonMaskEnabled: { value: boolean };
+    uPolygonPointCount: { value: number };
+    uPolygonPoints: { value: THREE.Vector2[] };
+    uPolygonFeather: { value: number };
   };
+
+  private polygonMask: PolygonMask | null = null;
 
   /** Resolution in pixels, passed through to shaders */
   private resolution: { width: number; height: number };
@@ -126,6 +133,10 @@ export class ProjectionMapper {
       uGamma: { value: DEFAULT_IMAGE_SETTINGS.gamma },
       uContrast: { value: DEFAULT_IMAGE_SETTINGS.contrast },
       uHue: { value: DEFAULT_IMAGE_SETTINGS.hue },
+      uPolygonMaskEnabled: { value: false },
+      uPolygonPointCount: { value: 0 },
+      uPolygonPoints: { value: Array.from({ length: 16 }, () => new THREE.Vector2()) },
+      uPolygonFeather: { value: 0.005 },
     };
 
     const warperConfig: MeshWarperConfig = {
@@ -186,6 +197,14 @@ export class ProjectionMapper {
     const viewportWidth = this.renderer.domElement.clientWidth;
     const pixelToWorld = frustumWidth / viewportWidth;
     this.meshWarper.updateControlPointsScale(pixelToWorld);
+
+    if (this.polygonMask) {
+      this.polygonMask.updateTransformedPositions(
+        (x, y) => this.meshWarper.applyPerspectiveTransform(x, y),
+        (x, y) => this.meshWarper.applyInversePerspectiveTransform(x, y),
+      );
+      this.polygonMask.updateControlPointsScale(pixelToWorld);
+    }
 
     if (this.config.antialias == false) {
       this.renderer.setRenderTarget(null);
@@ -332,9 +351,52 @@ export class ProjectionMapper {
     return this.camera;
   }
 
+  addPolygonMask(nodes?: UVPoint[]): PolygonMask {
+    if (this.polygonMask) this.removePolygonMask();
+    this.polygonMask = new PolygonMask(
+      this.scene, this.camera, this.renderer,
+      this.worldWidth, this.worldHeight, nodes,
+    );
+    this.polygonMask.onChanged = () => this.syncPolygonMaskUniforms();
+    this.uniforms.uPolygonMaskEnabled.value = true;
+    this.syncPolygonMaskUniforms();
+    return this.polygonMask;
+  }
+
+  removePolygonMask(): void {
+    if (!this.polygonMask) return;
+    this.polygonMask.dispose();
+    this.polygonMask.clearStorage();
+    this.polygonMask = null;
+    this.uniforms.uPolygonMaskEnabled.value = false;
+    this.uniforms.uPolygonPointCount.value = 0;
+  }
+
+  private syncPolygonMaskUniforms(): void {
+    if (!this.polygonMask) return;
+    const nodes = this.polygonMask.nodes;
+    this.uniforms.uPolygonPointCount.value = nodes.length;
+    for (let i = 0; i < nodes.length; i++) {
+      this.uniforms.uPolygonPoints.value[i].set(nodes[i].u, nodes[i].v);
+    }
+  }
+
+  getPolygonMask(): PolygonMask | null {
+    return this.polygonMask;
+  }
+
+  setPolygonMaskEnabled(enabled: boolean): void {
+    this.uniforms.uPolygonMaskEnabled.value = enabled;
+  }
+
+  setPolygonFeather(feather: number): void {
+    this.uniforms.uPolygonFeather.value = feather;
+  }
+
   dispose(): void {
     this.meshWarper.dispose();
     this.composer.dispose();
+    this.polygonMask?.dispose();
   }
 }
 

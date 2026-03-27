@@ -223,6 +223,9 @@ export class ProjectionMapperGUI {
       this.saveSettings();
     });
 
+    // Masks folder
+    this.initMasksFolder();
+
     // Warp UI
     this.warpFolder = this.pane.addFolder({ title: 'Warping', expanded: true });
 
@@ -357,6 +360,55 @@ export class ProjectionMapperGUI {
         window.location.reload();
       }
     });
+  }
+
+  private initMasksFolder(): void {
+    const masksFolder = this.pane.addFolder({ title: 'Masks', expanded: false });
+
+    const polygonMaskState = { enabled: true, feather: 0.005, showHandles: true };
+    let polygonSubFolder: FolderApi | null = null;
+
+    const showPolygonSubFolder = () => {
+      if (polygonSubFolder) return;
+      polygonSubFolder = masksFolder.addFolder({ title: 'Polygon Mask', expanded: true });
+
+      polygonSubFolder
+        .addBinding(polygonMaskState, 'enabled', { label: 'Enabled' })
+        .on('change', (e: TpChangeEvent<unknown>) => {
+          this.mapper.setPolygonMaskEnabled(e.value as boolean);
+        });
+
+      polygonSubFolder
+        .addBinding(polygonMaskState, 'feather', { label: 'Feather', min: 0.0, max: 0.05, step: 0.001 })
+        .on('change', (e: TpChangeEvent<unknown>) => {
+          this.mapper.setPolygonFeather(e.value as number);
+        });
+
+      polygonSubFolder
+        .addBinding(polygonMaskState, 'showHandles', { label: 'Show Handles' })
+        .on('change', (e: TpChangeEvent<unknown>) => {
+          this.mapper.getPolygonMask()?.setVisible(e.value as boolean);
+        });
+
+      polygonSubFolder.addButton({ title: 'Delete' }).on('click', () => {
+        this.mapper.removePolygonMask();
+        polygonSubFolder!.dispose();
+        polygonSubFolder = null;
+      });
+    };
+
+    masksFolder.addButton({ title: 'Add Polygon Mask' }).on('click', () => {
+      if (!this.mapper.getPolygonMask()) {
+        this.mapper.addPolygonMask();
+      }
+      showPolygonSubFolder();
+    });
+
+    // Restore if mask was saved in previous session
+    if (localStorage.getItem('polygon-mask')) {
+      this.mapper.addPolygonMask();
+      showPolygonSubFolder();
+    }
   }
 
   private applyVisibility(): void {

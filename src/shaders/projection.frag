@@ -23,6 +23,12 @@ uniform int uGridSizeY;
 
 uniform bool uMaskEnabled;
 uniform float uFeather;
+
+#define MAX_POLYGON_POINTS 16
+uniform bool uPolygonMaskEnabled;
+uniform int uPolygonPointCount;
+uniform vec2 uPolygonPoints[MAX_POLYGON_POINTS];
+uniform float uPolygonFeather;
 uniform bool uTonemap;
 uniform float uGamma;
 uniform float uContrast;
@@ -269,6 +275,33 @@ vec3 imageAdjust(vec3 color) {
     return clamp(color, 0.0, 1.0);
 }
 
+// The MIT License
+// Copyright © 2019 Inigo Quilez
+// Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions: The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+// Distance to a regular pentagon, without trigonometric functions. 
+
+// Polygon SDF — Inigo Quilez (adapted for GLSL ES 1.0 fixed-size uniform array)
+float sdPolygon(vec2 p) {
+    float d = dot(p - uPolygonPoints[0], p - uPolygonPoints[0]);
+    float s = 1.0;
+    int j = uPolygonPointCount - 1;
+    for(int i = 0; i < MAX_POLYGON_POINTS; i++) {
+        if(i >= uPolygonPointCount)
+            break;
+        vec2 vi = uPolygonPoints[i];
+        vec2 vj = uPolygonPoints[j];
+        vec2 e = vj - vi;
+        vec2 w = p - vi;
+        vec2 b = w - e * clamp(dot(w, e) / dot(e, e), 0.0, 1.0);
+        d = min(d, dot(b, b));
+        bvec3 cond = bvec3(p.y >= vi.y, p.y < vj.y, e.x * w.y > e.y * w.x);
+        if(all(cond) || all(not(cond)))
+            s = -s;
+        j = i;
+    }
+    return s * sqrt(d);
+}
+
 void main() {
     vec3 color;
 
@@ -286,6 +319,13 @@ void main() {
     if(uMaskEnabled) {
         float soft = mix(0.0, 0.25, uFeather);
         float mask = gaussianRectMask(vUv, uShouldWarp ? uWarpPlaneSize : uBufferResolution, soft);
+        color = mix(vec3(0.0), color, mask);
+    }
+
+    // Polygon mask
+    if(uPolygonMaskEnabled && uPolygonPointCount >= 3) {
+        float dist = sdPolygon(vUv);
+        float mask = 1.0 - smoothstep(-uPolygonFeather, uPolygonFeather, dist);
         color = mix(vec3(0.0), color, mask);
     }
 

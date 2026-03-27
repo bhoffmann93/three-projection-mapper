@@ -439,6 +439,18 @@ export class MeshWarper {
     return this.dragGridControlPoints;
   }
 
+  public applyPerspectiveTransform(x: number, y: number): THREE.Vector2 {
+    const currentCorners = this.dragCornerControlPoints.flatMap((p) => [p.x, p.y]);
+    const [wx, wy] = new PerspT(this.quadData.initalCorners, currentCorners).transform(x, y);
+    return new THREE.Vector2(wx, wy);
+  }
+
+  public applyInversePerspectiveTransform(x: number, y: number): THREE.Vector2 {
+    const currentCorners = this.dragCornerControlPoints.flatMap((p) => [p.x, p.y]);
+    const [wx, wy] = new PerspT(this.quadData.initalCorners, currentCorners).transformInverse(x, y);
+    return new THREE.Vector2(wx, wy);
+  }
+
   public dispose(): void {
     this.planeGeometry.dispose();
     this.dragControls.dispose();

@@ -19,3 +19,4 @@ export {
 } from './core/ProjectionMapperGUI';
 export { ProjectorCamera } from './core/ProjectorCamera';
 export { MeshWarper, WARP_MODE, type MeshWarperConfig } from './warp/MeshWarper';
+export { PolygonMask, type UVPoint } from './mask/PolygonMask';
