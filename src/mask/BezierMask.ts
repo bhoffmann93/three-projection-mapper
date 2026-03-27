@@ -11,12 +11,10 @@ export interface UVPoint { u: number; v: number; }
 
 export interface BezierNode {
   anchor: UVPoint;
-  handleIn: UVPoint;   // arriving tangent handle (from previous segment)
-  handleOut: UVPoint;  // departing tangent handle (toward next segment)
+  handle: UVPoint;  // quadratic control point for segment FROM this anchor TO next anchor
 }
 
 const STORAGE_KEY = 'bezier-mask';
-const HANDLE_OFFSET = 0.138; // 0.25 * 0.5523 for smooth circular oval
 
 export class BezierMask {
   public enabled: boolean;
@@ -29,12 +27,9 @@ export class BezierMask {
   private scene: THREE.Scene;
 
   private anchorObjects: THREE.Mesh[] = [];
-  private handleInObjects: THREE.Mesh[] = [];
-  private handleOutObjects: THREE.Mesh[] = [];
+  private handleObjects: THREE.Mesh[] = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private stalkInLines: any[] = [];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private stalkOutLines: any[] = [];
+  private stalkLines: any[] = [];
   private dragControls!: DragControls;
 
   private sphereGeo: THREE.SphereGeometry;
@@ -54,8 +49,7 @@ export class BezierMask {
   ) {
     this._nodes = nodes.map(n => ({
       anchor: { ...n.anchor },
-      handleIn: { ...n.handleIn },
-      handleOut: { ...n.handleOut },
+      handle: { ...n.handle },
     }));
     this.worldWidth = worldWidth;
     this.worldHeight = worldHeight;
@@ -93,8 +87,7 @@ export class BezierMask {
     for (let i = 0; i < this._nodes.length; i++) {
       const node = this._nodes[i];
       const aPos = this.uvToWorld(node.anchor);
-      const hiPos = this.uvToWorld(node.handleIn);
-      const hoPos = this.uvToWorld(node.handleOut);
+      const hPos = this.uvToWorld(node.handle);
 
       const anchor = new THREE.Mesh(this.sphereGeo, this.anchorMat);
       anchor.position.set(aPos.x, aPos.y, 0.01);
@@ -103,34 +96,21 @@ export class BezierMask {
       this.anchorObjects.push(anchor);
       scene.add(anchor);
 
-      const handleIn = new THREE.Mesh(this.sphereGeo, this.handleMat);
-      handleIn.position.set(hiPos.x, hiPos.y, 0.01);
-      handleIn.userData.role = 'handleIn';
-      handleIn.userData.nodeIndex = i;
-      this.handleInObjects.push(handleIn);
-      scene.add(handleIn);
+      const handle = new THREE.Mesh(this.sphereGeo, this.handleMat);
+      handle.position.set(hPos.x, hPos.y, 0.01);
+      handle.userData.role = 'handle';
+      handle.userData.nodeIndex = i;
+      this.handleObjects.push(handle);
+      scene.add(handle);
 
-      const handleOut = new THREE.Mesh(this.sphereGeo, this.handleMat);
-      handleOut.position.set(hoPos.x, hoPos.y, 0.01);
-      handleOut.userData.role = 'handleOut';
-      handleOut.userData.nodeIndex = i;
-      this.handleOutObjects.push(handleOut);
-      scene.add(handleOut);
-
-      const stalkInGeo = new LineGeometry();
-      stalkInGeo.setPositions([hiPos.x, hiPos.y, 0.01, aPos.x, aPos.y, 0.01]);
-      const stalkIn = new Line2(stalkInGeo, this.stalkMat);
-      this.stalkInLines.push(stalkIn);
-      scene.add(stalkIn);
-
-      const stalkOutGeo = new LineGeometry();
-      stalkOutGeo.setPositions([hoPos.x, hoPos.y, 0.01, aPos.x, aPos.y, 0.01]);
-      const stalkOut = new Line2(stalkOutGeo, this.stalkMat);
-      this.stalkOutLines.push(stalkOut);
-      scene.add(stalkOut);
+      const stalkGeo = new LineGeometry();
+      stalkGeo.setPositions([hPos.x, hPos.y, 0.01, aPos.x, aPos.y, 0.01]);
+      const stalk = new Line2(stalkGeo, this.stalkMat);
+      this.stalkLines.push(stalk);
+      scene.add(stalk);
     }
 
-    const allHandles = [...this.anchorObjects, ...this.handleInObjects, ...this.handleOutObjects];
+    const allHandles = [...this.anchorObjects, ...this.handleObjects];
     this.dragControls = new DragControls(allHandles, camera, renderer.domElement);
     this.dragControls.addEventListener('drag', this.handleDrag.bind(this));
     this.dragControls.addEventListener('dragend', () => this.saveToStorage());
@@ -155,64 +135,38 @@ export class BezierMask {
       const dx = x - oldAnchor.x;
       const dy = y - oldAnchor.y;
 
-      const oldHi = this.uvToWorld(node.handleIn);
-      const oldHo = this.uvToWorld(node.handleOut);
-      const newHi = new THREE.Vector2(oldHi.x + dx, oldHi.y + dy);
-      const newHo = new THREE.Vector2(oldHo.x + dx, oldHo.y + dy);
+      const oldH = this.uvToWorld(node.handle);
+      const newH = new THREE.Vector2(oldH.x + dx, oldH.y + dy);
 
       node.anchor = this.worldToUV(x, y);
-      node.handleIn = this.worldToUV(newHi.x, newHi.y);
-      node.handleOut = this.worldToUV(newHo.x, newHo.y);
+      node.handle = this.worldToUV(newH.x, newH.y);
 
-      this.handleInObjects[nodeIndex].position.set(newHi.x, newHi.y, 0.01);
-      this.handleOutObjects[nodeIndex].position.set(newHo.x, newHo.y, 0.01);
+      this.handleObjects[nodeIndex].position.set(newH.x, newH.y, 0.01);
 
       const aPos = new THREE.Vector2(x, y);
-      this.updateStalk(this.stalkInLines[nodeIndex], newHi, aPos);
-      this.updateStalk(this.stalkOutLines[nodeIndex], newHo, aPos);
+      this.updateStalk(this.stalkLines[nodeIndex], newH, aPos);
 
-    } else if (role === 'handleIn') {
-      node.handleIn = this.worldToUV(x, y);
+    } else if (role === 'handle') {
+      node.handle = this.worldToUV(x, y);
       const aPos = this.uvToWorld(node.anchor);
-      this.updateStalk(this.stalkInLines[nodeIndex], new THREE.Vector2(x, y), aPos);
-      // Mirror handleOut through anchor
-      const mirrorX = 2 * aPos.x - x;
-      const mirrorY = 2 * aPos.y - y;
-      node.handleOut = this.worldToUV(mirrorX, mirrorY);
-      this.handleOutObjects[nodeIndex].position.set(mirrorX, mirrorY, 0.01);
-      this.updateStalk(this.stalkOutLines[nodeIndex], new THREE.Vector2(mirrorX, mirrorY), aPos);
-
-    } else if (role === 'handleOut') {
-      node.handleOut = this.worldToUV(x, y);
-      const aPos = this.uvToWorld(node.anchor);
-      this.updateStalk(this.stalkOutLines[nodeIndex], new THREE.Vector2(x, y), aPos);
-      // Mirror handleIn through anchor
-      const mirrorX = 2 * aPos.x - x;
-      const mirrorY = 2 * aPos.y - y;
-      node.handleIn = this.worldToUV(mirrorX, mirrorY);
-      this.handleInObjects[nodeIndex].position.set(mirrorX, mirrorY, 0.01);
-      this.updateStalk(this.stalkInLines[nodeIndex], new THREE.Vector2(mirrorX, mirrorY), aPos);
+      this.updateStalk(this.stalkLines[nodeIndex], new THREE.Vector2(x, y), aPos);
     }
 
     this.onChanged?.();
   }
 
   public setVisible(visible: boolean): void {
-    const allObjects = [...this.anchorObjects, ...this.handleInObjects, ...this.handleOutObjects];
-    allObjects.forEach(obj => {
+    [...this.anchorObjects, ...this.handleObjects].forEach(obj => {
       obj.visible = visible;
       if (visible) obj.layers.enable(0); else obj.layers.disable(0);
     });
-    [...this.stalkInLines, ...this.stalkOutLines].forEach(line => {
-      line.visible = visible;
-    });
+    this.stalkLines.forEach(line => { line.visible = visible; });
   }
 
   public updateControlPointsScale(pixelToWorld: number): void {
     const size = pixelToWorld * 5;
     this.anchorObjects.forEach(obj => obj.scale.setScalar(size));
-    this.handleInObjects.forEach(obj => obj.scale.setScalar(size));
-    this.handleOutObjects.forEach(obj => obj.scale.setScalar(size));
+    this.handleObjects.forEach(obj => obj.scale.setScalar(size));
   }
 
   public saveToStorage(): void {
@@ -225,9 +179,8 @@ export class BezierMask {
 
   public dispose(): void {
     this.dragControls.dispose();
-    const allObjs = [...this.anchorObjects, ...this.handleInObjects, ...this.handleOutObjects];
-    allObjs.forEach(obj => this.scene.remove(obj));
-    [...this.stalkInLines, ...this.stalkOutLines].forEach(line => {
+    [...this.anchorObjects, ...this.handleObjects].forEach(obj => this.scene.remove(obj));
+    this.stalkLines.forEach(line => {
       line.geometry.dispose();
       this.scene.remove(line);
     });
@@ -239,12 +192,11 @@ export class BezierMask {
   }
 
   public static defaultNodes(): BezierNode[] {
-    const h = HANDLE_OFFSET;
     return [
-      { anchor: { u: 0.5,  v: 0.75 }, handleIn: { u: 0.5 - h, v: 0.75 }, handleOut: { u: 0.5 + h, v: 0.75 } },
-      { anchor: { u: 0.75, v: 0.5  }, handleIn: { u: 0.75, v: 0.5 + h  }, handleOut: { u: 0.75, v: 0.5 - h  } },
-      { anchor: { u: 0.5,  v: 0.25 }, handleIn: { u: 0.5 + h, v: 0.25  }, handleOut: { u: 0.5 - h, v: 0.25  } },
-      { anchor: { u: 0.25, v: 0.5  }, handleIn: { u: 0.25, v: 0.5 - h  }, handleOut: { u: 0.25, v: 0.5 + h  } },
+      { anchor: { u: 0.5,  v: 0.75 }, handle: { u: 0.75, v: 0.75 } },
+      { anchor: { u: 0.75, v: 0.5  }, handle: { u: 0.75, v: 0.25 } },
+      { anchor: { u: 0.5,  v: 0.25 }, handle: { u: 0.25, v: 0.25 } },
+      { anchor: { u: 0.25, v: 0.5  }, handle: { u: 0.25, v: 0.75 } },
     ];
   }
 

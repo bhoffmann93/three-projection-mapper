@@ -80,8 +80,7 @@ export class ProjectionMapper {
     uBezierMaskEnabled: { value: boolean };
     uBezierSegmentCount: { value: number };
     uBezierAnchors: { value: THREE.Vector2[] };
-    uBezierHandlesOut: { value: THREE.Vector2[] };
-    uBezierHandlesIn: { value: THREE.Vector2[] };
+    uBezierHandles: { value: THREE.Vector2[] };
     uBezierFeather: { value: number };
   };
 
@@ -153,8 +152,7 @@ export class ProjectionMapper {
       uBezierMaskEnabled: { value: false },
       uBezierSegmentCount: { value: 0 },
       uBezierAnchors: { value: Array.from({ length: 8 }, () => new THREE.Vector2()) },
-      uBezierHandlesOut: { value: Array.from({ length: 8 }, () => new THREE.Vector2()) },
-      uBezierHandlesIn: { value: Array.from({ length: 8 }, () => new THREE.Vector2()) },
+      uBezierHandles: { value: Array.from({ length: 8 }, () => new THREE.Vector2()) },
       uBezierFeather: { value: 0.01 },
     };
 
@@ -402,10 +400,8 @@ export class ProjectionMapper {
     this.uniforms.uBezierFeather.value = mask.feather;
     for (let i = 0; i < 8; i++) {
       const node = nodes[i % N];
-      const nextNode = nodes[(i + 1) % N];
       this.uniforms.uBezierAnchors.value[i].set(node.anchor.u, node.anchor.v);
-      this.uniforms.uBezierHandlesOut.value[i].set(node.handleOut.u, node.handleOut.v);
-      this.uniforms.uBezierHandlesIn.value[i].set(nextNode.handleIn.u, nextNode.handleIn.v);
+      this.uniforms.uBezierHandles.value[i].set(node.handle.u, node.handle.v);
     }
   }
 
