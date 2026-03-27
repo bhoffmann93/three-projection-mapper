@@ -28,7 +28,12 @@ uniform float uGamma;
 uniform float uContrast;
 uniform float uHue;
 
+// Bezier Mask
 #define MAX_QUADRATIC_SEGMENTS 16
+
+const int GAUSSIAN = 0;
+const int SMOOTHERSTEP = 1;
+const int BEZIER_MASK_FEATHER_TYPE = SMOOTHERSTEP;
 
 uniform bool uBezierMaskEnabled;
 uniform int uBezierSegmentCount;
@@ -255,6 +260,11 @@ float gaussianRectMask(vec2 uv, vec2 res, float soft) {
     return rectmask;
 }
 
+float gaussianStep(float dist, float sigma) {
+    // We scale by sqrt(2) approx 1.414 to align sigma with standard pixel units
+    return 0.5 + 0.5 * erf(dist / (sigma * 1.414));
+}
+
 vec3 acesTonemap(vec3 v) {
     v *= 0.6;
     float a = 2.51;
@@ -449,22 +459,58 @@ void main() {
     }
 
     // Bezier mask
+    // if(uBezierMaskEnabled && uBezierSegmentCount > 0) {
+    //     float minDist = 1e9;
+    //     int winding = 0;
+    //     for(int i = 0; i < MAX_QUADRATIC_SEGMENTS; i++) {
+    //         if(i >= uBezierSegmentCount)
+    //             break;
+    //         BezierQuadratic seg = BezierQuadratic(uSegP0[i], uSegP1[i], uSegP2[i]);
+    //         minDist = min(minDist, abs(sdQuadraticBezier(vUv, seg.p0, seg.p1, seg.p2)));
+    //         winding += quadraticCrossings(vUv, seg.p0, seg.p1, seg.p2);
+    //     }
+    //     float inside = winding != 0 ? 1.0 : 0.0;
+    //     float signedDist = inside > 0.5 ? minDist : -minDist;
+    //     float fw = fwidth(minDist);
+    //     float bezierMask = smoothstep(-fw, fw + uBezierFeather, signedDist);
+    //     color = mix(vec3(0.0), color, bezierMask);
+    // }
+
     if(uBezierMaskEnabled && uBezierSegmentCount > 0) {
         float minDist = 1e9;
-        int winding = 0;
+        float resSgn = 1.0;
+
         for(int i = 0; i < MAX_QUADRATIC_SEGMENTS; i++) {
             if(i >= uBezierSegmentCount)
                 break;
-            BezierQuadratic seg = BezierQuadratic(uSegP0[i], uSegP1[i], uSegP2[i]);
-            minDist = min(minDist, abs(sdQuadraticBezier(vUv, seg.p0, seg.p1, seg.p2)));
-            winding += quadraticCrossings(vUv, seg.p0, seg.p1, seg.p2);
+
+            vec2 q; // unused out parameter
+            float d = sdBezier(vUv, uSegP0[i], uSegP1[i], uSegP2[i], q);
+
+        // Find the absolute minimum distance, but keep track of the closest segment's sign
+            if(abs(d) < minDist) {
+                minDist = abs(d);
+                resSgn = sign(d);
+            }
         }
-        float inside = winding != 0 ? 1.0 : 0.0;
-        float signedDist = inside > 0.5 ? minDist : -minDist;
-        float fw = fwidth(minDist);
-        float bezierMask = smoothstep(-fw, fw + uBezierFeather, signedDist);
-        bezierMask = gaussianAlpha(signedDist, uBezierFeather);
-        color = mix(vec3(0.0), color, bezierMask);
+
+        // Combine sign and distance
+        float signedDist = resSgn * minDist;
+        float fw = fwidth(signedDist);
+
+        float mask;
+
+        if(BEZIER_MASK_FEATHER_TYPE == SMOOTHERSTEP) {
+            mask = smootherstep(-fw - uBezierFeather, fw + uBezierFeather, signedDist);
+        }
+
+        if(BEZIER_MASK_FEATHER_TYPE == GAUSSIAN) {
+            float sigma = max(fwidth(signedDist) * 0.5, uBezierFeather);
+            sigma = max(sigma, 1e-6);
+            mask = gaussianStep(signedDist, sigma);
+        }
+
+        color = mix(vec3(0.0), color, mask);
     }
 
     if(uShouldWarp == false || uShowControlLines) {
