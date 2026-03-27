@@ -320,7 +320,7 @@ void main() {
     // color = vec3(checkerboard(vUv, vec2(7.0, 4.0))); //for development tests
     color = imageAdjust(color);
 
-    // Feather mask
+    // Feather Image Edge mask
     if(uMaskEnabled) {
         float soft = mix(0.0, 0.25, uFeather);
         float mask = gaussianRectMask(vUv, uShouldWarp ? uWarpPlaneSize : uBufferResolution, soft);
@@ -330,7 +330,9 @@ void main() {
     // Polygon mask
     if(uPolygonMaskEnabled && uPolygonPointCount >= 3) {
         float dist = sdPolygon(vUv);
-        float mask = 1.0 - smootherstep(-uPolygonFeather, uPolygonFeather, dist);
+        //aspect is not correct but would to be corrected in uvs
+        float fw = fwidth(dist);
+        float mask = 1.0 - smootherstep(-(uPolygonFeather + fw), fw + uPolygonFeather, dist);
         color = mix(vec3(0.0), color, mask);
     }
 
