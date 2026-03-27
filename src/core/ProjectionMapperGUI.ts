@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { FolderApi, Pane, TpChangeEvent } from 'tweakpane';
-import { ProjectionMapper, GUI_STORAGE_KEY, DEFAULT_IMAGE_SETTINGS } from './ProjectionMapper';
-import type { ImageSettings } from './ProjectionMapper';
+import { ProjectionMapper } from './ProjectionMapper';
+import { GUI_STORAGE_KEY, DEFAULT_IMAGE_SETTINGS } from './defaults';
+import type { ImageSettings } from './defaults';
 import { WARP_MODE } from '../warp/MeshWarper';
 import { EventChannel } from '../ipc/EventChannel';
 import { WindowManager } from '../windows/WindowManager';
@@ -29,8 +30,8 @@ export interface ProjectionMapperGUISettings extends ImageSettings {
   imageExpanded: boolean;
 }
 
-export { GUI_STORAGE_KEY, DEFAULT_IMAGE_SETTINGS } from './ProjectionMapper';
-export type { ImageSettings } from './ProjectionMapper';
+export { GUI_STORAGE_KEY, DEFAULT_IMAGE_SETTINGS } from './defaults';
+export type { ImageSettings } from './defaults';
 
 export class ProjectionMapperGUI {
   private mapper: ProjectionMapper;
@@ -108,7 +109,7 @@ export class ProjectionMapperGUI {
     this.pane.addBlade({
       view: 'text',
       label: 'Buffer Resolution',
-      value: `${this.mapper['resolution'].width}x${this.mapper['resolution'].height}`,
+      value: `${this.mapper.getResolution().width}x${this.mapper.getResolution().height}`,
       parse: (v: unknown) => v,
       disabled: true,
     });

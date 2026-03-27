@@ -19,7 +19,7 @@
 
 import * as THREE from 'three';
 import { ProjectionMapper } from '../core/ProjectionMapper';
-import type { ImageSettings } from '../core/ProjectionMapper';
+import type { ImageSettings } from '../core/defaults';
 import { EventChannel } from '../ipc/EventChannel';
 import { WindowManager } from '../windows/WindowManager';
 import { ProjectionEventType } from '../ipc/EventTypes';

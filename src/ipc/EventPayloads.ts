@@ -1,5 +1,5 @@
 import { ProjectionEventType } from './EventTypes';
-import type { ImageSettings } from '../core/ProjectionMapper';
+import type { ImageSettings } from '../core/defaults';
 
 /**
  * Normalized point format (0-1 range) for resolution-independent serialization

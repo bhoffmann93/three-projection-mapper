@@ -5,26 +5,11 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import projectionFragmentShader from '../shaders/projection.frag';
 import { calculateGridPoints } from '../warp/geometry';
+import { GUI_STORAGE_KEY, DEFAULT_IMAGE_SETTINGS } from './defaults';
+import type { ImageSettings } from './defaults';
 
-export const GUI_STORAGE_KEY = 'projection-mapper-gui-settings';
-
-export interface ImageSettings {
-  maskEnabled: boolean;
-  feather: number;
-  tonemap: boolean;
-  gamma: number;
-  contrast: number;
-  hue: number;
-}
-
-export const DEFAULT_IMAGE_SETTINGS: Readonly<ImageSettings> = {
-  maskEnabled: false,
-  feather: 0.05,
-  tonemap: false,
-  gamma: 1.0,
-  contrast: 1.0,
-  hue: 0.0,
-};
+export { GUI_STORAGE_KEY, DEFAULT_IMAGE_SETTINGS };
+export type { ImageSettings };
 
 export interface ProjectionMapperConfig {
   /** Projection resolution in pixels (default: { width: 1920, height: 1080 }) */
@@ -327,6 +312,10 @@ export class ProjectionMapper {
 
   getCameraOffset(): { x: number; y: number } {
     return { x: this.camera.position.x, y: this.camera.position.y };
+  }
+
+  getResolution(): { width: number; height: number } {
+    return { ...this.resolution };
   }
 
   reset(): void {

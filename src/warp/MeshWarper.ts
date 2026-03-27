@@ -1,3 +1,12 @@
+/*
+MeshWarper
+-----------
+This class manages interactive warping of a plane mesh using draggable grid and corner control points.
+Conceptually, imagine a regular (unit) grid in the background: this is the reference grid. When you move the visible control points, you are warping this grid into a new shape via a perspective (homography) transform.
+Dragging a grid point updates its position in the warped (output) space, but to keep the mapping consistent, we use the inverse transform to update its corresponding position in the reference (input) grid. 
+This ensures smooth, predictable warping and allows for correct interpolation in the vertex shader.
+The warped grid control points are passed to the vertex shader for bilinear or bicubic interpolation, enabling flexible projection mapping and perspective correction.
+*/
 import * as THREE from 'three';
 import { DragControls } from 'three/examples/jsm/controls/DragControls.js';
 //@ts-ignore
