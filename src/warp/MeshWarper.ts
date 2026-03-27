@@ -677,4 +677,18 @@ export class MeshWarper {
     localStorage.removeItem(STORAGE_KEY);
     console.log('Control points reset - reload page to apply');
   }
+
+  /** Apply the current corner-point perspective homography to a flat world-space position. */
+  public applyPerspectiveTransform(x: number, y: number): THREE.Vector2 {
+    const currentCorners = this.dragCornerControlPoints.flatMap((p) => [p.x, p.y]);
+    const [wx, wy] = new PerspT(this.quadData.initalCorners, currentCorners).transform(x, y);
+    return new THREE.Vector2(wx, wy);
+  }
+
+  /** Inverse of applyPerspectiveTransform — warped world → flat world. */
+  public applyInversePerspectiveTransform(x: number, y: number): THREE.Vector2 {
+    const currentCorners = this.dragCornerControlPoints.flatMap((p) => [p.x, p.y]);
+    const [wx, wy] = new PerspT(this.quadData.initalCorners, currentCorners).transformInverse(x, y);
+    return new THREE.Vector2(wx, wy);
+  }
 }

@@ -11,7 +11,10 @@ export const GUI_STORAGE_KEY = 'projection-mapper-gui-settings';
 
 /** Split a cubic Bézier into two best-fit quadratic segments by subdividing at t=0.5. */
 function cubicToTwoQuadratics(
-  p0: THREE.Vector2, p1: THREE.Vector2, p2: THREE.Vector2, p3: THREE.Vector2,
+  p0: THREE.Vector2,
+  p1: THREE.Vector2,
+  p2: THREE.Vector2,
+  p3: THREE.Vector2,
 ): [
   { p0: THREE.Vector2; p1: THREE.Vector2; p2: THREE.Vector2 },
   { p0: THREE.Vector2; p1: THREE.Vector2; p2: THREE.Vector2 },
@@ -25,23 +28,54 @@ function cubicToTwoQuadratics(
   const q2 = lerp(p2, p3, 0.5);
   const r0 = lerp(q0, q1, 0.5);
   const r1 = lerp(q1, q2, 0.5);
-  const m  = lerp(r0, r1, 0.5); // point on curve at t=0.5
+  const m = lerp(r0, r1, 0.5); // point on curve at t=0.5
 
   // Best-fit quadratic control point for each cubic half:
   // Q1 = (3*(S1 + S2) - (S0 + S3)) / 4
-  const qa1 = new THREE.Vector2(
-    (3 * (q0.x + r0.x) - (p0.x + m.x)) * 0.25,
-    (3 * (q0.y + r0.y) - (p0.y + m.y)) * 0.25,
-  );
-  const qb1 = new THREE.Vector2(
-    (3 * (r1.x + q2.x) - (m.x + p3.x)) * 0.25,
-    (3 * (r1.y + q2.y) - (m.y + p3.y)) * 0.25,
-  );
+  const qa1 = new THREE.Vector2((3 * (q0.x + r0.x) - (p0.x + m.x)) * 0.25, (3 * (q0.y + r0.y) - (p0.y + m.y)) * 0.25);
+  const qb1 = new THREE.Vector2((3 * (r1.x + q2.x) - (m.x + p3.x)) * 0.25, (3 * (r1.y + q2.y) - (m.y + p3.y)) * 0.25);
 
   return [
-    { p0: p0.clone(), p1: qa1,       p2: m         },
-    { p0: m.clone(),  p1: qb1,       p2: p3.clone() },
+    { p0: p0.clone(), p1: qa1, p2: m },
+    { p0: m.clone(), p1: qb1, p2: p3.clone() },
   ];
+}
+
+function fastCubicToTwoQuadratics(
+  p0: { u: number; v: number },
+  p1: { u: number; v: number },
+  p2: { u: number; v: number },
+  p3: { u: number; v: number },
+  targetA: THREE.Vector2[], // [p0, p1, p2] Segment 1
+  targetB: THREE.Vector2[], // [p0, p1, p2] Segment 2
+): void {
+  const q0x = (p0.u + p1.u) * 0.5;
+  const q0y = (p0.v + p1.v) * 0.5;
+  const q1x = (p1.u + p2.u) * 0.5;
+  const q1y = (p1.v + p2.v) * 0.5;
+  const q2x = (p2.u + p3.u) * 0.5;
+  const q2y = (p2.v + p3.v) * 0.5;
+
+  const r0x = (q0x + q1x) * 0.5;
+  const r0y = (q0y + q1y) * 0.5;
+  const r1x = (q1x + q2x) * 0.5;
+  const r1y = (q1y + q2y) * 0.5;
+
+  const mx = (r0x + r1x) * 0.5;
+  const my = (r0y + r1y) * 0.5;
+
+  const qa1x = (3 * (q0x + r0x) - (p0.u + mx)) * 0.25;
+  const qa1y = (3 * (q0y + r0y) - (p0.v + my)) * 0.25;
+  const qb1x = (3 * (r1x + q2x) - (mx + p3.u)) * 0.25;
+  const qb1y = (3 * (r1y + q2y) - (my + p3.v)) * 0.25;
+
+  targetA[0].set(p0.u, p0.v);
+  targetA[1].set(qa1x, qa1y);
+  targetA[2].set(mx, my);
+
+  targetB[0].set(mx, my);
+  targetB[1].set(qb1x, qb1y);
+  targetB[2].set(p3.u, p3.v);
 }
 
 export interface ImageSettings {
@@ -251,7 +285,13 @@ export class ProjectionMapper {
     const viewportWidth = this.renderer.domElement.clientWidth;
     const pixelToWorld = frustumWidth / viewportWidth;
     this.meshWarper.updateControlPointsScale(pixelToWorld);
-    this.bezierMask?.updateControlPointsScale(pixelToWorld);
+    if (this.bezierMask) {
+      this.bezierMask.updateTransformedPositions(
+        (x, y) => this.meshWarper.applyPerspectiveTransform(x, y),
+        (x, y) => this.meshWarper.applyInversePerspectiveTransform(x, y),
+      );
+      this.bezierMask.updateControlPointsScale(pixelToWorld);
+    }
 
     if (this.config.antialias == false) {
       this.renderer.setRenderTarget(null);
@@ -394,6 +434,8 @@ export class ProjectionMapper {
     return this.camera;
   }
 
+  // MASKING
+
   addBezierMask(nodes?: BezierNode[], options?: { enabled?: boolean; feather?: number }): BezierMask {
     if (this.bezierMask) this.bezierMask.dispose();
     const mask = new BezierMask(
@@ -436,7 +478,7 @@ export class ProjectionMapper {
 
     let idx = 0;
     for (let i = 0; i < N; i++) {
-      const node     = nodes[i];
+      const node = nodes[i];
       const nextNode = nodes[(i + 1) % N];
       const [qa, qb] = cubicToTwoQuadratics(
         uv(node.anchor),
@@ -454,9 +496,9 @@ export class ProjectionMapper {
       idx++;
     }
 
-    this.uniforms.uBezierMaskEnabled.value  = true;
+    this.uniforms.uBezierMaskEnabled.value = true;
     this.uniforms.uBezierSegmentCount.value = idx;
-    this.uniforms.uBezierFeather.value      = mask.feather;
+    this.uniforms.uBezierFeather.value = mask.feather;
   }
 
   dispose(): void {

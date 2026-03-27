@@ -36,6 +36,8 @@ export class BezierMask {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private stalkOutLines: any[] = [];
   private dragControls!: DragControls;
+  private _isDragging = false;
+  private _inverseTransform: ((x: number, y: number) => THREE.Vector2) | null = null;
 
   private sphereGeo: THREE.SphereGeometry;
   private anchorMat: THREE.MeshBasicMaterial;
@@ -80,6 +82,10 @@ export class BezierMask {
       (uv.u - 0.5) * this.worldWidth,
       (uv.v - 0.5) * this.worldHeight,
     );
+  }
+
+  private uvToWorldTuple(uv: UVPoint): [number, number] {
+    return [(uv.u - 0.5) * this.worldWidth, (uv.v - 0.5) * this.worldHeight];
   }
 
   private worldToUV(x: number, y: number): UVPoint {
@@ -129,8 +135,9 @@ export class BezierMask {
 
     const draggable = [...this.anchorObjects, ...this.handleInObjects, ...this.handleOutObjects];
     this.dragControls = new DragControls(draggable, camera, renderer.domElement);
-    this.dragControls.addEventListener('drag',    this.handleDrag.bind(this));
-    this.dragControls.addEventListener('dragend', () => this.saveToStorage());
+    this.dragControls.addEventListener('dragstart', () => { this._isDragging = true; });
+    this.dragControls.addEventListener('drag',      this.handleDrag.bind(this));
+    this.dragControls.addEventListener('dragend',   () => { this._isDragging = false; this.saveToStorage(); });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -145,54 +152,67 @@ export class BezierMask {
     let role = 'anchor';
     if (nodeIndex === -1) { nodeIndex = this.handleInObjects.indexOf(obj);  role = 'handleIn';  }
     if (nodeIndex === -1) { nodeIndex = this.handleOutObjects.indexOf(obj); role = 'handleOut'; }
-    if (nodeIndex === -1) return; // not one of our objects
+    if (nodeIndex === -1) return;
 
     const node = this._nodes[nodeIndex];
-
     obj.position.z = 0.01;
-    const x = obj.position.x;
-    const y = obj.position.y;
-    const aPos = this.uvToWorld(node.anchor);
+
+    // wx/wy: position in warped world space (set by DragControls)
+    const wx = obj.position.x;
+    const wy = obj.position.y;
+
+    // Convert to flat world space for UV storage and mirror math
+    const flat = this._inverseTransform
+      ? this._inverseTransform(wx, wy)
+      : new THREE.Vector2(wx, wy);
+
+    // Flat anchor position (for delta and mirror computations)
+    const aFlat = this.uvToWorld(node.anchor);
+
+    // Warped anchor position (for stalk line connections during drag)
+    const aWarped = new THREE.Vector2(
+      this.anchorObjects[nodeIndex].position.x,
+      this.anchorObjects[nodeIndex].position.y,
+    );
 
     if (role === 'anchor') {
-      const dx = x - aPos.x;
-      const dy = y - aPos.y;
+      const dx = flat.x - aFlat.x;
+      const dy = flat.y - aFlat.y;
 
-      const oldHi = this.uvToWorld(node.handleIn);
-      const oldHo = this.uvToWorld(node.handleOut);
-      const newHi = new THREE.Vector2(oldHi.x + dx, oldHi.y + dy);
-      const newHo = new THREE.Vector2(oldHo.x + dx, oldHo.y + dy);
+      const newFlatHi = this.uvToWorld(node.handleIn).addScalar(0).add(new THREE.Vector2(dx, dy));
+      const newFlatHo = this.uvToWorld(node.handleOut).addScalar(0).add(new THREE.Vector2(dx, dy));
 
-      node.anchor    = this.worldToUV(x, y);
-      node.handleIn  = this.worldToUV(newHi.x, newHi.y);
-      node.handleOut = this.worldToUV(newHo.x, newHo.y);
+      node.anchor    = this.worldToUV(flat.x,      flat.y);
+      node.handleIn  = this.worldToUV(newFlatHi.x, newFlatHi.y);
+      node.handleOut = this.worldToUV(newFlatHo.x, newFlatHo.y);
 
-      this.handleInObjects[nodeIndex].position.set(newHi.x, newHi.y, 0.01);
-      this.handleOutObjects[nodeIndex].position.set(newHo.x, newHo.y, 0.01);
+      // Visual positions during drag: use flat offsets (corrected on next frame via updateTransformedPositions)
+      this.handleInObjects[nodeIndex].position.set(newFlatHi.x, newFlatHi.y, 0.01);
+      this.handleOutObjects[nodeIndex].position.set(newFlatHo.x, newFlatHo.y, 0.01);
 
-      const ap = new THREE.Vector2(x, y);
-      this.updateStalk(this.stalkInLines[nodeIndex],  newHi, ap);
-      this.updateStalk(this.stalkOutLines[nodeIndex], newHo, ap);
+      const dragged = new THREE.Vector2(wx, wy);
+      this.updateStalk(this.stalkInLines[nodeIndex],  new THREE.Vector2(newFlatHi.x, newFlatHi.y), dragged);
+      this.updateStalk(this.stalkOutLines[nodeIndex], new THREE.Vector2(newFlatHo.x, newFlatHo.y), dragged);
 
     } else if (role === 'handleIn') {
-      node.handleIn = this.worldToUV(x, y);
-      this.updateStalk(this.stalkInLines[nodeIndex], new THREE.Vector2(x, y), aPos);
-      // Mirror handleOut through anchor
-      const mx = 2 * aPos.x - x;
-      const my = 2 * aPos.y - y;
-      node.handleOut = this.worldToUV(mx, my);
-      this.handleOutObjects[nodeIndex].position.set(mx, my, 0.01);
-      this.updateStalk(this.stalkOutLines[nodeIndex], new THREE.Vector2(mx, my), aPos);
+      node.handleIn = this.worldToUV(flat.x, flat.y);
+      this.updateStalk(this.stalkInLines[nodeIndex], new THREE.Vector2(wx, wy), aWarped);
+
+      // Mirror in flat space through flat anchor
+      const mFlat = new THREE.Vector2(2 * aFlat.x - flat.x, 2 * aFlat.y - flat.y);
+      node.handleOut = this.worldToUV(mFlat.x, mFlat.y);
+      this.handleOutObjects[nodeIndex].position.set(mFlat.x, mFlat.y, 0.01);
+      this.updateStalk(this.stalkOutLines[nodeIndex], mFlat, aWarped);
 
     } else if (role === 'handleOut') {
-      node.handleOut = this.worldToUV(x, y);
-      this.updateStalk(this.stalkOutLines[nodeIndex], new THREE.Vector2(x, y), aPos);
-      // Mirror handleIn through anchor
-      const mx = 2 * aPos.x - x;
-      const my = 2 * aPos.y - y;
-      node.handleIn = this.worldToUV(mx, my);
-      this.handleInObjects[nodeIndex].position.set(mx, my, 0.01);
-      this.updateStalk(this.stalkInLines[nodeIndex], new THREE.Vector2(mx, my), aPos);
+      node.handleOut = this.worldToUV(flat.x, flat.y);
+      this.updateStalk(this.stalkOutLines[nodeIndex], new THREE.Vector2(wx, wy), aWarped);
+
+      // Mirror in flat space through flat anchor
+      const mFlat = new THREE.Vector2(2 * aFlat.x - flat.x, 2 * aFlat.y - flat.y);
+      node.handleIn = this.worldToUV(mFlat.x, mFlat.y);
+      this.handleInObjects[nodeIndex].position.set(mFlat.x, mFlat.y, 0.01);
+      this.updateStalk(this.stalkInLines[nodeIndex], mFlat, aWarped);
     }
 
     this.onChanged?.();
@@ -220,6 +240,33 @@ export class BezierMask {
       enabled: this.enabled,
       feather: this.feather,
     }));
+  }
+
+  /**
+   * Reposition all control-point spheres using a world-space transform function
+   * (e.g. the perspective homography from the corner warp).  Skipped while the
+   * user is actively dragging a bezier handle.
+   */
+  public updateTransformedPositions(
+    transform: (x: number, y: number) => THREE.Vector2,
+    inverseTransform: (x: number, y: number) => THREE.Vector2,
+  ): void {
+    this._inverseTransform = inverseTransform;
+    if (this._isDragging) return;
+
+    for (let i = 0; i < this._nodes.length; i++) {
+      const node  = this._nodes[i];
+      const aPos  = transform(...this.uvToWorldTuple(node.anchor));
+      const hiPos = transform(...this.uvToWorldTuple(node.handleIn));
+      const hoPos = transform(...this.uvToWorldTuple(node.handleOut));
+
+      this.anchorObjects[i].position.set(aPos.x,  aPos.y,  0.01);
+      this.handleInObjects[i].position.set(hiPos.x, hiPos.y, 0.01);
+      this.handleOutObjects[i].position.set(hoPos.x, hoPos.y, 0.01);
+
+      this.updateStalk(this.stalkInLines[i],  hiPos, aPos);
+      this.updateStalk(this.stalkOutLines[i], hoPos, aPos);
+    }
   }
 
   public dispose(): void {

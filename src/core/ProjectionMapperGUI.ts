@@ -19,15 +19,19 @@ export interface ProjectionMapperGUIConfig {
 }
 
 export interface ProjectionMapperGUISettings extends ImageSettings {
-  shouldWarp: boolean;
+  //Settings
   showTestcard: boolean;
+  shouldWarp: boolean;
   showGrid: boolean;
+  zoom: number;
+  //Image
+  imageExpanded: boolean;
+  //Perspective Warp
+  showOutline: boolean;
+  showCornerPoints: boolean;
+  //Grid Warp
   warpMode: WARP_MODE;
   gridSize: { x: number; y: number };
-  zoom: number;
-  showCornerPoints: boolean;
-  showOutline: boolean;
-  imageExpanded: boolean;
 }
 
 export { GUI_STORAGE_KEY, DEFAULT_IMAGE_SETTINGS } from './ProjectionMapper';
@@ -37,10 +41,8 @@ export class ProjectionMapperGUI {
   private mapper: ProjectionMapper;
   private pane: Pane;
   private settings: ProjectionMapperGUISettings;
-  private savedVisibility: Pick<
-    ProjectionMapperGUISettings,
-    'showGrid' | 'showCornerPoints' | 'showOutline'
-  > | null = null;
+  private savedVisibility: Pick<ProjectionMapperGUISettings, 'showGrid' | 'showCornerPoints' | 'showOutline'> | null =
+    null;
   private warpFolder!: FolderApi;
   private config: ProjectionMapperGUIConfig;
   private cornersOutlineState = { enabled: true };
@@ -55,19 +57,23 @@ export class ProjectionMapperGUI {
     const anchor = config.anchor || 'right';
 
     this.settings = {
-      shouldWarp: mapper.isWarpEnabled(),
+      //Settings
       showTestcard: mapper.isShowingTestCard(),
-      showGrid: true,
+      shouldWarp: mapper.isWarpEnabled(),
+      zoom: mapper.getPlaneScale(),
+      //Image
+      imageExpanded: true,
+      ...DEFAULT_IMAGE_SETTINGS,
+      //Perspective Warp
+      showOutline: true,
+      showCornerPoints: true,
+      //Grid Warp
       warpMode: mapper.getWarper().getWarpMode(),
       gridSize: {
         x: mapper.getWarper().getGridSizeX(),
         y: mapper.getWarper().getGridSizeY(),
       },
-      zoom: mapper.getPlaneScale(),
-      showCornerPoints: true,
-      showOutline: true,
-      imageExpanded: false,
-      ...DEFAULT_IMAGE_SETTINGS,
+      showGrid: false,
     };
 
     this.loadSettings();
@@ -164,7 +170,7 @@ export class ProjectionMapperGUI {
     });
 
     imageFolder
-      .addBinding(this.settings, 'maskEnabled', { label: 'Mask' })
+      .addBinding(this.settings, 'maskEnabled', { label: 'Feather Mask' })
       .on('change', (e: TpChangeEvent<unknown>) => {
         const enabled = e.value as boolean;
         this.mapper.setImageSettings({ maskEnabled: enabled });
@@ -383,15 +389,13 @@ export class ProjectionMapperGUI {
         }
       });
 
-    gridFolder
-      .addBinding(this.settings, 'showGrid', { label: 'Show' })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        const show = e.value as boolean;
-        this.mapper.setGridPointsVisible(show);
-        this.mapper.setShowControlLines(show);
-        this.saveSettings();
-        this.broadcast(ProjectionEventType.CONTROL_LINES_TOGGLED, { show });
-      });
+    gridFolder.addBinding(this.settings, 'showGrid', { label: 'Show' }).on('change', (e: TpChangeEvent<unknown>) => {
+      const show = e.value as boolean;
+      this.mapper.setGridPointsVisible(show);
+      this.mapper.setShowControlLines(show);
+      this.saveSettings();
+      this.broadcast(ProjectionEventType.CONTROL_LINES_TOGGLED, { show });
+    });
 
     this.warpFolder.addBlade({ view: 'separator' });
 
@@ -419,10 +423,7 @@ export class ProjectionMapperGUI {
   }
 
   public toggleWarpUI(forceState?: boolean): void {
-    const anyVisible =
-      this.settings.showGrid ||
-      this.settings.showCornerPoints ||
-      this.settings.showOutline;
+    const anyVisible = this.settings.showGrid || this.settings.showCornerPoints || this.settings.showOutline;
 
     const shouldHide = forceState !== undefined ? !forceState : anyVisible;
 
