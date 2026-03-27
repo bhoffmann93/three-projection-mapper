@@ -28,13 +28,20 @@ uniform float uGamma;
 uniform float uContrast;
 uniform float uHue;
 
-#define MAX_BEZIER_SEGMENTS 8
+#define MAX_QUADRATIC_SEGMENTS 16
 
 uniform bool uBezierMaskEnabled;
 uniform int uBezierSegmentCount;
-uniform vec2 uBezierAnchors[MAX_BEZIER_SEGMENTS];
-uniform vec2 uBezierHandles[MAX_BEZIER_SEGMENTS];
+uniform vec2 uSegP0[MAX_QUADRATIC_SEGMENTS];
+uniform vec2 uSegP1[MAX_QUADRATIC_SEGMENTS];
+uniform vec2 uSegP2[MAX_QUADRATIC_SEGMENTS];
 uniform float uBezierFeather;
+
+struct BezierQuadratic {
+    vec2 p0;
+    vec2 p1;
+    vec2 p2;
+};
 
 #define PI 3.14159265359
 #define TAU 6.28318530718
@@ -73,6 +80,11 @@ vec2 aspect01(vec2 uv, vec2 resolution) {
 float aastep(float edge, float value) {
     float afwidth = fwidth(value);
     return smoothstep(edge - afwidth, edge + afwidth, value);
+}
+
+float smootherstep(float edge0, float edge1, float x) {
+    x = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
+    return x * x * x * (x * (x * 6.0 - 15.0) + 10.0);
 }
 
 float sdLine(vec2 p, vec2 a, vec2 b) {
@@ -406,6 +418,16 @@ float sdBezier(in vec2 pos, in vec2 A, in vec2 B, in vec2 C, out vec2 outQ) {
     return sqrt(res) * sign(sgn);
 }
 
+float sdQuadraticBezier(vec2 p, vec2 p0, vec2 p1, vec2 p2) {
+    vec2 q;
+    return sdBezier(p, p0, p1, p2, q);
+}
+
+float gaussianAlpha(float dist, float sigma) {
+    // sigma represents the 'blurriness' or feather amount
+    return exp(-0.5 * (dist * dist) / (sigma * sigma));
+}
+
 void main() {
     vec3 color;
 
@@ -430,22 +452,18 @@ void main() {
     if(uBezierMaskEnabled && uBezierSegmentCount > 0) {
         float minDist = 1e9;
         int winding = 0;
-        for(int i = 0; i < MAX_BEZIER_SEGMENTS; i++) {
+        for(int i = 0; i < MAX_QUADRATIC_SEGMENTS; i++) {
             if(i >= uBezierSegmentCount)
                 break;
-            int next = 0;
-            if(i + 1 < uBezierSegmentCount)
-                next = i + 1;
-            vec2 A = uBezierAnchors[i];
-            vec2 B = uBezierHandles[i];
-            vec2 C = uBezierAnchors[next];
-            vec2 q;
-            minDist = min(minDist, abs(sdBezier(vUv, A, B, C, q)));
-            winding += quadraticCrossings(vUv, A, B, C);
+            BezierQuadratic seg = BezierQuadratic(uSegP0[i], uSegP1[i], uSegP2[i]);
+            minDist = min(minDist, abs(sdQuadraticBezier(vUv, seg.p0, seg.p1, seg.p2)));
+            winding += quadraticCrossings(vUv, seg.p0, seg.p1, seg.p2);
         }
         float inside = winding != 0 ? 1.0 : 0.0;
         float signedDist = inside > 0.5 ? minDist : -minDist;
-        float bezierMask = smoothstep(-uBezierFeather, uBezierFeather, signedDist);
+        float fw = fwidth(minDist);
+        float bezierMask = smoothstep(-fw, fw + uBezierFeather, signedDist);
+        bezierMask = gaussianAlpha(signedDist, uBezierFeather);
         color = mix(vec3(0.0), color, bezierMask);
     }
 

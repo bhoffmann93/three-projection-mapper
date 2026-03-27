@@ -11,10 +11,12 @@ export interface UVPoint { u: number; v: number; }
 
 export interface BezierNode {
   anchor: UVPoint;
-  handle: UVPoint;  // quadratic control point for segment FROM this anchor TO next anchor
+  handleIn: UVPoint;   // arriving tangent handle (from previous segment)
+  handleOut: UVPoint;  // departing tangent handle (toward next segment)
 }
 
 const STORAGE_KEY = 'bezier-mask';
+const HANDLE_OFFSET = 0.138; // 0.25 * 0.5523 for smooth circular oval
 
 export class BezierMask {
   public enabled: boolean;
@@ -27,9 +29,12 @@ export class BezierMask {
   private scene: THREE.Scene;
 
   private anchorObjects: THREE.Mesh[] = [];
-  private handleObjects: THREE.Mesh[] = [];
+  private handleInObjects: THREE.Mesh[] = [];
+  private handleOutObjects: THREE.Mesh[] = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private stalkLines: any[] = [];
+  private stalkInLines: any[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private stalkOutLines: any[] = [];
   private dragControls!: DragControls;
 
   private sphereGeo: THREE.SphereGeometry;
@@ -48,19 +53,20 @@ export class BezierMask {
     options: { enabled?: boolean; feather?: number } = {},
   ) {
     this._nodes = nodes.map(n => ({
-      anchor: { ...n.anchor },
-      handle: { ...n.handle },
+      anchor:    { ...n.anchor },
+      handleIn:  { ...n.handleIn },
+      handleOut: { ...n.handleOut },
     }));
-    this.worldWidth = worldWidth;
+    this.worldWidth  = worldWidth;
     this.worldHeight = worldHeight;
-    this.scene = scene;
-    this.enabled = options.enabled ?? true;
-    this.feather = options.feather ?? 0.01;
+    this.scene       = scene;
+    this.enabled     = options.enabled ?? true;
+    this.feather     = options.feather ?? 0.01;
 
     this.sphereGeo = new THREE.SphereGeometry(1, 8, 8);
     this.anchorMat = new THREE.MeshBasicMaterial({ color: 'hsl(195, 80%, 65%)', transparent: true, opacity: 0.9 });
     this.handleMat = new THREE.MeshBasicMaterial({ color: 'hsl(195, 50%, 80%)', transparent: true, opacity: 0.8 });
-    this.stalkMat = new LineMaterial({ color: 0x88ccdd, linewidth: 1.5 });
+    this.stalkMat  = new LineMaterial({ color: 0x88ccdd, linewidth: 1.5 });
 
     this.createSceneObjects(scene, camera, renderer);
   }
@@ -78,41 +84,52 @@ export class BezierMask {
 
   private worldToUV(x: number, y: number): UVPoint {
     return {
-      u: x / this.worldWidth + 0.5,
+      u: x / this.worldWidth  + 0.5,
       v: y / this.worldHeight + 0.5,
     };
   }
 
   private createSceneObjects(scene: THREE.Scene, camera: THREE.Camera, renderer: THREE.WebGLRenderer): void {
     for (let i = 0; i < this._nodes.length; i++) {
-      const node = this._nodes[i];
-      const aPos = this.uvToWorld(node.anchor);
-      const hPos = this.uvToWorld(node.handle);
+      const node  = this._nodes[i];
+      const aPos  = this.uvToWorld(node.anchor);
+      const hiPos = this.uvToWorld(node.handleIn);
+      const hoPos = this.uvToWorld(node.handleOut);
 
       const anchor = new THREE.Mesh(this.sphereGeo, this.anchorMat);
       anchor.position.set(aPos.x, aPos.y, 0.01);
-      anchor.userData.role = 'anchor';
-      anchor.userData.nodeIndex = i;
+      anchor.userData = { role: 'anchor', nodeIndex: i };
       this.anchorObjects.push(anchor);
       scene.add(anchor);
 
-      const handle = new THREE.Mesh(this.sphereGeo, this.handleMat);
-      handle.position.set(hPos.x, hPos.y, 0.01);
-      handle.userData.role = 'handle';
-      handle.userData.nodeIndex = i;
-      this.handleObjects.push(handle);
-      scene.add(handle);
+      const handleIn = new THREE.Mesh(this.sphereGeo, this.handleMat);
+      handleIn.position.set(hiPos.x, hiPos.y, 0.01);
+      handleIn.userData = { role: 'handleIn', nodeIndex: i };
+      this.handleInObjects.push(handleIn);
+      scene.add(handleIn);
 
-      const stalkGeo = new LineGeometry();
-      stalkGeo.setPositions([hPos.x, hPos.y, 0.01, aPos.x, aPos.y, 0.01]);
-      const stalk = new Line2(stalkGeo, this.stalkMat);
-      this.stalkLines.push(stalk);
-      scene.add(stalk);
+      const handleOut = new THREE.Mesh(this.sphereGeo, this.handleMat);
+      handleOut.position.set(hoPos.x, hoPos.y, 0.01);
+      handleOut.userData = { role: 'handleOut', nodeIndex: i };
+      this.handleOutObjects.push(handleOut);
+      scene.add(handleOut);
+
+      const stalkInGeo = new LineGeometry();
+      stalkInGeo.setPositions([hiPos.x, hiPos.y, 0.01, aPos.x, aPos.y, 0.01]);
+      const stalkIn = new Line2(stalkInGeo, this.stalkMat);
+      this.stalkInLines.push(stalkIn);
+      scene.add(stalkIn);
+
+      const stalkOutGeo = new LineGeometry();
+      stalkOutGeo.setPositions([hoPos.x, hoPos.y, 0.01, aPos.x, aPos.y, 0.01]);
+      const stalkOut = new Line2(stalkOutGeo, this.stalkMat);
+      this.stalkOutLines.push(stalkOut);
+      scene.add(stalkOut);
     }
 
-    const allHandles = [...this.anchorObjects, ...this.handleObjects];
-    this.dragControls = new DragControls(allHandles, camera, renderer.domElement);
-    this.dragControls.addEventListener('drag', this.handleDrag.bind(this));
+    const draggable = [...this.anchorObjects, ...this.handleInObjects, ...this.handleOutObjects];
+    this.dragControls = new DragControls(draggable, camera, renderer.domElement);
+    this.dragControls.addEventListener('drag',    this.handleDrag.bind(this));
     this.dragControls.addEventListener('dragend', () => this.saveToStorage());
   }
 
@@ -129,49 +146,71 @@ export class BezierMask {
     obj.position.z = 0.01;
     const x = obj.position.x;
     const y = obj.position.y;
+    const aPos = this.uvToWorld(node.anchor);
 
     if (role === 'anchor') {
-      const oldAnchor = this.uvToWorld(node.anchor);
-      const dx = x - oldAnchor.x;
-      const dy = y - oldAnchor.y;
+      const dx = x - aPos.x;
+      const dy = y - aPos.y;
 
-      const oldH = this.uvToWorld(node.handle);
-      const newH = new THREE.Vector2(oldH.x + dx, oldH.y + dy);
+      const oldHi = this.uvToWorld(node.handleIn);
+      const oldHo = this.uvToWorld(node.handleOut);
+      const newHi = new THREE.Vector2(oldHi.x + dx, oldHi.y + dy);
+      const newHo = new THREE.Vector2(oldHo.x + dx, oldHo.y + dy);
 
-      node.anchor = this.worldToUV(x, y);
-      node.handle = this.worldToUV(newH.x, newH.y);
+      node.anchor    = this.worldToUV(x, y);
+      node.handleIn  = this.worldToUV(newHi.x, newHi.y);
+      node.handleOut = this.worldToUV(newHo.x, newHo.y);
 
-      this.handleObjects[nodeIndex].position.set(newH.x, newH.y, 0.01);
+      this.handleInObjects[nodeIndex].position.set(newHi.x, newHi.y, 0.01);
+      this.handleOutObjects[nodeIndex].position.set(newHo.x, newHo.y, 0.01);
 
-      const aPos = new THREE.Vector2(x, y);
-      this.updateStalk(this.stalkLines[nodeIndex], newH, aPos);
+      const ap = new THREE.Vector2(x, y);
+      this.updateStalk(this.stalkInLines[nodeIndex],  newHi, ap);
+      this.updateStalk(this.stalkOutLines[nodeIndex], newHo, ap);
 
-    } else if (role === 'handle') {
-      node.handle = this.worldToUV(x, y);
-      const aPos = this.uvToWorld(node.anchor);
-      this.updateStalk(this.stalkLines[nodeIndex], new THREE.Vector2(x, y), aPos);
+    } else if (role === 'handleIn') {
+      node.handleIn = this.worldToUV(x, y);
+      this.updateStalk(this.stalkInLines[nodeIndex], new THREE.Vector2(x, y), aPos);
+      // Mirror handleOut through anchor
+      const mx = 2 * aPos.x - x;
+      const my = 2 * aPos.y - y;
+      node.handleOut = this.worldToUV(mx, my);
+      this.handleOutObjects[nodeIndex].position.set(mx, my, 0.01);
+      this.updateStalk(this.stalkOutLines[nodeIndex], new THREE.Vector2(mx, my), aPos);
+
+    } else if (role === 'handleOut') {
+      node.handleOut = this.worldToUV(x, y);
+      this.updateStalk(this.stalkOutLines[nodeIndex], new THREE.Vector2(x, y), aPos);
+      // Mirror handleIn through anchor
+      const mx = 2 * aPos.x - x;
+      const my = 2 * aPos.y - y;
+      node.handleIn = this.worldToUV(mx, my);
+      this.handleInObjects[nodeIndex].position.set(mx, my, 0.01);
+      this.updateStalk(this.stalkInLines[nodeIndex], new THREE.Vector2(mx, my), aPos);
     }
 
     this.onChanged?.();
   }
 
   public setVisible(visible: boolean): void {
-    [...this.anchorObjects, ...this.handleObjects].forEach(obj => {
+    const all = [...this.anchorObjects, ...this.handleInObjects, ...this.handleOutObjects];
+    all.forEach(obj => {
       obj.visible = visible;
       if (visible) obj.layers.enable(0); else obj.layers.disable(0);
     });
-    this.stalkLines.forEach(line => { line.visible = visible; });
+    [...this.stalkInLines, ...this.stalkOutLines].forEach(line => { line.visible = visible; });
   }
 
   public updateControlPointsScale(pixelToWorld: number): void {
     const size = pixelToWorld * 5;
     this.anchorObjects.forEach(obj => obj.scale.setScalar(size));
-    this.handleObjects.forEach(obj => obj.scale.setScalar(size));
+    this.handleInObjects.forEach(obj => obj.scale.setScalar(size));
+    this.handleOutObjects.forEach(obj => obj.scale.setScalar(size));
   }
 
   public saveToStorage(): void {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      nodes: this._nodes,
+      nodes:   this._nodes,
       enabled: this.enabled,
       feather: this.feather,
     }));
@@ -179,8 +218,9 @@ export class BezierMask {
 
   public dispose(): void {
     this.dragControls.dispose();
-    [...this.anchorObjects, ...this.handleObjects].forEach(obj => this.scene.remove(obj));
-    this.stalkLines.forEach(line => {
+    [...this.anchorObjects, ...this.handleInObjects, ...this.handleOutObjects]
+      .forEach(obj => this.scene.remove(obj));
+    [...this.stalkInLines, ...this.stalkOutLines].forEach(line => {
       line.geometry.dispose();
       this.scene.remove(line);
     });
@@ -192,11 +232,12 @@ export class BezierMask {
   }
 
   public static defaultNodes(): BezierNode[] {
+    const h = HANDLE_OFFSET;
     return [
-      { anchor: { u: 0.5,  v: 0.75 }, handle: { u: 0.75, v: 0.75 } },
-      { anchor: { u: 0.75, v: 0.5  }, handle: { u: 0.75, v: 0.25 } },
-      { anchor: { u: 0.5,  v: 0.25 }, handle: { u: 0.25, v: 0.25 } },
-      { anchor: { u: 0.25, v: 0.5  }, handle: { u: 0.25, v: 0.75 } },
+      { anchor: { u: 0.5,  v: 0.75 }, handleIn: { u: 0.5 - h, v: 0.75 }, handleOut: { u: 0.5 + h, v: 0.75 } },
+      { anchor: { u: 0.75, v: 0.5  }, handleIn: { u: 0.75, v: 0.5 + h  }, handleOut: { u: 0.75, v: 0.5 - h  } },
+      { anchor: { u: 0.5,  v: 0.25 }, handleIn: { u: 0.5 + h, v: 0.25  }, handleOut: { u: 0.5 - h, v: 0.25  } },
+      { anchor: { u: 0.25, v: 0.5  }, handleIn: { u: 0.25, v: 0.5 - h  }, handleOut: { u: 0.25, v: 0.5 + h  } },
     ];
   }
 

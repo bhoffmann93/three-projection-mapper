@@ -9,6 +9,41 @@ import { calculateGridPoints } from '../warp/geometry';
 
 export const GUI_STORAGE_KEY = 'projection-mapper-gui-settings';
 
+/** Split a cubic Bézier into two best-fit quadratic segments by subdividing at t=0.5. */
+function cubicToTwoQuadratics(
+  p0: THREE.Vector2, p1: THREE.Vector2, p2: THREE.Vector2, p3: THREE.Vector2,
+): [
+  { p0: THREE.Vector2; p1: THREE.Vector2; p2: THREE.Vector2 },
+  { p0: THREE.Vector2; p1: THREE.Vector2; p2: THREE.Vector2 },
+] {
+  const lerp = (a: THREE.Vector2, b: THREE.Vector2, t: number) =>
+    new THREE.Vector2(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
+
+  // De Casteljau subdivision at t = 0.5
+  const q0 = lerp(p0, p1, 0.5);
+  const q1 = lerp(p1, p2, 0.5);
+  const q2 = lerp(p2, p3, 0.5);
+  const r0 = lerp(q0, q1, 0.5);
+  const r1 = lerp(q1, q2, 0.5);
+  const m  = lerp(r0, r1, 0.5); // point on curve at t=0.5
+
+  // Best-fit quadratic control point for each cubic half:
+  // Q1 = (3*(S1 + S2) - (S0 + S3)) / 4
+  const qa1 = new THREE.Vector2(
+    (3 * (q0.x + r0.x) - (p0.x + m.x)) * 0.25,
+    (3 * (q0.y + r0.y) - (p0.y + m.y)) * 0.25,
+  );
+  const qb1 = new THREE.Vector2(
+    (3 * (r1.x + q2.x) - (m.x + p3.x)) * 0.25,
+    (3 * (r1.y + q2.y) - (m.y + p3.y)) * 0.25,
+  );
+
+  return [
+    { p0: p0.clone(), p1: qa1,       p2: m         },
+    { p0: m.clone(),  p1: qb1,       p2: p3.clone() },
+  ];
+}
+
 export interface ImageSettings {
   maskEnabled: boolean;
   feather: number;
@@ -79,8 +114,9 @@ export class ProjectionMapper {
     uHue: { value: number };
     uBezierMaskEnabled: { value: boolean };
     uBezierSegmentCount: { value: number };
-    uBezierAnchors: { value: THREE.Vector2[] };
-    uBezierHandles: { value: THREE.Vector2[] };
+    uSegP0: { value: THREE.Vector2[] };
+    uSegP1: { value: THREE.Vector2[] };
+    uSegP2: { value: THREE.Vector2[] };
     uBezierFeather: { value: number };
   };
 
@@ -151,8 +187,9 @@ export class ProjectionMapper {
       uHue: { value: DEFAULT_IMAGE_SETTINGS.hue },
       uBezierMaskEnabled: { value: false },
       uBezierSegmentCount: { value: 0 },
-      uBezierAnchors: { value: Array.from({ length: 8 }, () => new THREE.Vector2()) },
-      uBezierHandles: { value: Array.from({ length: 8 }, () => new THREE.Vector2()) },
+      uSegP0: { value: Array.from({ length: 16 }, () => new THREE.Vector2()) },
+      uSegP1: { value: Array.from({ length: 16 }, () => new THREE.Vector2()) },
+      uSegP2: { value: Array.from({ length: 16 }, () => new THREE.Vector2()) },
       uBezierFeather: { value: 0.01 },
     };
 
@@ -395,14 +432,31 @@ export class ProjectionMapper {
     }
     const nodes = mask.nodes;
     const N = Math.min(nodes.length, 8);
-    this.uniforms.uBezierMaskEnabled.value = true;
-    this.uniforms.uBezierSegmentCount.value = N;
-    this.uniforms.uBezierFeather.value = mask.feather;
-    for (let i = 0; i < 8; i++) {
-      const node = nodes[i % N];
-      this.uniforms.uBezierAnchors.value[i].set(node.anchor.u, node.anchor.v);
-      this.uniforms.uBezierHandles.value[i].set(node.handle.u, node.handle.v);
+    const uv = (p: { u: number; v: number }) => new THREE.Vector2(p.u, p.v);
+
+    let idx = 0;
+    for (let i = 0; i < N; i++) {
+      const node     = nodes[i];
+      const nextNode = nodes[(i + 1) % N];
+      const [qa, qb] = cubicToTwoQuadratics(
+        uv(node.anchor),
+        uv(node.handleOut),
+        uv(nextNode.handleIn),
+        uv(nextNode.anchor),
+      );
+      this.uniforms.uSegP0.value[idx].copy(qa.p0);
+      this.uniforms.uSegP1.value[idx].copy(qa.p1);
+      this.uniforms.uSegP2.value[idx].copy(qa.p2);
+      idx++;
+      this.uniforms.uSegP0.value[idx].copy(qb.p0);
+      this.uniforms.uSegP1.value[idx].copy(qb.p1);
+      this.uniforms.uSegP2.value[idx].copy(qb.p2);
+      idx++;
     }
+
+    this.uniforms.uBezierMaskEnabled.value  = true;
+    this.uniforms.uBezierSegmentCount.value = idx;
+    this.uniforms.uBezierFeather.value      = mask.feather;
   }
 
   dispose(): void {

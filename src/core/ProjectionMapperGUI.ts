@@ -166,15 +166,15 @@ export class ProjectionMapperGUI {
       const maskFolder = masksFolder.addFolder({ title: 'Bezier Mask', expanded: true });
 
       const enabledState = { enabled: mask.enabled };
-      maskFolder.addBinding(enabledState, 'enabled', { label: 'Enabled' })
-        .on('change', (e: TpChangeEvent<unknown>) => {
-          mask.enabled = e.value as boolean;
-          mask.onChanged?.();
-          mask.saveToStorage();
-        });
+      maskFolder.addBinding(enabledState, 'enabled', { label: 'Enabled' }).on('change', (e: TpChangeEvent<unknown>) => {
+        mask.enabled = e.value as boolean;
+        mask.onChanged?.();
+        mask.saveToStorage();
+      });
 
       const featherState = { feather: mask.feather };
-      maskFolder.addBinding(featherState, 'feather', { label: 'Feather', min: 0, max: 0.05, step: 0.001 })
+      maskFolder
+        .addBinding(featherState, 'feather', { label: 'Feather', min: 0, max: 0.05, step: 0.001 })
         .on('change', (e: TpChangeEvent<unknown>) => {
           mask.feather = e.value as number;
           mask.onChanged?.();
@@ -182,7 +182,8 @@ export class ProjectionMapperGUI {
         });
 
       const handlesState = { visible: true };
-      maskFolder.addBinding(handlesState, 'visible', { label: 'Show Handles' })
+      maskFolder
+        .addBinding(handlesState, 'visible', { label: 'Show Handles' })
         .on('change', (e: TpChangeEvent<unknown>) => {
           mask.setVisible(e.value as boolean);
         });
@@ -225,7 +226,13 @@ export class ProjectionMapperGUI {
       });
 
     const featherBinding = imageFolder
-      .addBinding(this.settings, 'feather', { label: 'Feather', min: 0.0, max: 0.5, step: 0.01, disabled: !this.settings.maskEnabled })
+      .addBinding(this.settings, 'feather', {
+        label: 'Feather',
+        min: 0.0,
+        max: 0.5,
+        step: 0.01,
+        disabled: !this.settings.maskEnabled,
+      })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setImageSettings({ feather: e.value as number });
         this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
@@ -274,7 +281,7 @@ export class ProjectionMapperGUI {
       this.saveSettings();
     });
 
-    // Warp UI
+    // warp UI
     this.warpFolder = this.pane.addFolder({ title: 'Warping', expanded: true });
 
     // Ensure folder state matches loaded settings
