@@ -31,10 +31,6 @@ uniform float uHue;
 // Bezier Mask
 #define MAX_QUADRATIC_SEGMENTS 16
 
-const int GAUSSIAN = 0;
-const int SMOOTHERSTEP = 1;
-const int BEZIER_MASK_FEATHER_TYPE = SMOOTHERSTEP;
-
 uniform bool uBezierMaskEnabled;
 uniform int uBezierSegmentCount;
 uniform vec2 uSegP0[MAX_QUADRATIC_SEGMENTS];
@@ -258,11 +254,6 @@ float gaussianRectMask(vec2 uv, vec2 res, float soft) {
     vec2 insetSize = baseSize - (soft * 1.5);
     float rectmask = gaussianRect(p, insetSize, soft);
     return rectmask;
-}
-
-float gaussianStep(float dist, float sigma) {
-    // We scale by sqrt(2) approx 1.414 to align sigma with standard pixel units
-    return 0.5 + 0.5 * erf(dist / (sigma * 1.414));
 }
 
 vec3 acesTonemap(vec3 v) {
@@ -498,17 +489,7 @@ void main() {
         float signedDist = resSgn * minDist;
         float fw = fwidth(signedDist);
 
-        float mask;
-
-        if(BEZIER_MASK_FEATHER_TYPE == SMOOTHERSTEP) {
-            mask = smootherstep(-fw - uBezierFeather, fw + uBezierFeather, signedDist);
-        }
-
-        if(BEZIER_MASK_FEATHER_TYPE == GAUSSIAN) {
-            float sigma = max(fwidth(signedDist) * 0.5, uBezierFeather);
-            sigma = max(sigma, 1e-6);
-            mask = gaussianStep(signedDist, sigma);
-        }
+        float mask = smootherstep(-fw - uBezierFeather, fw + uBezierFeather, signedDist);
 
         color = mix(vec3(0.0), color, mask);
     }

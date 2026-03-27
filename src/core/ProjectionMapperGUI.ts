@@ -158,7 +158,7 @@ export class ProjectionMapperGUI {
       });
 
     // Masks
-    const masksFolder = this.pane.addFolder({ title: 'Masks', expanded: false });
+    const masksFolder = this.pane.addFolder({ title: 'Masks', expanded: true });
     const addMaskBtn = masksFolder.addButton({ title: 'Add Bezier Mask' });
 
     const showMaskControls = (mask: BezierMask) => {
