@@ -21,11 +21,10 @@ export interface ProjectionMapperGUIConfig {
 export interface ProjectionMapperGUISettings extends ImageSettings {
   shouldWarp: boolean;
   showTestcard: boolean;
-  showControlLines: boolean;
+  showGrid: boolean;
   warpMode: WARP_MODE;
   gridSize: { x: number; y: number };
   zoom: number;
-  showGridPoints: boolean;
   showCornerPoints: boolean;
   showOutline: boolean;
   imageExpanded: boolean;
@@ -40,7 +39,7 @@ export class ProjectionMapperGUI {
   private settings: ProjectionMapperGUISettings;
   private savedVisibility: Pick<
     ProjectionMapperGUISettings,
-    'showGridPoints' | 'showCornerPoints' | 'showOutline' | 'showControlLines'
+    'showGrid' | 'showCornerPoints' | 'showOutline'
   > | null = null;
   private warpFolder!: FolderApi;
   private config: ProjectionMapperGUIConfig;
@@ -58,14 +57,13 @@ export class ProjectionMapperGUI {
     this.settings = {
       shouldWarp: mapper.isWarpEnabled(),
       showTestcard: mapper.isShowingTestCard(),
-      showControlLines: mapper.isShowingControlLines(),
+      showGrid: true,
       warpMode: mapper.getWarper().getWarpMode(),
       gridSize: {
         x: mapper.getWarper().getGridSizeX(),
         y: mapper.getWarper().getGridSizeY(),
       },
       zoom: mapper.getPlaneScale(),
-      showGridPoints: true,
       showCornerPoints: true,
       showOutline: true,
       imageExpanded: false,
@@ -157,56 +155,6 @@ export class ProjectionMapperGUI {
         // NOTE: Zoom is controller-local only, not broadcast to projector
       });
 
-    // Masks
-    const masksFolder = this.pane.addFolder({ title: 'Masks', expanded: true });
-    const addMaskBtn = masksFolder.addButton({ title: 'Add Bezier Mask' });
-
-    const showMaskControls = (mask: BezierMask) => {
-      addMaskBtn.disabled = true;
-      const maskFolder = masksFolder.addFolder({ title: 'Bezier Mask', expanded: true });
-
-      const enabledState = { enabled: mask.enabled };
-      maskFolder.addBinding(enabledState, 'enabled', { label: 'Enabled' }).on('change', (e: TpChangeEvent<unknown>) => {
-        mask.enabled = e.value as boolean;
-        mask.onChanged?.();
-        mask.saveToStorage();
-      });
-
-      const featherState = { feather: mask.feather };
-      maskFolder
-        .addBinding(featherState, 'feather', { label: 'Feather', min: 0, max: 0.05, step: 0.001 })
-        .on('change', (e: TpChangeEvent<unknown>) => {
-          mask.feather = e.value as number;
-          mask.onChanged?.();
-          mask.saveToStorage();
-        });
-
-      const handlesState = { visible: true };
-      maskFolder
-        .addBinding(handlesState, 'visible', { label: 'Show Handles' })
-        .on('change', (e: TpChangeEvent<unknown>) => {
-          mask.setVisible(e.value as boolean);
-        });
-
-      maskFolder.addButton({ title: 'Delete' }).on('click', () => {
-        this.mapper.removeBezierMask();
-        maskFolder.dispose();
-        addMaskBtn.disabled = false;
-      });
-    };
-
-    addMaskBtn.on('click', () => {
-      const mask = this.mapper.addBezierMask();
-      showMaskControls(mask);
-    });
-
-    // Restore mask from storage on init
-    const stored = BezierMask.loadFromStorage();
-    if (stored) {
-      const mask = this.mapper.addBezierMask(stored.nodes, { enabled: stored.enabled, feather: stored.feather });
-      showMaskControls(mask);
-    }
-
     // Image settings folder
     const imageFolder = this.pane.addFolder({ title: 'Image', expanded: this.settings.imageExpanded });
 
@@ -281,6 +229,56 @@ export class ProjectionMapperGUI {
       this.saveSettings();
     });
 
+    // Masks
+    const masksFolder = this.pane.addFolder({ title: 'Masks', expanded: true });
+    const addMaskBtn = masksFolder.addButton({ title: 'Add Bezier Mask' });
+
+    const showMaskControls = (mask: BezierMask) => {
+      addMaskBtn.disabled = true;
+      const maskFolder = masksFolder.addFolder({ title: 'Bezier Mask', expanded: true });
+
+      const enabledState = { enabled: mask.enabled };
+      maskFolder.addBinding(enabledState, 'enabled', { label: 'Enabled' }).on('change', (e: TpChangeEvent<unknown>) => {
+        mask.enabled = e.value as boolean;
+        mask.onChanged?.();
+        mask.saveToStorage();
+      });
+
+      const featherState = { feather: mask.feather };
+      maskFolder
+        .addBinding(featherState, 'feather', { label: 'Feather', min: 0, max: 0.05, step: 0.001 })
+        .on('change', (e: TpChangeEvent<unknown>) => {
+          mask.feather = e.value as number;
+          mask.onChanged?.();
+          mask.saveToStorage();
+        });
+
+      const handlesState = { visible: true };
+      maskFolder
+        .addBinding(handlesState, 'visible', { label: 'Show Handles' })
+        .on('change', (e: TpChangeEvent<unknown>) => {
+          mask.setVisible(e.value as boolean);
+        });
+
+      maskFolder.addButton({ title: 'Delete' }).on('click', () => {
+        this.mapper.removeBezierMask();
+        maskFolder.dispose();
+        addMaskBtn.disabled = false;
+      });
+    };
+
+    addMaskBtn.on('click', () => {
+      const mask = this.mapper.addBezierMask();
+      showMaskControls(mask);
+    });
+
+    // Restore mask from storage on init
+    const stored = BezierMask.loadFromStorage();
+    if (stored) {
+      const mask = this.mapper.addBezierMask(stored.nodes, { enabled: stored.enabled, feather: stored.feather });
+      showMaskControls(mask);
+    }
+
     // warp UI
     this.warpFolder = this.pane.addFolder({ title: 'Warping', expanded: true });
 
@@ -295,21 +293,16 @@ export class ProjectionMapperGUI {
     this.warpFolder.addButton({ title: 'Toggle Controls' }).on('click', () => this.toggleWarpUI());
 
     this.warpFolder.addButton({ title: 'Show All' }).on('click', () => {
-      this.settings.showGridPoints = true;
+      this.settings.showGrid = true;
       this.settings.showCornerPoints = true;
       this.settings.showOutline = true;
-      this.settings.showControlLines = true;
       this.cornersOutlineState.enabled = true;
       this.savedVisibility = null;
       this.applyVisibility();
       this.pane.refresh();
       this.saveSettings();
-      this.broadcast(ProjectionEventType.CONTROLS_VISIBILITY_CHANGED, {
-        visible: true,
-      });
-      this.broadcast(ProjectionEventType.CONTROL_LINES_TOGGLED, {
-        show: true,
-      });
+      this.broadcast(ProjectionEventType.CONTROLS_VISIBILITY_CHANGED, { visible: true });
+      this.broadcast(ProjectionEventType.CONTROL_LINES_TOGGLED, { show: true });
     });
 
     // Perspective Warp folder
@@ -391,20 +384,13 @@ export class ProjectionMapperGUI {
       });
 
     gridFolder
-      .addBinding(this.settings, 'showGridPoints', { label: 'Grid Handles' })
+      .addBinding(this.settings, 'showGrid', { label: 'Show' })
       .on('change', (e: TpChangeEvent<unknown>) => {
-        this.mapper.setGridPointsVisible(e.value as boolean);
+        const show = e.value as boolean;
+        this.mapper.setGridPointsVisible(show);
+        this.mapper.setShowControlLines(show);
         this.saveSettings();
-      });
-
-    gridFolder
-      .addBinding(this.settings, 'showControlLines', { label: 'Control Lines' })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        this.mapper.setShowControlLines(e.value as boolean);
-        this.saveSettings();
-        this.broadcast(ProjectionEventType.CONTROL_LINES_TOGGLED, {
-          show: e.value as boolean,
-        });
+        this.broadcast(ProjectionEventType.CONTROL_LINES_TOGGLED, { show });
       });
 
     this.warpFolder.addBlade({ view: 'separator' });
@@ -426,48 +412,43 @@ export class ProjectionMapperGUI {
   }
 
   private applyVisibility(): void {
-    this.mapper.setGridPointsVisible(this.settings.showGridPoints);
+    this.mapper.setGridPointsVisible(this.settings.showGrid);
+    this.mapper.setShowControlLines(this.settings.showGrid);
     this.mapper.setCornerPointsVisible(this.settings.showCornerPoints);
     this.mapper.setOutlineVisible(this.settings.showOutline);
-    this.mapper.setShowControlLines(this.settings.showControlLines);
   }
 
   public toggleWarpUI(forceState?: boolean): void {
     const anyVisible =
-      this.settings.showGridPoints ||
+      this.settings.showGrid ||
       this.settings.showCornerPoints ||
-      this.settings.showOutline ||
-      this.settings.showControlLines;
+      this.settings.showOutline;
 
     const shouldHide = forceState !== undefined ? !forceState : anyVisible;
 
     if (shouldHide && anyVisible) {
       this.savedVisibility = {
-        showGridPoints: this.settings.showGridPoints,
+        showGrid: this.settings.showGrid,
         showCornerPoints: this.settings.showCornerPoints,
         showOutline: this.settings.showOutline,
-        showControlLines: this.settings.showControlLines,
       };
-      this.settings.showGridPoints = false;
+      this.settings.showGrid = false;
       this.settings.showCornerPoints = false;
       this.settings.showOutline = false;
-      this.settings.showControlLines = false;
       this.cornersOutlineState.enabled = false;
     } else if (shouldHide) {
       // Already hidden, nothing to do
     } else {
       if (this.savedVisibility) {
-        this.settings.showGridPoints = this.savedVisibility.showGridPoints;
+        this.settings.showGrid = this.savedVisibility.showGrid;
         this.settings.showCornerPoints = this.savedVisibility.showCornerPoints;
         this.settings.showOutline = this.savedVisibility.showOutline;
-        this.settings.showControlLines = this.savedVisibility.showControlLines;
         this.cornersOutlineState.enabled = this.savedVisibility.showCornerPoints;
         this.savedVisibility = null;
       } else {
-        this.settings.showGridPoints = true;
+        this.settings.showGrid = true;
         this.settings.showCornerPoints = true;
         this.settings.showOutline = true;
-        this.settings.showControlLines = true;
         this.cornersOutlineState.enabled = true;
       }
     }
@@ -476,12 +457,11 @@ export class ProjectionMapperGUI {
     this.pane.refresh();
     this.saveSettings();
 
-    // Broadcast visibility changes
     this.broadcast(ProjectionEventType.CONTROLS_VISIBILITY_CHANGED, {
-      visible: this.settings.showGridPoints || this.settings.showCornerPoints || this.settings.showOutline,
+      visible: this.settings.showGrid || this.settings.showCornerPoints || this.settings.showOutline,
     });
     this.broadcast(ProjectionEventType.CONTROL_LINES_TOGGLED, {
-      show: this.settings.showControlLines,
+      show: this.settings.showGrid,
     });
   }
 

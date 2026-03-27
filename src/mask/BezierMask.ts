@@ -140,7 +140,13 @@ export class BezierMask {
 
   private handleDrag(event: { object: THREE.Object3D }): void {
     const obj = event.object as THREE.Mesh;
-    const { role, nodeIndex } = obj.userData as { role: string; nodeIndex: number };
+
+    let nodeIndex = this.anchorObjects.indexOf(obj);
+    let role = 'anchor';
+    if (nodeIndex === -1) { nodeIndex = this.handleInObjects.indexOf(obj);  role = 'handleIn';  }
+    if (nodeIndex === -1) { nodeIndex = this.handleOutObjects.indexOf(obj); role = 'handleOut'; }
+    if (nodeIndex === -1) return; // not one of our objects
+
     const node = this._nodes[nodeIndex];
 
     obj.position.z = 0.01;
