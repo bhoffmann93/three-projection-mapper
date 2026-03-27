@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { BezierMask, type BezierNode } from '../mask/BezierMask';
 import { MeshWarper, MeshWarperConfig } from '../warp/MeshWarper';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
@@ -76,7 +77,15 @@ export class ProjectionMapper {
     uGamma: { value: number };
     uContrast: { value: number };
     uHue: { value: number };
+    uBezierMaskEnabled: { value: boolean };
+    uBezierSegmentCount: { value: number };
+    uBezierAnchors: { value: THREE.Vector2[] };
+    uBezierHandlesOut: { value: THREE.Vector2[] };
+    uBezierHandlesIn: { value: THREE.Vector2[] };
+    uBezierFeather: { value: number };
   };
+
+  private bezierMask: BezierMask | null = null;
 
   /** Resolution in pixels, passed through to shaders */
   private resolution: { width: number; height: number };
@@ -141,6 +150,12 @@ export class ProjectionMapper {
       uGamma: { value: DEFAULT_IMAGE_SETTINGS.gamma },
       uContrast: { value: DEFAULT_IMAGE_SETTINGS.contrast },
       uHue: { value: DEFAULT_IMAGE_SETTINGS.hue },
+      uBezierMaskEnabled: { value: false },
+      uBezierSegmentCount: { value: 0 },
+      uBezierAnchors: { value: Array.from({ length: 8 }, () => new THREE.Vector2()) },
+      uBezierHandlesOut: { value: Array.from({ length: 8 }, () => new THREE.Vector2()) },
+      uBezierHandlesIn: { value: Array.from({ length: 8 }, () => new THREE.Vector2()) },
+      uBezierFeather: { value: 0.01 },
     };
 
     const warperConfig: MeshWarperConfig = {
@@ -201,6 +216,7 @@ export class ProjectionMapper {
     const viewportWidth = this.renderer.domElement.clientWidth;
     const pixelToWorld = frustumWidth / viewportWidth;
     this.meshWarper.updateControlPointsScale(pixelToWorld);
+    this.bezierMask?.updateControlPointsScale(pixelToWorld);
 
     if (this.config.antialias == false) {
       this.renderer.setRenderTarget(null);
@@ -343,7 +359,58 @@ export class ProjectionMapper {
     return this.camera;
   }
 
+  addBezierMask(nodes?: BezierNode[], options?: { enabled?: boolean; feather?: number }): BezierMask {
+    if (this.bezierMask) this.bezierMask.dispose();
+    const mask = new BezierMask(
+      nodes ?? BezierMask.defaultNodes(),
+      this.worldWidth,
+      this.worldHeight,
+      this.scene,
+      this.camera,
+      this.renderer,
+      options,
+    );
+    mask.onChanged = () => this.syncBezierMaskUniforms();
+    this.bezierMask = mask;
+    this.syncBezierMaskUniforms();
+    return mask;
+  }
+
+  removeBezierMask(): void {
+    if (!this.bezierMask) return;
+    this.bezierMask.dispose();
+    this.bezierMask = null;
+    this.uniforms.uBezierMaskEnabled.value = false;
+    this.uniforms.uBezierSegmentCount.value = 0;
+  }
+
+  getBezierMask(): BezierMask | null {
+    return this.bezierMask;
+  }
+
+  private syncBezierMaskUniforms(): void {
+    const mask = this.bezierMask;
+    if (!mask || !mask.enabled) {
+      this.uniforms.uBezierMaskEnabled.value = false;
+      this.uniforms.uBezierSegmentCount.value = 0;
+      return;
+    }
+    const nodes = mask.nodes;
+    const N = Math.min(nodes.length, 8);
+    this.uniforms.uBezierMaskEnabled.value = true;
+    this.uniforms.uBezierSegmentCount.value = N;
+    this.uniforms.uBezierFeather.value = mask.feather;
+    for (let i = 0; i < 8; i++) {
+      const node = nodes[i % N];
+      const nextNode = nodes[(i + 1) % N];
+      this.uniforms.uBezierAnchors.value[i].set(node.anchor.u, node.anchor.v);
+      this.uniforms.uBezierHandlesOut.value[i].set(node.handleOut.u, node.handleOut.v);
+      this.uniforms.uBezierHandlesIn.value[i].set(nextNode.handleIn.u, nextNode.handleIn.v);
+    }
+  }
+
   dispose(): void {
+    this.bezierMask?.dispose();
     this.meshWarper.dispose();
     this.composer.dispose();
   }

@@ -28,6 +28,15 @@ uniform float uGamma;
 uniform float uContrast;
 uniform float uHue;
 
+#define MAX_BEZIER_SEGMENTS 8
+
+uniform bool  uBezierMaskEnabled;
+uniform int   uBezierSegmentCount;
+uniform vec2  uBezierAnchors[MAX_BEZIER_SEGMENTS];
+uniform vec2  uBezierHandlesOut[MAX_BEZIER_SEGMENTS];
+uniform vec2  uBezierHandlesIn[MAX_BEZIER_SEGMENTS];
+uniform float uBezierFeather;
+
 #define PI 3.14159265359
 #define TAU 6.28318530718
 
@@ -269,6 +278,42 @@ vec3 imageAdjust(vec3 color) {
     return clamp(color, 0.0, 1.0);
 }
 
+// Minimum distance from point p to a cubic bezier segment (64 steps)
+float bezierDist(vec2 p, vec2 P0, vec2 P1, vec2 P2, vec2 P3) {
+    float minDist = 1e9;
+    for (int i = 0; i <= 64; i++) {
+        float t = float(i) / 64.0;
+        float mt = 1.0 - t;
+        vec2 b = mt*mt*mt*P0 + 3.0*mt*mt*t*P1 + 3.0*mt*t*t*P2 + t*t*t*P3;
+        minDist = min(minDist, length(p - b));
+    }
+    return minDist;
+}
+
+// Winding number contribution from one cubic bezier segment (64 linear sub-segments)
+int bezierCrossings(vec2 p, vec2 P0, vec2 P1, vec2 P2, vec2 P3) {
+    int w = 0;
+    vec2 prev = P0;
+    for (int i = 1; i <= 64; i++) {
+        float t = float(i) / 64.0;
+        float mt = 1.0 - t;
+        vec2 curr = mt*mt*mt*P0 + 3.0*mt*mt*t*P1 + 3.0*mt*t*t*P2 + t*t*t*P3;
+        if (prev.y <= p.y) {
+            if (curr.y > p.y) {
+                float cross = (curr.x - prev.x) * (p.y - prev.y) - (p.x - prev.x) * (curr.y - prev.y);
+                if (cross > 0.0) w++;
+            }
+        } else {
+            if (curr.y <= p.y) {
+                float cross = (curr.x - prev.x) * (p.y - prev.y) - (p.x - prev.x) * (curr.y - prev.y);
+                if (cross < 0.0) w--;
+            }
+        }
+        prev = curr;
+    }
+    return w;
+}
+
 void main() {
     vec3 color;
 
@@ -287,6 +332,27 @@ void main() {
         float soft = mix(0.0, 0.25, uFeather);
         float mask = gaussianRectMask(vUv, uShouldWarp ? uWarpPlaneSize : uBufferResolution, soft);
         color = mix(vec3(0.0), color, mask);
+    }
+
+    // Bezier mask
+    if (uBezierMaskEnabled && uBezierSegmentCount > 0) {
+        float minDist = 1e9;
+        int winding = 0;
+        for (int i = 0; i < MAX_BEZIER_SEGMENTS; i++) {
+            if (i >= uBezierSegmentCount) break;
+            int next = 0;
+            if (i + 1 < uBezierSegmentCount) next = i + 1;
+            vec2 P0 = uBezierAnchors[i];
+            vec2 P1 = uBezierHandlesOut[i];
+            vec2 P2 = uBezierHandlesIn[i];
+            vec2 P3 = uBezierAnchors[next];
+            minDist = min(minDist, bezierDist(vUv, P0, P1, P2, P3));
+            winding += bezierCrossings(vUv, P0, P1, P2, P3);
+        }
+        float inside = winding != 0 ? 1.0 : 0.0;
+        float signedDist = inside > 0.5 ? minDist : -minDist;
+        float bezierMask = smoothstep(-uBezierFeather, uBezierFeather, signedDist);
+        color = mix(vec3(0.0), color, bezierMask);
     }
 
     if(uShouldWarp == false || uShowControlLines) {

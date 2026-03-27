@@ -3,6 +3,7 @@ import { FolderApi, Pane, TpChangeEvent } from 'tweakpane';
 import { ProjectionMapper, GUI_STORAGE_KEY, DEFAULT_IMAGE_SETTINGS } from './ProjectionMapper';
 import type { ImageSettings } from './ProjectionMapper';
 import { WARP_MODE } from '../warp/MeshWarper';
+import { BezierMask } from '../mask/BezierMask';
 import { EventChannel } from '../ipc/EventChannel';
 import { WindowManager } from '../windows/WindowManager';
 import { ProjectionEventType } from '../ipc/EventTypes';
@@ -155,6 +156,55 @@ export class ProjectionMapperGUI {
         this.saveSettings();
         // NOTE: Zoom is controller-local only, not broadcast to projector
       });
+
+    // Masks
+    const masksFolder = this.pane.addFolder({ title: 'Masks', expanded: false });
+    const addMaskBtn = masksFolder.addButton({ title: 'Add Bezier Mask' });
+
+    const showMaskControls = (mask: BezierMask) => {
+      addMaskBtn.disabled = true;
+      const maskFolder = masksFolder.addFolder({ title: 'Bezier Mask', expanded: true });
+
+      const enabledState = { enabled: mask.enabled };
+      maskFolder.addBinding(enabledState, 'enabled', { label: 'Enabled' })
+        .on('change', (e: TpChangeEvent<unknown>) => {
+          mask.enabled = e.value as boolean;
+          mask.onChanged?.();
+          mask.saveToStorage();
+        });
+
+      const featherState = { feather: mask.feather };
+      maskFolder.addBinding(featherState, 'feather', { label: 'Feather', min: 0, max: 0.05, step: 0.001 })
+        .on('change', (e: TpChangeEvent<unknown>) => {
+          mask.feather = e.value as number;
+          mask.onChanged?.();
+          mask.saveToStorage();
+        });
+
+      const handlesState = { visible: true };
+      maskFolder.addBinding(handlesState, 'visible', { label: 'Show Handles' })
+        .on('change', (e: TpChangeEvent<unknown>) => {
+          mask.setVisible(e.value as boolean);
+        });
+
+      maskFolder.addButton({ title: 'Delete' }).on('click', () => {
+        this.mapper.removeBezierMask();
+        maskFolder.dispose();
+        addMaskBtn.disabled = false;
+      });
+    };
+
+    addMaskBtn.on('click', () => {
+      const mask = this.mapper.addBezierMask();
+      showMaskControls(mask);
+    });
+
+    // Restore mask from storage on init
+    const stored = BezierMask.loadFromStorage();
+    if (stored) {
+      const mask = this.mapper.addBezierMask(stored.nodes, { enabled: stored.enabled, feather: stored.feather });
+      showMaskControls(mask);
+    }
 
     // Image settings folder
     const imageFolder = this.pane.addFolder({ title: 'Image', expanded: this.settings.imageExpanded });

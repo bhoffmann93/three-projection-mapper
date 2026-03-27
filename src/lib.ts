@@ -18,3 +18,4 @@ export {
 } from './core/ProjectionMapperGUI';
 export { ProjectorCamera } from './core/ProjectorCamera';
 export { MeshWarper, WARP_MODE, type MeshWarperConfig } from './warp/MeshWarper';
+export { BezierMask, type BezierNode, type UVPoint } from './mask/BezierMask';
