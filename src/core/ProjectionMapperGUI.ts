@@ -49,6 +49,9 @@ export class ProjectionMapperGUI {
   private warpFolder!: FolderApi;
   private config: ProjectionMapperGUIConfig;
   private cornersOutlineState = { enabled: true };
+  private syncSettingButtons: () => void = () => {};
+  private syncControlsButton: () => void = () => {};
+  private onControlsVisibilityChange: ((visible: boolean) => void) = () => {};
 
   private readonly STORAGE_KEY = GUI_STORAGE_KEY;
 
@@ -124,34 +127,41 @@ export class ProjectionMapperGUI {
 
     const settingsFolder = this.pane.addFolder({ title: 'Settings', expanded: true });
 
-    settingsFolder
-      .addBinding(this.settings, 'showTestcard', { label: 'Testcard' })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        this.mapper.setShowTestCard(e.value as boolean);
-        this.saveSettings();
-        this.broadcast(ProjectionEventType.TESTCARD_TOGGLED, {
-          show: e.value as boolean,
-        });
-      });
+    const settingsBtnGrid = settingsFolder.addBlade({
+      view: 'buttongrid',
+      size: [2, 1],
+      cells: (x: number) => ({ title: ['Testcard', 'Warp'][x] }),
+    }) as any;
 
-    settingsFolder
-      .addBinding(this.settings, 'shouldWarp', { label: 'Warp' })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        const enabled = e.value as boolean;
+    const [testcardBtn, warpBtn] = Array.from(
+      (settingsBtnGrid.element as HTMLElement).querySelectorAll('button'),
+    ) as HTMLButtonElement[];
+
+    this.syncSettingButtons = () => {
+      testcardBtn.style.opacity = this.settings.showTestcard ? '1' : '0.35';
+      warpBtn.style.opacity = this.settings.shouldWarp ? '1' : '0.35';
+    };
+    this.syncSettingButtons();
+
+    settingsBtnGrid.on('click', (ev: any) => {
+      if (ev.index[0] === 0) {
+        this.settings.showTestcard = !this.settings.showTestcard;
+        this.mapper.setShowTestCard(this.settings.showTestcard);
+        this.saveSettings();
+        this.broadcast(ProjectionEventType.TESTCARD_TOGGLED, { show: this.settings.showTestcard });
+      } else {
+        const enabled = !this.settings.shouldWarp;
+        this.settings.shouldWarp = enabled;
         this.mapper.setShouldWarp(enabled);
         this.warpFolder.disabled = !enabled;
         this.warpFolder.expanded = enabled;
-
-        if (!enabled) {
-          this.toggleWarpUI(false);
-        } else {
-          this.toggleWarpUI(true);
-        }
+        if (!enabled) this.toggleWarpUI(false);
+        else this.toggleWarpUI(true);
         this.saveSettings();
-        this.broadcast(ProjectionEventType.SHOULD_WARP_CHANGED, {
-          shouldWarp: enabled,
-        });
-      });
+        this.broadcast(ProjectionEventType.SHOULD_WARP_CHANGED, { shouldWarp: enabled });
+      }
+      this.syncSettingButtons();
+    });
 
     settingsFolder
       .addBinding(this.settings, 'zoom', { label: 'Zoom', min: 0.125, max: 1.0, step: 0.01 })
@@ -225,11 +235,23 @@ export class ProjectionMapperGUI {
 
     this.warpFolder.addBlade({ view: 'separator' });
 
-    (this.warpFolder.addBlade({
+    const warpBtnGrid = this.warpFolder.addBlade({
       view: 'buttongrid',
       size: [2, 1],
-      cells: (x: number) => ({ title: ['Toggle Controls', 'Show All'][x] }),
-    }) as any).on('click', (ev: any) => {
+      cells: (x: number) => ({ title: ['Controls', 'Show All'][x] }),
+    }) as any;
+
+    const [controlsBtn] = Array.from(
+      (warpBtnGrid.element as HTMLElement).querySelectorAll('button'),
+    ) as HTMLButtonElement[];
+
+    this.syncControlsButton = () => {
+      const anyVisible = this.settings.showGrid || this.settings.showCornerPoints || this.settings.showOutline;
+      controlsBtn.style.opacity = anyVisible ? '1' : '0.35';
+    };
+    this.syncControlsButton();
+
+    warpBtnGrid.on('click', (ev: any) => {
       if (ev.index[0] === 0) {
         this.toggleWarpUI();
       } else {
@@ -239,7 +261,9 @@ export class ProjectionMapperGUI {
         this.cornersOutlineState.enabled = true;
         this.savedVisibility = null;
         this.applyVisibility();
+        this.onControlsVisibilityChange(true);
         this.pane.refresh();
+        this.syncControlsButton();
         this.saveSettings();
         this.broadcast(ProjectionEventType.CONTROLS_VISIBILITY_CHANGED, { visible: true });
         this.broadcast(ProjectionEventType.CONTROL_LINES_TOGGLED, { show: true });
@@ -312,7 +336,10 @@ export class ProjectionMapperGUI {
 
     gridFolder
       .addBinding(this.settings.gridSize, 'x', {
-        label: 'Cols', min: MESH_WARP_GRID_SIZE.minimum, max: MESH_WARP_GRID_SIZE.maximum, step: 1,
+        label: 'Cols',
+        min: MESH_WARP_GRID_SIZE.minimum,
+        max: MESH_WARP_GRID_SIZE.maximum,
+        step: 1,
       })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.settings.gridSize.x = Math.floor(e.value as number);
@@ -321,7 +348,10 @@ export class ProjectionMapperGUI {
 
     gridFolder
       .addBinding(this.settings.gridSize, 'y', {
-        label: 'Rows', min: MESH_WARP_GRID_SIZE.minimum, max: MESH_WARP_GRID_SIZE.maximum, step: 1,
+        label: 'Rows',
+        min: MESH_WARP_GRID_SIZE.minimum,
+        max: MESH_WARP_GRID_SIZE.maximum,
+        step: 1,
       })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.settings.gridSize.y = Math.floor(e.value as number);
@@ -364,11 +394,48 @@ export class ProjectionMapperGUI {
       if (polygonSubFolder) return;
       polygonSubFolder = masksFolder.addFolder({ title: 'Polygon Mask', expanded: true });
 
-      polygonSubFolder
-        .addBinding(polygonMaskState, 'enabled', { label: 'Enabled' })
-        .on('change', (e: TpChangeEvent<unknown>) => {
-          this.mapper.setPolygonMaskEnabled(e.value as boolean);
-        });
+      const polyBtnGrid = polygonSubFolder.addBlade({
+        view: 'buttongrid',
+        size: [2, 1],
+        cells: (x: number) => ({ title: ['Enabled', 'Controls'][x] }),
+      }) as any;
+
+      const [enabledBtn, controlsBtn] = Array.from(
+        (polyBtnGrid.element as HTMLElement).querySelectorAll('button'),
+      ) as HTMLButtonElement[];
+
+      const syncPolyButtons = () => {
+        enabledBtn.style.opacity = polygonMaskState.enabled ? '1' : '0.35';
+        controlsBtn.style.opacity = polygonMaskState.enabled && polygonMaskState.showHandles ? '1' : '0.35';
+        controlsBtn.style.pointerEvents = polygonMaskState.enabled ? 'auto' : 'none';
+      };
+      syncPolyButtons();
+
+      let savedPolyHandles: boolean | null = null;
+      this.onControlsVisibilityChange = (visible: boolean) => {
+        if (!polygonMaskState.enabled) return;
+        if (visible) {
+          polygonMaskState.showHandles = savedPolyHandles ?? polygonMaskState.showHandles;
+          savedPolyHandles = null;
+        } else {
+          savedPolyHandles = polygonMaskState.showHandles;
+          polygonMaskState.showHandles = false;
+        }
+        this.mapper.getPolygonMask()?.setVisible(polygonMaskState.showHandles);
+        syncPolyButtons();
+      };
+
+      polyBtnGrid.on('click', (ev: any) => {
+        if (ev.index[0] === 0) {
+          polygonMaskState.enabled = !polygonMaskState.enabled;
+          this.mapper.setPolygonMaskEnabled(polygonMaskState.enabled);
+          this.mapper.getPolygonMask()?.setVisible(polygonMaskState.enabled && polygonMaskState.showHandles);
+        } else {
+          polygonMaskState.showHandles = !polygonMaskState.showHandles;
+          this.mapper.getPolygonMask()?.setVisible(polygonMaskState.showHandles);
+        }
+        syncPolyButtons();
+      });
 
       polygonSubFolder
         .addBinding(polygonMaskState, 'feather', { label: 'Feather', min: 0.0, max: 0.1, step: 0.001 })
@@ -376,23 +443,20 @@ export class ProjectionMapperGUI {
           this.mapper.setPolygonFeather(e.value as number);
         });
 
-      polygonSubFolder
-        .addBinding(polygonMaskState, 'showHandles', { label: 'Show Handles' })
-        .on('change', (e: TpChangeEvent<unknown>) => {
-          this.mapper.getPolygonMask()?.setVisible(e.value as boolean);
-        });
-
-      (polygonSubFolder.addBlade({
-        view: 'buttongrid',
-        size: [2, 1],
-        cells: (x: number) => ({ title: ['Reset', 'Delete'][x] }),
-      }) as any).on('click', (ev: any) => {
+      (
+        polygonSubFolder.addBlade({
+          view: 'buttongrid',
+          size: [2, 1],
+          cells: (x: number) => ({ title: ['Reset', 'Delete'][x] }),
+        }) as any
+      ).on('click', (ev: any) => {
         if (ev.index[0] === 0) {
           this.mapper.resetPolygonMask();
         } else {
           this.mapper.removePolygonMask();
           polygonSubFolder!.dispose();
           polygonSubFolder = null;
+          this.onControlsVisibilityChange = () => {};
         }
       });
     };
@@ -484,7 +548,11 @@ export class ProjectionMapperGUI {
     }
 
     this.applyVisibility();
+    const controlsVisible = this.settings.showGrid || this.settings.showCornerPoints || this.settings.showOutline;
+    this.onControlsVisibilityChange(controlsVisible);
     this.pane.refresh();
+    this.syncSettingButtons();
+    this.syncControlsButton();
     this.saveSettings();
 
     this.broadcast(ProjectionEventType.CONTROLS_VISIBILITY_CHANGED, {
@@ -519,7 +587,7 @@ export class ProjectionMapperGUI {
   toggleTestCard(): void {
     this.settings.showTestcard = !this.settings.showTestcard;
     this.mapper.setShowTestCard(this.settings.showTestcard);
-    this.pane.refresh();
+    this.syncSettingButtons();
     this.saveSettings();
     this.broadcast(ProjectionEventType.TESTCARD_TOGGLED, {
       show: this.settings.showTestcard,
