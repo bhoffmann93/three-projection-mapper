@@ -1,3 +1,23 @@
+/*
+PolygonMask
+-----------
+A closed polygon mask with draggable anchor points. The mask is defined in UV space (0–1)
+and evaluated as a signed distance field (SDF) in the fragment shader — it clips the texture,
+not the screen geometry. The mask shape is therefore independent of the perspective warp.
+
+Node ground truth is stored in UV space. Anchor spheres are displayed in world space,
+repositioned each frame by applying the current perspective homography (corner warp only,
+not the grid warp) to the flat UV→world position. This keeps handles visually glued to
+the warped image without distorting the mask shape itself.
+
+On drag: the dragged world position is inverse-transformed back to flat space before
+converting to UV. This means storing UV = worldToUV(T⁻¹(draggedPos)). On the next frame,
+updateTransformedPositions computes T(uvToWorld(UV)) = T(T⁻¹(draggedPos)) = draggedPos,
+so there is no conflict between DragControls and the per-frame repositioning.
+
+UV space (ground truth) → T (perspective homography) → World space (sphere display)
+Fragment shader receives flat vUv → sdPolygon SDF → smoothstep mask → applied to color
+*/
 import * as THREE from 'three';
 import { DragControls } from 'three/examples/jsm/controls/DragControls.js';
 
@@ -90,7 +110,7 @@ export class PolygonMask {
 
   private updateOutline(): void {
     for (let i = 0; i < this.anchorObjects.length; i++) {
-      this.outlinePositions[i * 3]     = this.anchorObjects[i].position.x;
+      this.outlinePositions[i * 3] = this.anchorObjects[i].position.x;
       this.outlinePositions[i * 3 + 1] = this.anchorObjects[i].position.y;
       this.outlinePositions[i * 3 + 2] = this.anchorObjects[i].position.z;
     }
@@ -113,9 +133,7 @@ export class PolygonMask {
     const wx = obj.position.x;
     const wy = obj.position.y;
 
-    const flat = this._inverseTransform
-      ? this._inverseTransform(wx, wy)
-      : new THREE.Vector2(wx, wy);
+    const flat = this._inverseTransform ? this._inverseTransform(wx, wy) : new THREE.Vector2(wx, wy);
 
     this._nodes[nodeIndex] = this.worldToUV(flat.x, flat.y);
     this.updateOutline();
@@ -151,7 +169,9 @@ export class PolygonMask {
   private saveToStorage(): void {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this._nodes));
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   private loadFromStorage(): UVPoint[] | null {
@@ -160,7 +180,9 @@ export class PolygonMask {
       if (!raw) return null;
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length >= 3) return parsed as UVPoint[];
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     return null;
   }
 
