@@ -411,6 +411,10 @@ export class ProjectionMapper {
     this.maskPlane.setPolygonFeather(feather);
   }
 
+  setPolygonInvert(invert: boolean): void {
+    this.maskPlane.setPolygonInvert(invert);
+  }
+
   dispose(): void {
     this.meshWarper.dispose();
     this.maskPlane.dispose();

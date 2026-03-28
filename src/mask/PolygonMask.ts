@@ -25,7 +25,7 @@ Editing:
 import * as THREE from 'three';
 import { DragControls } from 'three/examples/jsm/controls/DragControls.js';
 import { RenderOrder } from '../core/RenderOrder';
-import { POLYGON_HANDLE_STYLE } from '../core/defaults';
+import { MAX_POLYGON_POINTS, POLYGON_HANDLE_STYLE } from '../core/defaults';
 
 export interface UVPoint {
   u: number;
@@ -60,6 +60,7 @@ export class PolygonMask {
 
   private boundClickHandler!: (e: MouseEvent) => void;
   private boundDblClickHandler!: (e: MouseEvent) => void;
+  private boundMouseMoveHandler!: (e: MouseEvent) => void;
 
   public onChanged: () => void = () => {};
 
@@ -153,6 +154,7 @@ export class PolygonMask {
   }
 
   private insertNode(segmentIndex: number, uv: UVPoint): void {
+    if (this.nodeList.length >= MAX_POLYGON_POINTS) return;
     const mesh = this.createAnchorMesh(uv);
     mesh.scale.setScalar(this.lastPixelToWorld * POLYGON_HANDLE_STYLE.anchorPointPixelRadius);
     mesh.visible = this.outlineLine.visible;
@@ -232,8 +234,23 @@ export class PolygonMask {
       this.removeNode(nodeIndex);
     };
 
+    this.boundMouseMoveHandler = (event: MouseEvent) => {
+      if (!this.outlineLine.visible) return;
+      raycaster.setFromCamera(toNDC(event), this.camera);
+      raycaster.params.Line = { threshold: this.lastPixelToWorld * POLYGON_HANDLE_STYLE.edgeHitPixelRadius };
+
+      if (raycaster.intersectObjects(this.anchorObjects).length > 0) {
+        this.renderer.domElement.style.cursor = 'grab';
+      } else if (raycaster.intersectObject(this.outlineLine).length > 0) {
+        this.renderer.domElement.style.cursor = 'crosshair';
+      } else {
+        this.renderer.domElement.style.cursor = '';
+      }
+    };
+
     this.renderer.domElement.addEventListener('click', this.boundClickHandler);
     this.renderer.domElement.addEventListener('dblclick', this.boundDblClickHandler);
+    this.renderer.domElement.addEventListener('mousemove', this.boundMouseMoveHandler);
   }
 
   private handleDrag(event: { object: THREE.Object3D }): void {
@@ -276,6 +293,7 @@ export class PolygonMask {
   public setVisible(visible: boolean): void {
     for (const mesh of this.anchorObjects) mesh.visible = visible;
     this.outlineLine.visible = visible;
+    if (!visible) this.renderer.domElement.style.cursor = '';
   }
 
   private saveToStorage(): void {
@@ -305,6 +323,8 @@ export class PolygonMask {
   public dispose(): void {
     this.renderer.domElement.removeEventListener('click', this.boundClickHandler);
     this.renderer.domElement.removeEventListener('dblclick', this.boundDblClickHandler);
+    this.renderer.domElement.removeEventListener('mousemove', this.boundMouseMoveHandler);
+    this.renderer.domElement.style.cursor = '';
     this.dragControls.dispose();
     for (const mesh of this.anchorObjects) {
       this.scene.remove(mesh);

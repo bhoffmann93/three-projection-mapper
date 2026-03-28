@@ -42,6 +42,7 @@ export interface ProjectionMapperGUISettings extends ImageSettings {
   showOutline: boolean;
   imageExpanded: boolean;
   polygonFeather: number;
+  polygonInvert: boolean;
 }
 
 export { GUI_STORAGE_KEY, DEFAULT_IMAGE_SETTINGS } from './defaults';
@@ -83,6 +84,7 @@ export class ProjectionMapperGUI {
       showOutline: true,
       imageExpanded: true,
       polygonFeather: DEFAULT_POLYGON_FEATHER,
+      polygonInvert: false,
       ...DEFAULT_IMAGE_SETTINGS,
     };
 
@@ -393,25 +395,34 @@ export class ProjectionMapperGUI {
   private initMasksFolder(): void {
     const masksFolder = this.pane.addFolder({ title: 'Masks', expanded: true });
 
-    const polygonMaskState = { enabled: true, feather: this.settings.polygonFeather, showHandles: true };
+    const polygonMaskState = {
+      enabled: true,
+      inverted: this.settings.polygonInvert,
+      feather: this.settings.polygonFeather,
+      showHandles: true,
+    };
     let polygonSubFolder: FolderApi | null = null;
 
     const showPolygonSubFolder = () => {
       if (polygonSubFolder) return;
       polygonSubFolder = masksFolder.addFolder({ title: 'Polygon Mask', expanded: true });
 
+      polygonMaskState.inverted = this.settings.polygonInvert;
+      this.mapper.setPolygonInvert(polygonMaskState.inverted);
+
       const polyBtnGrid = polygonSubFolder.addBlade({
         view: 'buttongrid',
-        size: [2, 1],
-        cells: (x: number) => ({ title: ['Enabled', 'Controls'][x] }),
+        size: [3, 1],
+        cells: (x: number) => ({ title: ['Enabled', 'Invert', 'Controls'][x] }),
       }) as unknown as ButtonGridBladeApi;
 
-      const [enabledBtn, controlsBtn] = Array.from(
+      const [enabledBtn, invertBtn, controlsBtn] = Array.from(
         polyBtnGrid.element.querySelectorAll('button'),
       ) as HTMLButtonElement[];
 
       const syncPolyButtons = () => {
         enabledBtn.style.opacity = polygonMaskState.enabled ? '1' : '0.35';
+        invertBtn.style.opacity = polygonMaskState.inverted ? '1' : '0.35';
         controlsBtn.style.opacity = polygonMaskState.showHandles ? '1' : '0.35';
       };
       syncPolyButtons();
@@ -433,6 +444,11 @@ export class ProjectionMapperGUI {
         if (ev.index[0] === 0) {
           polygonMaskState.enabled = !polygonMaskState.enabled;
           this.mapper.setPolygonMaskEnabled(polygonMaskState.enabled);
+        } else if (ev.index[0] === 1) {
+          polygonMaskState.inverted = !polygonMaskState.inverted;
+          this.mapper.setPolygonInvert(polygonMaskState.inverted);
+          this.settings.polygonInvert = polygonMaskState.inverted;
+          this.saveSettings();
         } else {
           polygonMaskState.showHandles = !polygonMaskState.showHandles;
           this.mapper.getPolygonMask()?.setVisible(polygonMaskState.showHandles);

@@ -39,6 +39,7 @@ export class MaskPlane {
     uMaskEnabled: { value: boolean };
     uFeather: { value: number };
     uPolygonMaskEnabled: { value: boolean };
+    uPolygonInvert: { value: boolean };
     uPolygonPointCount: { value: number };
     uPolygonPoints: { value: THREE.Vector2[] };
     uPolygonFeather: { value: number };
@@ -62,6 +63,7 @@ export class MaskPlane {
       uMaskEnabled: { value: false },
       uFeather: { value: 0 },
       uPolygonMaskEnabled: { value: false },
+      uPolygonInvert: { value: false },
       uPolygonPointCount: { value: 0 },
       uPolygonPoints: { value: Array.from({ length: MAX_POLYGON_POINTS }, () => new THREE.Vector2()) },
       uPolygonFeather: { value: DEFAULT_POLYGON_FEATHER },
@@ -112,6 +114,10 @@ export class MaskPlane {
 
   setPolygonMaskEnabled(enabled: boolean): void {
     this.uniforms.uPolygonMaskEnabled.value = enabled;
+  }
+
+  setPolygonInvert(invert: boolean): void {
+    this.uniforms.uPolygonInvert.value = invert;
   }
 
   setPolygonFeather(feather: number): void {

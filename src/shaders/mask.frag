@@ -5,6 +5,7 @@ uniform bool uMaskEnabled;
 uniform float uFeather;
 
 uniform bool uPolygonMaskEnabled;
+uniform bool uPolygonInvert;
 uniform int uPolygonPointCount;
 uniform vec2 uPolygonPoints[MAX_POLYGON_POINTS];
 uniform float uPolygonFeather;
@@ -93,7 +94,7 @@ void main() {
         float dist = sdPolygon(vUv, aspect);
         float fw = fwidth(dist);
         float polyMask = 1.0 - smootherstep(-(uPolygonFeather + fw), fw + uPolygonFeather, dist);
-        reveal *= polyMask;
+        reveal *= uPolygonInvert ? 1.0 - polyMask : polyMask;
     }
 
     // Border: visible when warp is off as an alignment guide; polygon mask overwrites it.
