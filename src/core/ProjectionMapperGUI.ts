@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { FolderApi, Pane, TpChangeEvent } from 'tweakpane';
+import * as EssentialsPlugin from '@tweakpane/plugin-essentials';
 import { ProjectionMapper } from './ProjectionMapper';
 import {
   GUI_STORAGE_KEY,
@@ -78,6 +79,7 @@ export class ProjectionMapperGUI {
     this.applySettings();
 
     this.pane = new Pane({ title });
+    this.pane.registerPlugin(EssentialsPlugin);
 
     const wrapper = this.pane.element.closest('.tp-dfwv') as HTMLElement;
     if (wrapper) {
@@ -223,23 +225,25 @@ export class ProjectionMapperGUI {
 
     this.warpFolder.addBlade({ view: 'separator' });
 
-    this.warpFolder.addButton({ title: 'Toggle Controls' }).on('click', () => this.toggleWarpUI());
-
-    this.warpFolder.addButton({ title: 'Show All' }).on('click', () => {
-      this.settings.showGrid = true;
-      this.settings.showCornerPoints = true;
-      this.settings.showOutline = true;
-      this.cornersOutlineState.enabled = true;
-      this.savedVisibility = null;
-      this.applyVisibility();
-      this.pane.refresh();
-      this.saveSettings();
-      this.broadcast(ProjectionEventType.CONTROLS_VISIBILITY_CHANGED, {
-        visible: true,
-      });
-      this.broadcast(ProjectionEventType.CONTROL_LINES_TOGGLED, {
-        show: true,
-      });
+    (this.warpFolder.addBlade({
+      view: 'buttongrid',
+      size: [2, 1],
+      cells: (x: number) => ({ title: ['Toggle Controls', 'Show All'][x] }),
+    }) as any).on('click', (ev: any) => {
+      if (ev.index[0] === 0) {
+        this.toggleWarpUI();
+      } else {
+        this.settings.showGrid = true;
+        this.settings.showCornerPoints = true;
+        this.settings.showOutline = true;
+        this.cornersOutlineState.enabled = true;
+        this.savedVisibility = null;
+        this.applyVisibility();
+        this.pane.refresh();
+        this.saveSettings();
+        this.broadcast(ProjectionEventType.CONTROLS_VISIBILITY_CHANGED, { visible: true });
+        this.broadcast(ProjectionEventType.CONTROL_LINES_TOGGLED, { show: true });
+      }
     });
 
     // Perspective Warp folder
@@ -280,44 +284,48 @@ export class ProjectionMapperGUI {
         });
       });
 
+    const onGridSizeChange = () => {
+      this.mapper.setGridSize(this.settings.gridSize.x, this.settings.gridSize.y);
+      this.saveSettings();
+      this.broadcast(ProjectionEventType.GRID_SIZE_CHANGED, {
+        gridSize: { x: this.settings.gridSize.x, y: this.settings.gridSize.y },
+      });
+      if (this.isMultiWindowMode()) {
+        const warper = this.mapper.getWarper();
+        const config = (warper as any).config;
+        const gridPoints = warper.getGridControlPoints();
+        const referenceGridPoints = (warper as any).referenceGridControlPoints as THREE.Vector3[];
+        this.broadcast(ProjectionEventType.GRID_POINTS_UPDATED, {
+          points: gridPoints.map((p: THREE.Vector3) => ({
+            x: (p.x + config.width / 2) / config.width,
+            y: (p.y + config.height / 2) / config.height,
+            z: p.z,
+          })),
+          referencePoints: referenceGridPoints.map((p: THREE.Vector3) => ({
+            x: (p.x + config.width / 2) / config.width,
+            y: (p.y + config.height / 2) / config.height,
+            z: p.z,
+          })),
+        });
+      }
+    };
+
     gridFolder
-      .addBinding(this.settings, 'gridSize', {
-        label: 'Grid Size',
-        x: { min: MESH_WARP_GRID_SIZE.minimum, max: MESH_WARP_GRID_SIZE.maximum, step: 1 },
-        y: { min: MESH_WARP_GRID_SIZE.minimum, max: MESH_WARP_GRID_SIZE.maximum, step: 1 },
+      .addBinding(this.settings.gridSize, 'x', {
+        label: 'Cols', min: MESH_WARP_GRID_SIZE.minimum, max: MESH_WARP_GRID_SIZE.maximum, step: 1,
       })
       .on('change', (e: TpChangeEvent<unknown>) => {
-        const val = e.value as { x: number; y: number };
-        this.settings.gridSize.x = Math.floor(val.x);
-        this.settings.gridSize.y = Math.floor(val.y);
-        this.mapper.setGridSize(this.settings.gridSize.x, this.settings.gridSize.y);
-        this.saveSettings();
+        this.settings.gridSize.x = Math.floor(e.value as number);
+        onGridSizeChange();
+      });
 
-        // Broadcast grid size change
-        this.broadcast(ProjectionEventType.GRID_SIZE_CHANGED, {
-          gridSize: { x: this.settings.gridSize.x, y: this.settings.gridSize.y },
-        });
-
-        // After grid size changes, broadcast updated grid points
-        if (this.isMultiWindowMode()) {
-          const warper = this.mapper.getWarper();
-          const config = (warper as any).config;
-          const gridPoints = warper.getGridControlPoints();
-          const referenceGridPoints = (warper as any).referenceGridControlPoints as THREE.Vector3[];
-
-          this.broadcast(ProjectionEventType.GRID_POINTS_UPDATED, {
-            points: gridPoints.map((p: THREE.Vector3) => ({
-              x: (p.x + config.width / 2) / config.width,
-              y: (p.y + config.height / 2) / config.height,
-              z: p.z,
-            })),
-            referencePoints: referenceGridPoints.map((p: THREE.Vector3) => ({
-              x: (p.x + config.width / 2) / config.width,
-              y: (p.y + config.height / 2) / config.height,
-              z: p.z,
-            })),
-          });
-        }
+    gridFolder
+      .addBinding(this.settings.gridSize, 'y', {
+        label: 'Rows', min: MESH_WARP_GRID_SIZE.minimum, max: MESH_WARP_GRID_SIZE.maximum, step: 1,
+      })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        this.settings.gridSize.y = Math.floor(e.value as number);
+        onGridSizeChange();
       });
 
     gridFolder.addBinding(this.settings, 'showGrid', { label: 'Show' }).on('change', (e: TpChangeEvent<unknown>) => {
@@ -374,10 +382,18 @@ export class ProjectionMapperGUI {
           this.mapper.getPolygonMask()?.setVisible(e.value as boolean);
         });
 
-      polygonSubFolder.addButton({ title: 'Delete' }).on('click', () => {
-        this.mapper.removePolygonMask();
-        polygonSubFolder!.dispose();
-        polygonSubFolder = null;
+      (polygonSubFolder.addBlade({
+        view: 'buttongrid',
+        size: [2, 1],
+        cells: (x: number) => ({ title: ['Reset', 'Delete'][x] }),
+      }) as any).on('click', (ev: any) => {
+        if (ev.index[0] === 0) {
+          this.mapper.resetPolygonMask();
+        } else {
+          this.mapper.removePolygonMask();
+          polygonSubFolder!.dispose();
+          polygonSubFolder = null;
+        }
       });
     };
 

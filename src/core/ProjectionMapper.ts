@@ -375,6 +375,16 @@ export class ProjectionMapper {
     return this.polygonMask;
   }
 
+  resetPolygonMask(): void {
+    if (!this.polygonMask) return;
+    this.polygonMask.clearStorage();
+    this.polygonMask.dispose();
+    this.polygonMask = new PolygonMask(this.scene, this.camera, this.renderer, this.worldWidth, this.worldHeight);
+    this.polygonMask.onChanged = () => this.syncPolygonMaskUniforms();
+    this.polygonMask.setVisible(this.meshWarper.getShouldWarp());
+    this.syncPolygonMaskUniforms();
+  }
+
   removePolygonMask(): void {
     if (!this.polygonMask) return;
     this.polygonMask.dispose();
