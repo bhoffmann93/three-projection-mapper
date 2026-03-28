@@ -8,34 +8,12 @@
  * Used with explicit permission to re-license from AGPL to MIT for this project.
  *
  * Licensed under the MIT License.
+
+ * Warp vertex shader: Displaces mesh vertices using a control point grid. (Interpolated the vertices between Grid Points)
+ * Supports bilinear (fast, C0) and bicubic Catmull-Rom (smooth, C1) interpolation.
+ * Bicubic uses mirror extrapolation at edges for smooth warps.
+ * Fragment shader recieves untouched uvs only the vertices get deformed.
  */
-
-/*
-Warp Vertex Shader
-------------------
-Each vertex of the plane geometry holds a flat UV coordinate (0–1) baked at
-creation time. This shader displaces the vertex's world-space position according
-to a grid of control points, while leaving the UV unchanged. The fragment shader
-therefore always receives the original flat UV regardless of how much the mesh
-has been warped — which is what allows image sampling and mask evaluation to
-stay in a stable, distortion-free coordinate space.
-
-Two interpolation modes are supported:
-
-  Bilinear  — fast, C0 continuous. Each grid cell is linearly interpolated from
-              its four surrounding control points. Visible crease at cell borders
-              under strong warp.
-
-  Bicubic (Catmull-Rom)  — smooth, C1 continuous. Uses a 4×4 neighbourhood of
-              control points per cell, with mirror extrapolation at the grid
-              boundary to generate the two virtual rows/columns the spline needs
-              beyond the edge. Eliminates creases and produces the organic
-              curves required for lens or surface correction.
-
-The UV is first scaled to grid-cell space so the correct cell index and local
-fractional position can be derived, then passed to the chosen interpolator which
-returns the final world-space position for gl_Position.
-*/
 
 varying vec2 vUv;
 

@@ -1,3 +1,15 @@
+/*
+MaskPlane
+---------
+A perspective-correct quad that renders masks (feather, polygon) as a black alpha
+cutout in front of the content plane, without being affected by grid warp.
+
+It uses perspective.vert, which applies the same PerspT homography as the drag
+handles, so mask boundaries and handles are always spatially aligned.
+Masks are evaluated in flat UV space (0–1) on a subdivided mesh so the
+UV-to-screen mapping closely approximates the true projective transform.
+*/
+
 import * as THREE from 'three';
 import maskFragmentShader from '../shaders/mask.frag';
 import perspectiveVertexShader from '../shaders/perspective.vert';
