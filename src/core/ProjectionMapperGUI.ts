@@ -372,26 +372,15 @@ export class ProjectionMapperGUI {
       });
 
     gridWarpFolder
-      .addBinding(this.settings.gridSize, 'x', {
-        label: 'Cols',
-        min: MESH_WARP_GRID_SIZE.minimum,
-        max: MESH_WARP_GRID_SIZE.maximum,
-        step: 1,
+      .addBinding(this.settings, 'gridSize', {
+        label: 'Grid Size',
+        x: { min: MESH_WARP_GRID_SIZE.minimum, max: MESH_WARP_GRID_SIZE.maximum, step: 1 },
+        y: { min: MESH_WARP_GRID_SIZE.minimum, max: MESH_WARP_GRID_SIZE.maximum, step: 1 },
       })
-      .on('change', () => {
-        this.settings.gridSize.x = Math.floor(this.settings.gridSize.x);
-        onGridSizeChange();
-      });
-
-    gridWarpFolder
-      .addBinding(this.settings.gridSize, 'y', {
-        label: 'Rows',
-        min: MESH_WARP_GRID_SIZE.minimum,
-        max: MESH_WARP_GRID_SIZE.maximum,
-        step: 1,
-      })
-      .on('change', () => {
-        this.settings.gridSize.y = Math.floor(this.settings.gridSize.y);
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        const val = e.value as { x: number; y: number };
+        this.settings.gridSize.x = Math.floor(val.x);
+        this.settings.gridSize.y = Math.floor(val.y);
         onGridSizeChange();
       });
 
