@@ -23,6 +23,7 @@ import PerspT from '../utils/perspective';
 import { isQuadConcave } from './geometry';
 import { clamp } from 'three/src/math/MathUtils';
 import meshWarpVertexShader from '../shaders/warp.vert';
+import { RenderOrder } from '../core/RenderOrder';
 
 const STORAGE_KEY = 'warp-grid-control-points';
 
@@ -194,6 +195,7 @@ export class MeshWarper {
         new THREE.MeshBasicMaterial({ color: 'hsl(23, 80%, 80%)', transparent: true, opacity: 0.9 }),
       );
       object.position.set(x, y, 0);
+      object.renderOrder = RenderOrder.CONTROLS;
       object.userData.group = 'grid';
 
       this.gridObjects.push(object);
@@ -224,6 +226,7 @@ export class MeshWarper {
         new THREE.MeshBasicMaterial({ color: 'orange', transparent: true, opacity: 0.8 }),
       );
       object.position.set(x, y, 0);
+      object.renderOrder = RenderOrder.CONTROLS;
       object.userData.group = 'corner';
       object.userData.lastValidPosition = object.position.clone();
 
@@ -249,6 +252,7 @@ export class MeshWarper {
 
     const line = new Line2(outlineGeometry, lineMaterial);
     line.position.setZ(0.001);
+    line.renderOrder = RenderOrder.CONTROLS;
 
     return line;
   }
@@ -450,6 +454,11 @@ export class MeshWarper {
     const currentCorners = this.dragCornerControlPoints.flatMap((p) => [p.x, p.y]);
     const [wx, wy] = new PerspT(this.quadData.initalCorners, currentCorners).transformInverse(x, y);
     return new THREE.Vector2(wx, wy);
+  }
+
+  public getPerspectiveCoeffs(): number[] {
+    const currentCorners = this.dragCornerControlPoints.flatMap((p) => [p.x, p.y]);
+    return new PerspT(this.quadData.initalCorners, currentCorners).coeffs;
   }
 
   public dispose(): void {

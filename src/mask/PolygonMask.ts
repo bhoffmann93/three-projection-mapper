@@ -20,6 +20,7 @@ Fragment shader receives flat vUv → sdPolygon SDF → smoothstep mask → appl
 */
 import * as THREE from 'three';
 import { DragControls } from 'three/examples/jsm/controls/DragControls.js';
+import { RenderOrder } from '../core/RenderOrder';
 
 export interface UVPoint {
   u: number;
@@ -86,13 +87,13 @@ export class PolygonMask {
 
   private buildObjects(): void {
     const geo = new THREE.SphereGeometry(1, 8, 8);
-    const mat = new THREE.MeshBasicMaterial({ color: 0x00ffff, depthTest: false });
+    const mat = new THREE.MeshBasicMaterial({ color: 0x00ffff, depthTest: false, transparent: true });
 
     for (const node of this._nodes) {
       const mesh = new THREE.Mesh(geo, mat.clone());
       const pos = this.uvToWorld(node);
       mesh.position.set(pos.x, pos.y, 0.02);
-      mesh.renderOrder = 2;
+      mesh.renderOrder = RenderOrder.CONTROLS;
       this.scene.add(mesh);
       this.anchorObjects.push(mesh);
     }
@@ -100,9 +101,9 @@ export class PolygonMask {
     this.outlinePositions = new Float32Array(this._nodes.length * 3);
     const outlineGeo = new THREE.BufferGeometry();
     outlineGeo.setAttribute('position', new THREE.BufferAttribute(this.outlinePositions, 3));
-    const outlineMat = new THREE.LineBasicMaterial({ color: 0x00ffff, depthTest: false });
+    const outlineMat = new THREE.LineBasicMaterial({ color: 0x00ffff, depthTest: false, transparent: true });
     this.outlineLine = new THREE.LineLoop(outlineGeo, outlineMat);
-    this.outlineLine.renderOrder = 2;
+    this.outlineLine.renderOrder = RenderOrder.CONTROLS;
     this.scene.add(this.outlineLine);
 
     this.updateOutline();

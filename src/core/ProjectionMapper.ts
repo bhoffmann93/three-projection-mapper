@@ -8,6 +8,7 @@ import { calculateGridPoints } from '../warp/geometry';
 import { GUI_STORAGE_KEY, DEFAULT_IMAGE_SETTINGS } from './defaults';
 import type { ImageSettings } from './defaults';
 import { PolygonMask, type UVPoint } from '../mask/PolygonMask';
+import { MaskPlane } from '../mask/MaskPlane';
 
 export { GUI_STORAGE_KEY, DEFAULT_IMAGE_SETTINGS };
 export type { ImageSettings };
@@ -56,19 +57,15 @@ export class ProjectionMapper {
     uTime: { value: number };
     uShowTestCard: { value: boolean };
     uShowControlLines: { value: boolean };
-    uMaskEnabled: { value: boolean };
-    uFeather: { value: number };
     uTonemap: { value: boolean };
     uGamma: { value: number };
     uContrast: { value: number };
     uHue: { value: number };
-    uPolygonMaskEnabled: { value: boolean };
-    uPolygonPointCount: { value: number };
-    uPolygonPoints: { value: THREE.Vector2[] };
-    uPolygonFeather: { value: number };
   };
 
   private polygonMask: PolygonMask | null = null;
+  private maskPlane!: MaskPlane;
+  private imageSettings: ImageSettings;
 
   /** Resolution in pixels, passed through to shaders */
   private resolution: { width: number; height: number };
@@ -127,17 +124,13 @@ export class ProjectionMapper {
       uTime: { value: 0 },
       uShowTestCard: { value: false },
       uShowControlLines: { value: true },
-      uMaskEnabled: { value: DEFAULT_IMAGE_SETTINGS.maskEnabled },
-      uFeather: { value: DEFAULT_IMAGE_SETTINGS.feather },
       uTonemap: { value: DEFAULT_IMAGE_SETTINGS.tonemap },
       uGamma: { value: DEFAULT_IMAGE_SETTINGS.gamma },
       uContrast: { value: DEFAULT_IMAGE_SETTINGS.contrast },
       uHue: { value: DEFAULT_IMAGE_SETTINGS.hue },
-      uPolygonMaskEnabled: { value: false },
-      uPolygonPointCount: { value: 0 },
-      uPolygonPoints: { value: Array.from({ length: 16 }, () => new THREE.Vector2()) },
-      uPolygonFeather: { value: 0.005 },
     };
+
+    this.imageSettings = { ...DEFAULT_IMAGE_SETTINGS };
 
     const warperConfig: MeshWarperConfig = {
       width: this.worldWidth,
@@ -155,6 +148,14 @@ export class ProjectionMapper {
     };
 
     this.meshWarper = new MeshWarper(warperConfig);
+
+    this.maskPlane = new MaskPlane({
+      worldWidth: this.worldWidth,
+      worldHeight: this.worldHeight,
+      segments: this.config.segments,
+      scene: this.scene,
+      warpPlaneSizeRef: this.uniforms.uWarpPlaneSize,
+    });
 
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
@@ -198,6 +199,8 @@ export class ProjectionMapper {
     const pixelToWorld = frustumWidth / viewportWidth;
     this.meshWarper.updateControlPointsScale(pixelToWorld);
 
+    this.maskPlane.syncPerspective(this.meshWarper.getPerspectiveCoeffs());
+
     if (this.polygonMask) {
       this.polygonMask.updateTransformedPositions(
         (x, y) => this.meshWarper.applyPerspectiveTransform(x, y),
@@ -236,23 +239,34 @@ export class ProjectionMapper {
   }
 
   setImageSettings(settings: Partial<ImageSettings>): void {
-    if (settings.maskEnabled !== undefined) this.uniforms.uMaskEnabled.value = settings.maskEnabled;
-    if (settings.feather !== undefined) this.uniforms.uFeather.value = settings.feather;
-    if (settings.tonemap !== undefined) this.uniforms.uTonemap.value = settings.tonemap;
-    if (settings.gamma !== undefined) this.uniforms.uGamma.value = settings.gamma;
-    if (settings.contrast !== undefined) this.uniforms.uContrast.value = settings.contrast;
-    if (settings.hue !== undefined) this.uniforms.uHue.value = settings.hue;
+    if (settings.maskEnabled !== undefined) {
+      this.imageSettings.maskEnabled = settings.maskEnabled;
+      this.maskPlane.setFeatherMask(settings.maskEnabled, this.imageSettings.feather);
+    }
+    if (settings.feather !== undefined) {
+      this.imageSettings.feather = settings.feather;
+      this.maskPlane.setFeatherMask(this.imageSettings.maskEnabled, settings.feather);
+    }
+    if (settings.tonemap !== undefined) {
+      this.imageSettings.tonemap = settings.tonemap;
+      this.uniforms.uTonemap.value = settings.tonemap;
+    }
+    if (settings.gamma !== undefined) {
+      this.imageSettings.gamma = settings.gamma;
+      this.uniforms.uGamma.value = settings.gamma;
+    }
+    if (settings.contrast !== undefined) {
+      this.imageSettings.contrast = settings.contrast;
+      this.uniforms.uContrast.value = settings.contrast;
+    }
+    if (settings.hue !== undefined) {
+      this.imageSettings.hue = settings.hue;
+      this.uniforms.uHue.value = settings.hue;
+    }
   }
 
   getImageSettings(): ImageSettings {
-    return {
-      maskEnabled: this.uniforms.uMaskEnabled.value,
-      feather: this.uniforms.uFeather.value,
-      tonemap: this.uniforms.uTonemap.value,
-      gamma: this.uniforms.uGamma.value,
-      contrast: this.uniforms.uContrast.value,
-      hue: this.uniforms.uHue.value,
-    };
+    return { ...this.imageSettings };
   }
 
   private updateCameraFrustum(): void {
@@ -358,7 +372,7 @@ export class ProjectionMapper {
       this.worldWidth, this.worldHeight, nodes,
     );
     this.polygonMask.onChanged = () => this.syncPolygonMaskUniforms();
-    this.uniforms.uPolygonMaskEnabled.value = true;
+    this.maskPlane.setPolygonMaskEnabled(true);
     this.syncPolygonMaskUniforms();
     return this.polygonMask;
   }
@@ -368,17 +382,13 @@ export class ProjectionMapper {
     this.polygonMask.dispose();
     this.polygonMask.clearStorage();
     this.polygonMask = null;
-    this.uniforms.uPolygonMaskEnabled.value = false;
-    this.uniforms.uPolygonPointCount.value = 0;
+    this.maskPlane.setPolygonMaskEnabled(false);
+    this.maskPlane.setPolygonNodes([]);
   }
 
   private syncPolygonMaskUniforms(): void {
     if (!this.polygonMask) return;
-    const nodes = this.polygonMask.nodes;
-    this.uniforms.uPolygonPointCount.value = nodes.length;
-    for (let i = 0; i < nodes.length; i++) {
-      this.uniforms.uPolygonPoints.value[i].set(nodes[i].u, nodes[i].v);
-    }
+    this.maskPlane.setPolygonNodes(this.polygonMask.nodes);
   }
 
   getPolygonMask(): PolygonMask | null {
@@ -386,15 +396,16 @@ export class ProjectionMapper {
   }
 
   setPolygonMaskEnabled(enabled: boolean): void {
-    this.uniforms.uPolygonMaskEnabled.value = enabled;
+    this.maskPlane.setPolygonMaskEnabled(enabled);
   }
 
   setPolygonFeather(feather: number): void {
-    this.uniforms.uPolygonFeather.value = feather;
+    this.maskPlane.setPolygonFeather(feather);
   }
 
   dispose(): void {
     this.meshWarper.dispose();
+    this.maskPlane.dispose();
     this.composer.dispose();
     this.polygonMask?.dispose();
   }

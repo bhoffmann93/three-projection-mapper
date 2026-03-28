@@ -21,14 +21,6 @@ uniform bool uShowControlLines;
 uniform int uGridSizeX;
 uniform int uGridSizeY;
 
-uniform bool uMaskEnabled;
-uniform float uFeather;
-
-#define MAX_POLYGON_POINTS 16
-uniform bool uPolygonMaskEnabled;
-uniform int uPolygonPointCount;
-uniform vec2 uPolygonPoints[MAX_POLYGON_POINTS];
-uniform float uPolygonFeather;
 uniform bool uTonemap;
 uniform float uGamma;
 uniform float uContrast;
@@ -66,11 +58,6 @@ vec2 aspect01(vec2 uv, vec2 resolution) {
     float aspect = resolution.x / resolution.y;
     vec2 scale = resolution.x > resolution.y ? vec2(aspect, 1.0) : vec2(1.0, 1.0 / aspect);
     return (uv - 0.5) * scale + 0.5;
-}
-
-float smootherstep(float edge0, float edge1, float x) {
-    x = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
-    return x * x * x * (x * (x * 6.0 - 15.0) + 10.0);
 }
 
 float aastep(float edge, float value) {
@@ -221,31 +208,6 @@ float drawBorderLines(vec2 uv) {
     return clamp(max(leftLine, max(rightLine, max(bottomLine, topLine))), 0.0, 1.0);
 }
 
-// Gaussian Filtered Rectangle 
-// Mathematically based on the Error Function (erf) approximation.
-// Reference: https://www.shadertoy.com/view/NsVSWy
-// More Information: https://raphlinus.github.io/graphics/2020/04/21/blurred-rounded-rects.html
-float erf(in float x) {
-    return sign(x) * sqrt(1.0 - exp2(-1.787776 * x * x));
-}
-
-// Gaussian filtered blurry rectangle
-float gaussianRect(in vec2 p, in vec2 b, in float w) {
-    float u = erf((p.x + b.x) / w) - erf((p.x - b.x) / w);
-    float v = erf((p.y + b.y) / w) - erf((p.y - b.y) / w);
-    return u * v / 4.0;
-}
-
-float gaussianRectMask(vec2 uv, vec2 res, float soft) {
-    float aspect = res.x / res.y;
-    vec2 p = (uv - 0.5) * vec2(aspect, 1.0);
-
-    vec2 baseSize = vec2(aspect, 1.0) * 0.5;
-    vec2 insetSize = baseSize - (soft * 1.5);
-    float rectmask = gaussianRect(p, insetSize, soft);
-    return rectmask;
-}
-
 vec3 acesTonemap(vec3 v) {
     v *= 0.6;
     float a = 2.51;
@@ -280,33 +242,6 @@ vec3 imageAdjust(vec3 color) {
     return clamp(color, 0.0, 1.0);
 }
 
-// The MIT License
-// Copyright © 2019 Inigo Quilez
-// Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions: The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-// Distance to a regular pentagon, without trigonometric functions. 
-
-// Polygon SDF — Inigo Quilez (adapted for GLSL ES 1.0 fixed-size uniform array)
-float sdPolygon(vec2 p) {
-    float d = dot(p - uPolygonPoints[0], p - uPolygonPoints[0]);
-    float s = 1.0;
-    int j = uPolygonPointCount - 1;
-    for(int i = 0; i < MAX_POLYGON_POINTS; i++) {
-        if(i >= uPolygonPointCount)
-            break;
-        vec2 vi = uPolygonPoints[i];
-        vec2 vj = uPolygonPoints[j];
-        vec2 e = vj - vi;
-        vec2 w = p - vi;
-        vec2 b = w - e * clamp(dot(w, e) / dot(e, e), 0.0, 1.0);
-        d = min(d, dot(b, b));
-        bvec3 cond = bvec3(p.y >= vi.y, p.y < vj.y, e.x * w.y > e.y * w.x);
-        if(all(cond) || all(not(cond)))
-            s = -s;
-        j = i;
-    }
-    return s * sqrt(d);
-}
-
 void main() {
     vec3 color;
 
@@ -319,22 +254,6 @@ void main() {
 
     // color = vec3(checkerboard(vUv, vec2(7.0, 4.0))); //for development tests
     color = imageAdjust(color);
-
-    // Feather Image Edge mask
-    if(uMaskEnabled) {
-        float soft = mix(0.0, 0.25, uFeather);
-        float mask = gaussianRectMask(vUv, uShouldWarp ? uWarpPlaneSize : uBufferResolution, soft);
-        color = mix(vec3(0.0), color, mask);
-    }
-
-    // Polygon mask
-    if(uPolygonMaskEnabled && uPolygonPointCount >= 3) {
-        float dist = sdPolygon(vUv);
-        //aspect is not correct but would to be corrected in uvs
-        float fw = fwidth(dist);
-        float mask = 1.0 - smootherstep(-(uPolygonFeather + fw), fw + uPolygonFeather, dist);
-        color = mix(vec3(0.0), color, mask);
-    }
 
     //Dither: Reduce Banding Artifacts
     color += (1.0 / 255.0) * hash12(gl_FragCoord.xy + fract(uTime)) - (0.5 / 255.0);
