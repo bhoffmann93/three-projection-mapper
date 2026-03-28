@@ -4,7 +4,6 @@ uniform vec2 uWarpPlaneSize;
 uniform bool uMaskEnabled;
 uniform float uFeather;
 
-#define MAX_POLYGON_POINTS 16
 uniform bool uPolygonMaskEnabled;
 uniform int uPolygonPointCount;
 uniform vec2 uPolygonPoints[MAX_POLYGON_POINTS];

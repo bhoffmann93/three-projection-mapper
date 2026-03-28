@@ -16,7 +16,7 @@ import perspectiveVertexShader from '../shaders/perspective.vert';
 import { RenderOrder } from '../core/RenderOrder';
 import type { UVPoint } from './PolygonMask';
 
-const MAX_POLYGON_POINTS = 16;
+const MAX_POLYGON_POINTS = 16; // injected into mask.frag as a define, keeping TS and GLSL in sync
 
 export interface MaskPlaneConfig {
   worldWidth: number;
@@ -70,6 +70,7 @@ export class MaskPlane {
     this.material = new THREE.ShaderMaterial({
       vertexShader: perspectiveVertexShader,
       fragmentShader: maskFragmentShader,
+      defines: { MAX_POLYGON_POINTS },
       uniforms: this.uniforms,
       transparent: true,
       depthWrite: false,

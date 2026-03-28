@@ -251,7 +251,6 @@ export class MeshWarper {
     });
 
     const line = new Line2(outlineGeometry, lineMaterial);
-    line.position.setZ(0.001);
     line.renderOrder = RenderOrder.CONTROLS;
 
     return line;

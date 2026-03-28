@@ -141,6 +141,6 @@ void main() {
     if(uWarpMode == BICUBIC_INTERPOLATION) {
         vertexPos = bicubicInterpolate(localCellUvX, localCellUvY, cellIndexX, cellIndexY);
     }
-
-    gl_Position = projectionMatrix * viewMatrix * vec4(vec3(vertexPos, 0.0), 1.0); //world space vertex position
+    //viewMatrix because we use world space vertex position and dont care about the mesh original vertex positions
+    gl_Position = projectionMatrix * viewMatrix * vec4(vec3(vertexPos, 0.0), 1.0);
 }
