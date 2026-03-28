@@ -15,6 +15,12 @@ import { EventChannel } from '../ipc/EventChannel';
 import { WindowManager } from '../windows/WindowManager';
 import { ProjectionEventType } from '../ipc/EventTypes';
 import type { ProjectionEventPayloads } from '../ipc/EventPayloads';
+import { POLYGON_MASK_STORAGE_KEY } from '../mask/PolygonMask';
+
+interface ButtonGridBladeApi {
+  element: HTMLElement;
+  on(event: 'click', callback: (ev: { index: [number, number] }) => void): void;
+}
 
 export type GUIAnchor = 'left' | 'right';
 
@@ -133,10 +139,10 @@ export class ProjectionMapperGUI {
       view: 'buttongrid',
       size: [2, 1],
       cells: (x: number) => ({ title: ['Testcard', 'Warp'][x] }),
-    }) as any;
+    }) as ButtonGridBladeApi;
 
     const [testcardBtn, warpBtn] = Array.from(
-      (settingsBtnGrid.element as HTMLElement).querySelectorAll('button'),
+      settingsBtnGrid.element.querySelectorAll('button'),
     ) as HTMLButtonElement[];
 
     this.syncSettingButtons = () => {
@@ -145,7 +151,7 @@ export class ProjectionMapperGUI {
     };
     this.syncSettingButtons();
 
-    settingsBtnGrid.on('click', (ev: any) => {
+    settingsBtnGrid.on('click', (ev) => {
       if (ev.index[0] === 0) {
         this.settings.showTestcard = !this.settings.showTestcard;
         this.mapper.setShowTestCard(this.settings.showTestcard);
@@ -241,10 +247,10 @@ export class ProjectionMapperGUI {
       view: 'buttongrid',
       size: [2, 1],
       cells: (x: number) => ({ title: ['Controls', 'Show All'][x] }),
-    }) as any;
+    }) as ButtonGridBladeApi;
 
     const [controlsBtn] = Array.from(
-      (warpBtnGrid.element as HTMLElement).querySelectorAll('button'),
+      warpBtnGrid.element.querySelectorAll('button'),
     ) as HTMLButtonElement[];
 
     this.syncControlsButton = () => {
@@ -253,7 +259,7 @@ export class ProjectionMapperGUI {
     };
     this.syncControlsButton();
 
-    warpBtnGrid.on('click', (ev: any) => {
+    warpBtnGrid.on('click', (ev) => {
       if (ev.index[0] === 0) {
         this.toggleWarpUI();
       } else {
@@ -400,10 +406,10 @@ export class ProjectionMapperGUI {
         view: 'buttongrid',
         size: [2, 1],
         cells: (x: number) => ({ title: ['Enabled', 'Controls'][x] }),
-      }) as any;
+      }) as ButtonGridBladeApi;
 
       const [enabledBtn, controlsBtn] = Array.from(
-        (polyBtnGrid.element as HTMLElement).querySelectorAll('button'),
+        polyBtnGrid.element.querySelectorAll('button'),
       ) as HTMLButtonElement[];
 
       const syncPolyButtons = () => {
@@ -425,7 +431,7 @@ export class ProjectionMapperGUI {
         syncPolyButtons();
       };
 
-      polyBtnGrid.on('click', (ev: any) => {
+      polyBtnGrid.on('click', (ev) => {
         if (ev.index[0] === 0) {
           polygonMaskState.enabled = !polygonMaskState.enabled;
           this.mapper.setPolygonMaskEnabled(polygonMaskState.enabled);
@@ -444,13 +450,11 @@ export class ProjectionMapperGUI {
           this.saveSettings();
         });
 
-      (
-        polygonSubFolder.addBlade({
-          view: 'buttongrid',
-          size: [2, 1],
-          cells: (x: number) => ({ title: ['Reset', 'Delete'][x] }),
-        }) as any
-      ).on('click', (ev: any) => {
+      (polygonSubFolder.addBlade({
+        view: 'buttongrid',
+        size: [2, 1],
+        cells: (x: number) => ({ title: ['Reset', 'Delete'][x] }),
+      }) as ButtonGridBladeApi).on('click', (ev) => {
         if (ev.index[0] === 0) {
           this.mapper.resetPolygonMask();
         } else {
@@ -496,7 +500,7 @@ export class ProjectionMapperGUI {
     });
 
     // Restore if mask was saved in previous session
-    if (localStorage.getItem('polygon-mask')) {
+    if (localStorage.getItem(POLYGON_MASK_STORAGE_KEY)) {
       this.mapper.addPolygonMask();
       this.mapper.setPolygonFeather(this.settings.polygonFeather);
       showPolygonSubFolder();

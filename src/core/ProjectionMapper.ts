@@ -97,7 +97,7 @@ export class ProjectionMapper {
     this.config = {
       segments: config.segments ?? DEFAULTS.segments,
       gridControlPoints,
-      antialias: config.antialias ?? DEFAULTS.aa,
+      antialias: config.antialias ?? DEFAULTS.antialias,
       zoom: config.zoom ?? DEFAULTS.zoom,
     };
 

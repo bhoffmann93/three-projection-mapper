@@ -31,7 +31,14 @@ export interface UVPoint {
   v: number;
 }
 
-const STORAGE_KEY = 'polygon-mask';
+export const POLYGON_MASK_STORAGE_KEY = 'polygon-mask';
+
+const HANDLE_PIXEL_RADIUS = 5;
+const EDGE_HIT_PIXEL_RADIUS = 8;
+const DOUBLE_CLICK_INSERT_GUARD_MS = 300;
+
+const ANCHOR_COLOR = 0x00ffff;
+const ANCHOR_Z = 0.02;
 
 const DEFAULT_NODES: UVPoint[] = [
   { u: 0.25, v: 0.25 },
@@ -41,7 +48,7 @@ const DEFAULT_NODES: UVPoint[] = [
 ];
 
 export class PolygonMask {
-  public nodes: UVPoint[];
+  private nodeList: UVPoint[];
   private worldWidth: number;
   private worldHeight: number;
   private scene: THREE.Scene;
@@ -57,11 +64,14 @@ export class PolygonMask {
   private lastPixelToWorld = 0;
   private ignoreNextDblClick = false;
 
-  // Stored so they can be removed in dispose()
-  private boundClickHandler!: (e: PointerEvent) => void;
+  private boundClickHandler!: (e: MouseEvent) => void;
   private boundDblClickHandler!: (e: MouseEvent) => void;
 
   public onChanged: () => void = () => {};
+
+  get nodes(): readonly UVPoint[] {
+    return this.nodeList;
+  }
 
   constructor(
     scene: THREE.Scene,
@@ -77,7 +87,7 @@ export class PolygonMask {
     this.worldWidth = worldWidth;
     this.worldHeight = worldHeight;
 
-    this.nodes = nodes ?? this.loadFromStorage() ?? [...DEFAULT_NODES];
+    this.nodeList = nodes ?? this.loadFromStorage() ?? [...DEFAULT_NODES];
 
     this.buildObjects();
     this.initDragControls();
@@ -91,23 +101,27 @@ export class PolygonMask {
     return { u: wx / this.worldWidth + 0.5, v: wy / this.worldHeight + 0.5 };
   }
 
-  private buildObjects(): void {
+  private createAnchorMesh(uv: UVPoint): THREE.Mesh {
     const geo = new THREE.SphereGeometry(1, 8, 8);
-    const mat = new THREE.MeshBasicMaterial({ color: 0x00ffff, depthTest: false, transparent: true });
+    const mat = new THREE.MeshBasicMaterial({ color: ANCHOR_COLOR, depthTest: false, transparent: true });
+    const mesh = new THREE.Mesh(geo, mat);
+    const pos = this.uvToWorld(uv);
+    mesh.position.set(pos.x, pos.y, ANCHOR_Z);
+    mesh.renderOrder = RenderOrder.CONTROLS;
+    return mesh;
+  }
 
-    for (const node of this.nodes) {
-      const mesh = new THREE.Mesh(geo, mat.clone());
-      const pos = this.uvToWorld(node);
-      mesh.position.set(pos.x, pos.y, 0.02);
-      mesh.renderOrder = RenderOrder.CONTROLS;
+  private buildObjects(): void {
+    for (const node of this.nodeList) {
+      const mesh = this.createAnchorMesh(node);
       this.scene.add(mesh);
       this.anchorObjects.push(mesh);
     }
 
-    this.outlinePositions = new Float32Array(this.nodes.length * 3);
+    this.outlinePositions = new Float32Array(this.nodeList.length * 3);
     const outlineGeo = new THREE.BufferGeometry();
     outlineGeo.setAttribute('position', new THREE.BufferAttribute(this.outlinePositions, 3));
-    const outlineMat = new THREE.LineBasicMaterial({ color: 0x00ffff, depthTest: false, transparent: true });
+    const outlineMat = new THREE.LineBasicMaterial({ color: ANCHOR_COLOR, depthTest: false, transparent: true });
     this.outlineLine = new THREE.LineLoop(outlineGeo, outlineMat);
     this.outlineLine.renderOrder = RenderOrder.CONTROLS;
     this.scene.add(this.outlineLine);
@@ -126,49 +140,45 @@ export class PolygonMask {
 
   private rebuildOutline(): void {
     this.outlineLine.geometry.dispose();
-    this.outlinePositions = new Float32Array(this.nodes.length * 3);
+    this.outlinePositions = new Float32Array(this.nodeList.length * 3);
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(this.outlinePositions, 3));
     this.outlineLine.geometry = geo;
     this.updateOutline();
   }
 
+  private attachDragListeners(): void {
+    this.dragControls.addEventListener('drag', this.handleDrag.bind(this));
+    this.dragControls.addEventListener('dragend', () => this.saveToStorage());
+  }
+
   private recreateDragControls(): void {
     this.dragControls.dispose();
     this.dragControls = new DragControls(this.anchorObjects, this.camera, this.renderer.domElement);
-    this.dragControls.addEventListener('drag', this.handleDrag.bind(this));
-    this.dragControls.addEventListener('dragend', () => {
-      this.saveToStorage();
-    });
+    this.attachDragListeners();
   }
 
   private insertNode(segmentIndex: number, uv: UVPoint): void {
-    const geo = new THREE.SphereGeometry(1, 8, 8);
-    const mat = new THREE.MeshBasicMaterial({ color: 0x00ffff, depthTest: false, transparent: true });
-    const mesh = new THREE.Mesh(geo, mat);
-    const pos = this.uvToWorld(uv);
-    mesh.position.set(pos.x, pos.y, 0.02);
-    mesh.scale.setScalar(this.lastPixelToWorld * 5);
-    mesh.renderOrder = RenderOrder.CONTROLS;
+    const mesh = this.createAnchorMesh(uv);
+    mesh.scale.setScalar(this.lastPixelToWorld * HANDLE_PIXEL_RADIUS);
     mesh.visible = this.outlineLine.visible;
     this.scene.add(mesh);
 
     const insertAt = segmentIndex + 1;
     this.anchorObjects.splice(insertAt, 0, mesh);
-    this.nodes.splice(insertAt, 0, uv);
+    this.nodeList.splice(insertAt, 0, uv);
 
     this.rebuildOutline();
     this.recreateDragControls();
     this.saveToStorage();
     this.onChanged();
 
-    // Prevent the dblclick that can follow a rapid double-click from deleting the new node
     this.ignoreNextDblClick = true;
-    setTimeout(() => { this.ignoreNextDblClick = false; }, 300);
+    setTimeout(() => { this.ignoreNextDblClick = false; }, DOUBLE_CLICK_INSERT_GUARD_MS);
   }
 
   private removeNode(nodeIndex: number): void {
-    if (this.nodes.length <= 3) return;
+    if (this.nodeList.length <= 3) return;
 
     const mesh = this.anchorObjects[nodeIndex];
     this.scene.remove(mesh);
@@ -176,7 +186,7 @@ export class PolygonMask {
     (mesh.material as THREE.Material).dispose();
 
     this.anchorObjects.splice(nodeIndex, 1);
-    this.nodes.splice(nodeIndex, 1);
+    this.nodeList.splice(nodeIndex, 1);
 
     this.rebuildOutline();
     this.recreateDragControls();
@@ -186,10 +196,7 @@ export class PolygonMask {
 
   private initDragControls(): void {
     this.dragControls = new DragControls(this.anchorObjects, this.camera, this.renderer.domElement);
-    this.dragControls.addEventListener('drag', this.handleDrag.bind(this));
-    this.dragControls.addEventListener('dragend', () => {
-      this.saveToStorage();
-    });
+    this.attachDragListeners();
 
     const raycaster = new THREE.Raycaster();
 
@@ -201,13 +208,11 @@ export class PolygonMask {
       );
     };
 
-    // Click on edge → insert node
-    this.boundClickHandler = (event: PointerEvent) => {
+    this.boundClickHandler = (event: MouseEvent) => {
       if (!this.outlineLine.visible) return;
       raycaster.setFromCamera(toNDC(event), this.camera);
-      raycaster.params.Line = { threshold: this.lastPixelToWorld * 8 };
+      raycaster.params.Line = { threshold: this.lastPixelToWorld * EDGE_HIT_PIXEL_RADIUS };
 
-      // Let DragControls own anchor clicks
       if (raycaster.intersectObjects(this.anchorObjects).length > 0) return;
 
       const hits = raycaster.intersectObject(this.outlineLine);
@@ -221,7 +226,6 @@ export class PolygonMask {
       this.insertNode(segmentIndex, this.worldToUV(flat.x, flat.y));
     };
 
-    // Double-click on handle → remove node
     this.boundDblClickHandler = (event: MouseEvent) => {
       if (!this.outlineLine.visible) return;
       if (this.ignoreNextDblClick) return;
@@ -246,7 +250,7 @@ export class PolygonMask {
 
     const flat = this.inverseTransform ? this.inverseTransform(wx, wy) : new THREE.Vector2(wx, wy);
 
-    this.nodes[nodeIndex] = this.worldToUV(flat.x, flat.y);
+    this.nodeList[nodeIndex] = this.worldToUV(flat.x, flat.y);
     this.updateOutline();
     this.onChanged();
   }
@@ -257,17 +261,17 @@ export class PolygonMask {
   ): void {
     this.inverseTransform = inverse;
 
-    for (let i = 0; i < this.nodes.length; i++) {
-      const flat = this.uvToWorld(this.nodes[i]);
+    for (let i = 0; i < this.nodeList.length; i++) {
+      const flat = this.uvToWorld(this.nodeList[i]);
       const warped = transform(flat.x, flat.y);
-      this.anchorObjects[i].position.set(warped.x, warped.y, 0.02);
+      this.anchorObjects[i].position.set(warped.x, warped.y, ANCHOR_Z);
     }
     this.updateOutline();
   }
 
   public updateControlPointsScale(pixelToWorld: number): void {
     this.lastPixelToWorld = pixelToWorld;
-    const size = pixelToWorld * 5;
+    const size = pixelToWorld * HANDLE_PIXEL_RADIUS;
     for (const mesh of this.anchorObjects) {
       mesh.scale.setScalar(size);
     }
@@ -280,7 +284,7 @@ export class PolygonMask {
 
   private saveToStorage(): void {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.nodes));
+      localStorage.setItem(POLYGON_MASK_STORAGE_KEY, JSON.stringify(this.nodeList));
     } catch {
       /* ignore */
     }
@@ -288,7 +292,7 @@ export class PolygonMask {
 
   private loadFromStorage(): UVPoint[] | null {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(POLYGON_MASK_STORAGE_KEY);
       if (!raw) return null;
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length >= 3) return parsed as UVPoint[];
@@ -299,7 +303,7 @@ export class PolygonMask {
   }
 
   public clearStorage(): void {
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(POLYGON_MASK_STORAGE_KEY);
   }
 
   public dispose(): void {

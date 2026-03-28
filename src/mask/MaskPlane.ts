@@ -102,7 +102,10 @@ export class MaskPlane {
     this.uniforms.uFeather.value = amount;
   }
 
-  setPolygonNodes(nodes: UVPoint[]): void {
+  setPolygonNodes(nodes: readonly UVPoint[]): void {
+    if (nodes.length > MAX_POLYGON_POINTS) {
+      throw new Error(`PolygonMask: node count ${nodes.length} exceeds MAX_POLYGON_POINTS (${MAX_POLYGON_POINTS})`);
+    }
     this.uniforms.uPolygonPointCount.value = nodes.length;
     for (let i = 0; i < nodes.length; i++) {
       this.uniforms.uPolygonPoints.value[i].set(nodes[i].u, nodes[i].v);
