@@ -11,6 +11,7 @@ uniform vec2 uPolygonPoints[MAX_POLYGON_POINTS];
 uniform float uPolygonFeather;
 
 uniform bool uShouldWarp;
+uniform bool uShowBorderLines;
 
 float aastep(float edge, float value) {
     float afwidth = fwidth(value);
@@ -97,13 +98,13 @@ void main() {
         reveal *= uPolygonInvert ? 1.0 - polyMask : polyMask;
     }
 
-    // Border: visible when warp is off as an alignment guide; polygon mask overwrites it.
-    if(!uShouldWarp) {
+    // Border: alignment guide when warp is off, suppressed in projector output.
+    if(!uShouldWarp && uShowBorderLines) {
         reveal *= (1.0 - drawBorderLines(vUv));
     }
 
     vec3 color = vec3(0.0);
-    if(uShouldWarp == false) {
+    if(!uShouldWarp && uShowBorderLines) {
         float borderLines = drawBorderLines(vUv);
         color = mix(color, vec3(0.75), borderLines);
     }

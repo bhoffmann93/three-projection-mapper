@@ -192,6 +192,56 @@ export class PolygonMask {
     this.onChanged();
   }
 
+  /**
+   * Screen-space segment hit test. Projects each anchor to pixels and finds
+   * the polygon edge closest to the mouse. More reliable than Three.js
+   * LineLoop raycasting, which fails on very long or short segments.
+   */
+  private findClosestEdge(
+    event: MouseEvent,
+    pixelThreshold: number,
+  ): { segmentIndex: number; worldPt: THREE.Vector3 } | null {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const screenPt = new THREE.Vector2(event.clientX - rect.left, event.clientY - rect.top);
+    const w = rect.width;
+    const h = rect.height;
+
+    const toScreen = (obj: THREE.Mesh): THREE.Vector2 => {
+      const p = obj.position.clone().project(this.camera);
+      return new THREE.Vector2(((p.x + 1) / 2) * w, ((1 - p.y) / 2) * h);
+    };
+
+    const projected = this.anchorObjects.map(toScreen);
+    const n = projected.length;
+    let bestDist = pixelThreshold;
+    let bestIndex = -1;
+    let bestT = 0;
+
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      const a = projected[i];
+      const b = projected[j];
+      const ab = b.clone().sub(a);
+      const abLen2 = ab.dot(ab);
+      const t = abLen2 > 0 ? Math.max(0, Math.min(1, screenPt.clone().sub(a).dot(ab) / abLen2)) : 0;
+      const dist = screenPt.distanceTo(a.clone().add(ab.clone().multiplyScalar(t)));
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestIndex = i;
+        bestT = t;
+      }
+    }
+
+    if (bestIndex === -1) return null;
+
+    const aWorld = this.anchorObjects[bestIndex].position;
+    const bWorld = this.anchorObjects[(bestIndex + 1) % n].position;
+    return {
+      segmentIndex: bestIndex,
+      worldPt: new THREE.Vector3().lerpVectors(aWorld, bWorld, bestT),
+    };
+  }
+
   private initDragControls(): void {
     this.dragControls = new DragControls(this.anchorObjects, this.camera, this.renderer.domElement);
     this.attachDragListeners();
@@ -209,15 +259,13 @@ export class PolygonMask {
     this.boundClickHandler = (event: MouseEvent) => {
       if (!this.outlineLine.visible) return;
       raycaster.setFromCamera(toNDC(event), this.camera);
-      raycaster.params.Line = { threshold: this.lastPixelToWorld * POLYGON_HANDLE_STYLE.edgeHitPixelRadius };
 
       if (raycaster.intersectObjects(this.anchorObjects).length > 0) return;
 
-      const hits = raycaster.intersectObject(this.outlineLine);
-      if (hits.length === 0) return;
+      const result = this.findClosestEdge(event, POLYGON_HANDLE_STYLE.edgeHitPixelRadius);
+      if (!result) return;
 
-      const segmentIndex = hits[0].index ?? 0;
-      const worldPt = hits[0].point;
+      const { segmentIndex, worldPt } = result;
       const flat = this.inverseTransform
         ? this.inverseTransform(worldPt.x, worldPt.y)
         : new THREE.Vector2(worldPt.x, worldPt.y);
@@ -237,11 +285,10 @@ export class PolygonMask {
     this.boundMouseMoveHandler = (event: MouseEvent) => {
       if (!this.outlineLine.visible) return;
       raycaster.setFromCamera(toNDC(event), this.camera);
-      raycaster.params.Line = { threshold: this.lastPixelToWorld * POLYGON_HANDLE_STYLE.edgeHitPixelRadius };
 
       if (raycaster.intersectObjects(this.anchorObjects).length > 0) {
         this.renderer.domElement.style.cursor = 'grab';
-      } else if (raycaster.intersectObject(this.outlineLine).length > 0) {
+      } else if (this.findClosestEdge(event, POLYGON_HANDLE_STYLE.edgeHitPixelRadius)) {
         this.renderer.domElement.style.cursor = 'crosshair';
       } else {
         this.renderer.domElement.style.cursor = '';
@@ -288,6 +335,26 @@ export class PolygonMask {
     for (const mesh of this.anchorObjects) {
       mesh.scale.setScalar(size);
     }
+  }
+
+  public setNodes(nodes: UVPoint[]): void {
+    this.nodeList = [...nodes];
+    // Rebuild anchor objects to match new node list
+    for (const mesh of this.anchorObjects) {
+      this.scene.remove(mesh);
+      mesh.geometry.dispose();
+      (mesh.material as THREE.Material).dispose();
+    }
+    this.anchorObjects = [];
+    for (const node of this.nodeList) {
+      const mesh = this.createAnchorMesh(node);
+      mesh.scale.setScalar(this.lastPixelToWorld * POLYGON_HANDLE_STYLE.anchorPointPixelRadius);
+      this.scene.add(mesh);
+      this.anchorObjects.push(mesh);
+    }
+    this.rebuildOutline();
+    this.recreateDragControls();
+    this.onChanged();
   }
 
   public setVisible(visible: boolean): void {

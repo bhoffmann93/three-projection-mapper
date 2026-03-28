@@ -44,6 +44,7 @@ export class MaskPlane {
     uPolygonPoints: { value: THREE.Vector2[] };
     uPolygonFeather: { value: number };
     uShouldWarp: { value: boolean };
+    uShowBorderLines: { value: boolean };
   };
 
   constructor(config: MaskPlaneConfig) {
@@ -68,6 +69,7 @@ export class MaskPlane {
       uPolygonPoints: { value: Array.from({ length: MAX_POLYGON_POINTS }, () => new THREE.Vector2()) },
       uPolygonFeather: { value: DEFAULT_POLYGON_FEATHER },
       uShouldWarp: { value: false },
+      uShowBorderLines: { value: true },
     };
 
     this.material = new THREE.ShaderMaterial({
@@ -116,8 +118,20 @@ export class MaskPlane {
     this.uniforms.uPolygonMaskEnabled.value = enabled;
   }
 
+  getPolygonMaskEnabled(): boolean {
+    return this.uniforms.uPolygonMaskEnabled.value;
+  }
+
   setPolygonInvert(invert: boolean): void {
     this.uniforms.uPolygonInvert.value = invert;
+  }
+
+  getPolygonInvert(): boolean {
+    return this.uniforms.uPolygonInvert.value;
+  }
+
+  getPolygonFeather(): number {
+    return this.uniforms.uPolygonFeather.value;
   }
 
   setPolygonFeather(feather: number): void {
@@ -126,6 +140,10 @@ export class MaskPlane {
 
   setShouldWarp(enabled: boolean): void {
     this.uniforms.uShouldWarp.value = enabled;
+  }
+
+  setShowBorderLines(show: boolean): void {
+    this.uniforms.uShowBorderLines.value = show;
   }
 
   dispose(): void {

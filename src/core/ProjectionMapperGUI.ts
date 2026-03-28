@@ -8,6 +8,7 @@ import {
   DEFAULT_POLYGON_FEATHER,
   DEFAULTS,
   MESH_WARP_GRID_SIZE,
+  STORAGE_VERSION,
 } from './defaults';
 import type { ImageSettings } from './defaults';
 import { WARP_MODE } from '../warp/MeshWarper';
@@ -41,6 +42,7 @@ export interface ProjectionMapperGUISettings extends ImageSettings {
   showCornerPoints: boolean;
   showOutline: boolean;
   imageExpanded: boolean;
+  masksExpanded: boolean;
   polygonFeather: number;
   polygonInvert: boolean;
 }
@@ -83,6 +85,7 @@ export class ProjectionMapperGUI {
       showCornerPoints: true,
       showOutline: true,
       imageExpanded: false,
+      masksExpanded: true,
       polygonFeather: DEFAULT_POLYGON_FEATHER,
       polygonInvert: false,
       ...DEFAULT_IMAGE_SETTINGS,
@@ -223,6 +226,32 @@ export class ProjectionMapperGUI {
 
     imageFolder.addBlade({ view: 'separator' });
 
+    imageFolder
+      .addBinding(this.settings, 'maskEnabled', { label: 'Edge Mask' })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        const enabled = e.value as boolean;
+        this.mapper.setImageSettings({ maskEnabled: enabled });
+        featherBinding.disabled = !enabled;
+        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
+        this.saveSettings();
+      });
+
+    const featherBinding = imageFolder
+      .addBinding(this.settings, 'feather', {
+        label: 'Feather',
+        min: 0.0,
+        max: 0.5,
+        step: 0.01,
+        disabled: !this.settings.maskEnabled,
+      })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        this.mapper.setImageSettings({ feather: e.value as number });
+        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
+        this.saveSettings();
+      });
+
+    imageFolder.addBlade({ view: 'separator' });
+
     imageFolder.addButton({ title: 'Reset Image' }).on('click', () => {
       Object.assign(this.settings, DEFAULT_IMAGE_SETTINGS);
       this.mapper.setImageSettings(DEFAULT_IMAGE_SETTINGS);
@@ -293,29 +322,6 @@ export class ProjectionMapperGUI {
         this.saveSettings();
       });
 
-    // Grid Warp folder
-    const gridFolder = this.warpFolder.addFolder({ title: 'Grid Warp', expanded: true });
-
-    gridFolder
-      .addBlade({
-        view: 'list',
-        label: 'Warp Mode',
-        options: [
-          { text: 'Bilinear', value: WARP_MODE.bilinear },
-          { text: 'Bicubic', value: WARP_MODE.bicubic },
-        ],
-        value: this.settings.warpMode,
-      })
-      //@ts-ignore
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        this.settings.warpMode = e.value as WARP_MODE;
-        this.mapper.getWarper().setWarpMode(e.value as WARP_MODE);
-        this.saveSettings();
-        this.broadcast(ProjectionEventType.WARP_MODE_CHANGED, {
-          mode: e.value as number,
-        });
-      });
-
     const onGridSizeChange = () => {
       this.mapper.setGridSize(this.settings.gridSize.x, this.settings.gridSize.y);
       this.saveSettings();
@@ -342,37 +348,62 @@ export class ProjectionMapperGUI {
       }
     };
 
-    gridFolder
+    // Grid Warp sub-folder
+    const gridWarpFolder = this.warpFolder.addFolder({ title: 'Grid Warp', expanded: true });
+
+    gridWarpFolder
+      .addBlade({
+        view: 'list',
+        label: 'Warp Mode',
+        options: [
+          { text: 'Bilinear', value: WARP_MODE.bilinear },
+          { text: 'Bicubic', value: WARP_MODE.bicubic },
+        ],
+        value: this.settings.warpMode,
+      })
+      //@ts-ignore
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        this.settings.warpMode = e.value as WARP_MODE;
+        this.mapper.getWarper().setWarpMode(e.value as WARP_MODE);
+        this.saveSettings();
+        this.broadcast(ProjectionEventType.WARP_MODE_CHANGED, {
+          mode: e.value as number,
+        });
+      });
+
+    gridWarpFolder
       .addBinding(this.settings.gridSize, 'x', {
         label: 'Cols',
         min: MESH_WARP_GRID_SIZE.minimum,
         max: MESH_WARP_GRID_SIZE.maximum,
         step: 1,
       })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        this.settings.gridSize.x = Math.floor(e.value as number);
+      .on('change', () => {
+        this.settings.gridSize.x = Math.floor(this.settings.gridSize.x);
         onGridSizeChange();
       });
 
-    gridFolder
+    gridWarpFolder
       .addBinding(this.settings.gridSize, 'y', {
         label: 'Rows',
         min: MESH_WARP_GRID_SIZE.minimum,
         max: MESH_WARP_GRID_SIZE.maximum,
         step: 1,
       })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        this.settings.gridSize.y = Math.floor(e.value as number);
+      .on('change', () => {
+        this.settings.gridSize.y = Math.floor(this.settings.gridSize.y);
         onGridSizeChange();
       });
 
-    gridFolder.addBinding(this.settings, 'showGrid', { label: 'Show' }).on('change', (e: TpChangeEvent<unknown>) => {
-      const show = e.value as boolean;
-      this.mapper.setGridPointsVisible(show);
-      this.mapper.setShowControlLines(show);
-      this.saveSettings();
-      this.broadcast(ProjectionEventType.CONTROL_LINES_TOGGLED, { show });
-    });
+    gridWarpFolder
+      .addBinding(this.settings, 'showGrid', { label: 'Show' })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        const show = e.value as boolean;
+        this.mapper.setGridPointsVisible(show);
+        this.mapper.setShowControlLines(show);
+        this.saveSettings();
+        this.broadcast(ProjectionEventType.CONTROL_LINES_TOGGLED, { show });
+      });
 
     this.warpFolder.addBlade({ view: 'separator' });
 
@@ -393,7 +424,12 @@ export class ProjectionMapperGUI {
   }
 
   private initMasksFolder(): void {
-    const masksFolder = this.pane.addFolder({ title: 'Masks', expanded: false });
+    const masksFolder = this.pane.addFolder({ title: 'Masks', expanded: this.settings.masksExpanded });
+
+    masksFolder.on('fold', () => {
+      this.settings.masksExpanded = masksFolder.expanded;
+      this.saveSettings();
+    });
 
     const polygonMaskState = {
       enabled: true,
@@ -409,6 +445,27 @@ export class ProjectionMapperGUI {
 
       polygonMaskState.inverted = this.settings.polygonInvert;
       this.mapper.setPolygonInvert(polygonMaskState.inverted);
+
+      // Broadcast node changes to projector window
+      this.mapper.onPolygonNodesChanged = () => {
+        const nodes = this.mapper.getPolygonMask()?.nodes;
+        if (!nodes) return;
+        this.broadcast(ProjectionEventType.POLYGON_MASK_NODES_CHANGED, {
+          nodes: Array.from(nodes).map((n) => ({ u: n.u, v: n.v })),
+        });
+      };
+
+      const broadcastPolySettings = () => {
+        this.broadcast(ProjectionEventType.POLYGON_MASK_SETTINGS_CHANGED, {
+          enabled: polygonMaskState.enabled,
+          inverted: polygonMaskState.inverted,
+          feather: polygonMaskState.feather,
+        });
+      };
+
+      // Broadcast initial state now that callbacks are wired up
+      this.mapper.onPolygonNodesChanged();
+      broadcastPolySettings();
 
       const polyBtnGrid = polygonSubFolder.addBlade({
         view: 'buttongrid',
@@ -444,11 +501,13 @@ export class ProjectionMapperGUI {
         if (ev.index[0] === 0) {
           polygonMaskState.enabled = !polygonMaskState.enabled;
           this.mapper.setPolygonMaskEnabled(polygonMaskState.enabled);
+          broadcastPolySettings();
         } else if (ev.index[0] === 1) {
           polygonMaskState.inverted = !polygonMaskState.inverted;
           this.mapper.setPolygonInvert(polygonMaskState.inverted);
           this.settings.polygonInvert = polygonMaskState.inverted;
           this.saveSettings();
+          broadcastPolySettings();
         } else {
           polygonMaskState.showHandles = !polygonMaskState.showHandles;
           this.mapper.getPolygonMask()?.setVisible(polygonMaskState.showHandles);
@@ -462,6 +521,7 @@ export class ProjectionMapperGUI {
           this.settings.polygonFeather = e.value as number;
           this.mapper.setPolygonFeather(this.settings.polygonFeather);
           this.saveSettings();
+          broadcastPolySettings();
         });
 
       (
@@ -475,44 +535,23 @@ export class ProjectionMapperGUI {
           this.mapper.resetPolygonMask();
         } else {
           this.mapper.removePolygonMask();
+          this.mapper.onPolygonNodesChanged = () => {};
+          this.broadcast(ProjectionEventType.POLYGON_MASK_REMOVED, {});
           polygonSubFolder!.dispose();
           polygonSubFolder = null;
           this.onControlsVisibilityChange = () => {};
+          addBtn.hidden = false;
         }
       });
     };
 
-    const edgeMaskFolder = masksFolder.addFolder({ title: 'Edge Mask', expanded: false });
-
-    edgeMaskFolder
-      .addBinding(this.settings, 'maskEnabled', { label: 'Enabled' })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        const enabled = e.value as boolean;
-        this.mapper.setImageSettings({ maskEnabled: enabled });
-        featherBinding.disabled = !enabled;
-        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
-        this.saveSettings();
-      });
-
-    const featherBinding = edgeMaskFolder
-      .addBinding(this.settings, 'feather', {
-        label: 'Feather',
-        min: 0.0,
-        max: 0.5,
-        step: 0.01,
-        disabled: !this.settings.maskEnabled,
-      })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        this.mapper.setImageSettings({ feather: e.value as number });
-        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
-        this.saveSettings();
-      });
-
-    masksFolder.addButton({ title: 'Add Polygon Mask' }).on('click', () => {
+    const addBtn = masksFolder.addButton({ title: 'Add Polygon Mask' });
+    addBtn.on('click', () => {
       if (!this.mapper.getPolygonMask()) {
         this.mapper.addPolygonMask();
       }
       showPolygonSubFolder();
+      addBtn.hidden = true;
     });
 
     // Restore if mask was saved in previous session
@@ -520,6 +559,7 @@ export class ProjectionMapperGUI {
       this.mapper.addPolygonMask();
       this.mapper.setPolygonFeather(this.settings.polygonFeather);
       showPolygonSubFolder();
+      addBtn.hidden = true;
     }
   }
 
@@ -638,7 +678,7 @@ export class ProjectionMapperGUI {
 
   private saveSettings(): void {
     try {
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.settings));
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify({ ...this.settings, version: STORAGE_VERSION }));
     } catch (error) {
       console.warn('Failed to save GUI settings:', error);
     }
@@ -649,7 +689,11 @@ export class ProjectionMapperGUI {
       const saved = localStorage.getItem(this.STORAGE_KEY);
       if (!saved) return;
 
-      const loaded = JSON.parse(saved) as Partial<ProjectionMapperGUISettings>;
+      const loaded = JSON.parse(saved) as Partial<ProjectionMapperGUISettings> & { version?: number };
+      if (loaded.version !== STORAGE_VERSION) {
+        localStorage.removeItem(this.STORAGE_KEY);
+        return;
+      }
       Object.assign(this.settings, loaded);
     } catch (error) {
       console.warn('Failed to load GUI settings:', error);

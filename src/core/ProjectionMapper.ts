@@ -7,7 +7,7 @@ import projectionFragmentShader from '../shaders/projection.frag';
 import { calculateGridPoints } from '../warp/geometry';
 import { GUI_STORAGE_KEY, DEFAULT_IMAGE_SETTINGS, DEFAULTS } from './defaults';
 import type { ImageSettings } from './defaults';
-import { PolygonMask, type UVPoint } from '../mask/PolygonMask';
+import { PolygonMask, type UVPoint, POLYGON_MASK_STORAGE_KEY } from '../mask/PolygonMask';
 import { MaskPlane } from '../mask/MaskPlane';
 
 export { GUI_STORAGE_KEY, DEFAULT_IMAGE_SETTINGS };
@@ -64,6 +64,9 @@ export class ProjectionMapper {
   };
 
   private polygonMask: PolygonMask | null = null;
+
+  /** Called whenever polygon mask nodes change (drag, insert, delete, reset). */
+  public onPolygonNodesChanged: () => void = () => {};
   private maskPlane!: MaskPlane;
   private imageSettings: ImageSettings;
 
@@ -397,6 +400,17 @@ export class ProjectionMapper {
   private syncPolygonMaskUniforms(): void {
     if (!this.polygonMask) return;
     this.maskPlane.setPolygonNodes(this.polygonMask.nodes);
+    this.onPolygonNodesChanged();
+  }
+
+  getPolygonMaskFullState(): { nodes: UVPoint[]; enabled: boolean; inverted: boolean; feather: number } | null {
+    if (!this.polygonMask) return null;
+    return {
+      nodes: Array.from(this.polygonMask.nodes),
+      enabled: this.maskPlane.getPolygonMaskEnabled(),
+      inverted: this.maskPlane.getPolygonInvert(),
+      feather: this.maskPlane.getPolygonFeather(),
+    };
   }
 
   getPolygonMask(): PolygonMask | null {
@@ -413,6 +427,10 @@ export class ProjectionMapper {
 
   setPolygonInvert(invert: boolean): void {
     this.maskPlane.setPolygonInvert(invert);
+  }
+
+  setShowBorderLines(show: boolean): void {
+    this.maskPlane.setShowBorderLines(show);
   }
 
   dispose(): void {
