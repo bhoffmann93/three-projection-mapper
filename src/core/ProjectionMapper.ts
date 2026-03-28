@@ -319,6 +319,7 @@ export class ProjectionMapper {
   setShouldWarp(enabled: boolean): void {
     this.meshWarper.setShouldWarp(enabled);
     this.maskPlane.setShouldWarp(enabled);
+    this.polygonMask?.setVisible(enabled);
   }
 
   isWarpEnabled(): boolean {
@@ -368,6 +369,7 @@ export class ProjectionMapper {
       this.worldWidth, this.worldHeight, nodes,
     );
     this.polygonMask.onChanged = () => this.syncPolygonMaskUniforms();
+    this.polygonMask.setVisible(this.meshWarper.getShouldWarp());
     this.maskPlane.setPolygonMaskEnabled(true);
     this.syncPolygonMaskUniforms();
     return this.polygonMask;

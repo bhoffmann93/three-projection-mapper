@@ -37,7 +37,7 @@ const DEFAULT_NODES: UVPoint[] = [
 ];
 
 export class PolygonMask {
-  private _nodes: UVPoint[];
+  public nodes: UVPoint[];
   private worldWidth: number;
   private worldHeight: number;
   private scene: THREE.Scene;
@@ -49,7 +49,7 @@ export class PolygonMask {
   private outlinePositions!: Float32Array;
   private dragControls!: DragControls;
 
-  private _inverseTransform: ((x: number, y: number) => THREE.Vector2) | null = null;
+  private inverseTransform: ((x: number, y: number) => THREE.Vector2) | null = null;
 
   public onChanged: () => void = () => {};
 
@@ -67,14 +67,10 @@ export class PolygonMask {
     this.worldWidth = worldWidth;
     this.worldHeight = worldHeight;
 
-    this._nodes = nodes ?? this.loadFromStorage() ?? [...DEFAULT_NODES];
+    this.nodes = nodes ?? this.loadFromStorage() ?? [...DEFAULT_NODES];
 
     this.buildObjects();
     this.initDragControls();
-  }
-
-  get nodes(): UVPoint[] {
-    return this._nodes;
   }
 
   private uvToWorld(uv: UVPoint): THREE.Vector2 {
@@ -89,7 +85,7 @@ export class PolygonMask {
     const geo = new THREE.SphereGeometry(1, 8, 8);
     const mat = new THREE.MeshBasicMaterial({ color: 0x00ffff, depthTest: false, transparent: true });
 
-    for (const node of this._nodes) {
+    for (const node of this.nodes) {
       const mesh = new THREE.Mesh(geo, mat.clone());
       const pos = this.uvToWorld(node);
       mesh.position.set(pos.x, pos.y, 0.02);
@@ -98,7 +94,7 @@ export class PolygonMask {
       this.anchorObjects.push(mesh);
     }
 
-    this.outlinePositions = new Float32Array(this._nodes.length * 3);
+    this.outlinePositions = new Float32Array(this.nodes.length * 3);
     const outlineGeo = new THREE.BufferGeometry();
     outlineGeo.setAttribute('position', new THREE.BufferAttribute(this.outlinePositions, 3));
     const outlineMat = new THREE.LineBasicMaterial({ color: 0x00ffff, depthTest: false, transparent: true });
@@ -134,21 +130,21 @@ export class PolygonMask {
     const wx = obj.position.x;
     const wy = obj.position.y;
 
-    const flat = this._inverseTransform ? this._inverseTransform(wx, wy) : new THREE.Vector2(wx, wy);
+    const flat = this.inverseTransform ? this.inverseTransform(wx, wy) : new THREE.Vector2(wx, wy);
 
-    this._nodes[nodeIndex] = this.worldToUV(flat.x, flat.y);
+    this.nodes[nodeIndex] = this.worldToUV(flat.x, flat.y);
     this.updateOutline();
     this.onChanged();
   }
 
   public updateTransformedPositions(
     transform: (x: number, y: number) => THREE.Vector2,
-    inverseTransform: (x: number, y: number) => THREE.Vector2,
+    inverse: (x: number, y: number) => THREE.Vector2,
   ): void {
-    this._inverseTransform = inverseTransform;
+    this.inverseTransform = inverse;
 
-    for (let i = 0; i < this._nodes.length; i++) {
-      const flat = this.uvToWorld(this._nodes[i]);
+    for (let i = 0; i < this.nodes.length; i++) {
+      const flat = this.uvToWorld(this.nodes[i]);
       const warped = transform(flat.x, flat.y);
       this.anchorObjects[i].position.set(warped.x, warped.y, 0.02);
     }
@@ -169,7 +165,7 @@ export class PolygonMask {
 
   private saveToStorage(): void {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this._nodes));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.nodes));
     } catch {
       /* ignore */
     }

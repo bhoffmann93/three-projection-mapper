@@ -19,9 +19,15 @@ varying vec2 vUv;
 
 uniform mat3 uHomography;
 uniform vec2 uFlatPlaneSize;
+uniform bool uShouldWarp;
 
 void main() {
     vUv = uv;
+    if(!uShouldWarp) {
+        // No warp active: render as a flat plane matching the unwarped content plane
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        return;
+    }
     vec2 flatWorld = (uv - 0.5) * uFlatPlaneSize; // remap uv [0,1] → three.js world space centered at origin, e.g. [-8.89, 8.89] x [-5, 5] for 16:9
     vec3 h = uHomography * vec3(flatWorld, 1.0);
     vec2 worldPos = h.xy / h.z; //perspective divide

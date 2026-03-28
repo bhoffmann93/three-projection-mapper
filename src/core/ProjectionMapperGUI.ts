@@ -456,6 +456,13 @@ export class ProjectionMapperGUI {
         this.settings.showOutline = true;
         this.cornersOutlineState.enabled = true;
       }
+
+      if (!this.settings.shouldWarp) {
+        this.settings.shouldWarp = true;
+        this.mapper.setShouldWarp(true);
+        this.warpFolder.disabled = false;
+        this.warpFolder.expanded = true;
+      }
     }
 
     this.applyVisibility();
