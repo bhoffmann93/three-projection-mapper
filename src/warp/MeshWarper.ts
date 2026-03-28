@@ -24,7 +24,7 @@ import { isQuadConcave } from './geometry';
 import { clamp } from 'three/src/math/MathUtils';
 import meshWarpVertexShader from '../shaders/warp.vert';
 import { RenderOrder } from '../core/RenderOrder';
-import { MESH_WARP_GRID_SIZE } from '../core/defaults';
+import { MESH_WARP_GRID_SIZE, WARP_HANDLE_STYLE } from '../core/defaults';
 
 const STORAGE_KEY = 'warp-grid-control-points';
 
@@ -193,7 +193,7 @@ export class MeshWarper {
 
       const object = new THREE.Mesh(
         boxGeometry,
-        new THREE.MeshBasicMaterial({ color: 'hsl(23, 80%, 80%)', transparent: true, opacity: 0.9 }),
+        new THREE.MeshBasicMaterial({ color: WARP_HANDLE_STYLE.cornerColor, transparent: true, opacity: 0.9 }),
       );
       object.position.set(x, y, 0);
       object.renderOrder = RenderOrder.CONTROLS;
@@ -224,7 +224,7 @@ export class MeshWarper {
 
       const object = new THREE.Mesh(
         boxGeometry,
-        new THREE.MeshBasicMaterial({ color: 'orange', transparent: true, opacity: 0.8 }),
+        new THREE.MeshBasicMaterial({ color: WARP_HANDLE_STYLE.gridColor, transparent: true, opacity: 0.8 }),
       );
       object.position.set(x, y, 0);
       object.renderOrder = RenderOrder.CONTROLS;
@@ -247,8 +247,8 @@ export class MeshWarper {
     ]);
 
     const lineMaterial = new LineMaterial({
-      color: 'orange',
-      linewidth: 4,
+      color: WARP_HANDLE_STYLE.outlineColor,
+      linewidth: WARP_HANDLE_STYLE.outlineLineWidth,
     });
 
     const line = new Line2(outlineGeometry, lineMaterial);
@@ -500,8 +500,8 @@ export class MeshWarper {
   }
 
   public updateControlPointsScale(screenScale: number): void {
-    const cornerCubeSize = screenScale * 20.0;
-    const gridControlCubeSize = screenScale * 15.0;
+    const cornerCubeSize = screenScale * WARP_HANDLE_STYLE.cornerPointPixelRadius;
+    const gridControlCubeSize = screenScale * WARP_HANDLE_STYLE.gridPointPixelRadius;
 
     this.cornerObjects.forEach((obj) => obj.scale.setScalar(cornerCubeSize));
     this.gridObjects.forEach((obj) => obj.scale.setScalar(gridControlCubeSize));

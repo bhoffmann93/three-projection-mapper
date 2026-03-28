@@ -25,7 +25,7 @@ Editing:
 import * as THREE from 'three';
 import { DragControls } from 'three/examples/jsm/controls/DragControls.js';
 import { RenderOrder } from '../core/RenderOrder';
-import { MAX_POLYGON_POINTS } from '../core/defaults';
+import { POLYGON_HANDLE_STYLE } from '../core/defaults';
 
 export interface UVPoint {
   u: number;
@@ -33,12 +33,6 @@ export interface UVPoint {
 }
 
 export const POLYGON_MASK_STORAGE_KEY = 'polygon-mask';
-
-const HANDLE_PIXEL_RADIUS = 5;
-const EDGE_HIT_PIXEL_RADIUS = 8;
-const DOUBLE_CLICK_INSERT_GUARD_MS = 300;
-
-const ANCHOR_COLOR = 0x00ffff;
 
 const DEFAULT_NODES: UVPoint[] = [
   { u: 0.25, v: 0.25 },
@@ -103,7 +97,7 @@ export class PolygonMask {
 
   private createAnchorMesh(uv: UVPoint): THREE.Mesh {
     const geo = new THREE.SphereGeometry(1, 8, 8);
-    const mat = new THREE.MeshBasicMaterial({ color: ANCHOR_COLOR, depthTest: false, transparent: true });
+    const mat = new THREE.MeshBasicMaterial({ color: POLYGON_HANDLE_STYLE.color, depthTest: false, transparent: true });
     const mesh = new THREE.Mesh(geo, mat);
     const pos = this.uvToWorld(uv);
     mesh.position.set(pos.x, pos.y, 0);
@@ -121,7 +115,7 @@ export class PolygonMask {
     this.outlinePositions = new Float32Array(this.nodeList.length * 3);
     const outlineGeo = new THREE.BufferGeometry();
     outlineGeo.setAttribute('position', new THREE.BufferAttribute(this.outlinePositions, 3));
-    const outlineMat = new THREE.LineBasicMaterial({ color: ANCHOR_COLOR, depthTest: false, transparent: true });
+    const outlineMat = new THREE.LineBasicMaterial({ color: POLYGON_HANDLE_STYLE.color, depthTest: false, transparent: true });
     this.outlineLine = new THREE.LineLoop(outlineGeo, outlineMat);
     this.outlineLine.renderOrder = RenderOrder.CONTROLS;
     this.scene.add(this.outlineLine);
@@ -160,7 +154,7 @@ export class PolygonMask {
 
   private insertNode(segmentIndex: number, uv: UVPoint): void {
     const mesh = this.createAnchorMesh(uv);
-    mesh.scale.setScalar(this.lastPixelToWorld * HANDLE_PIXEL_RADIUS);
+    mesh.scale.setScalar(this.lastPixelToWorld * POLYGON_HANDLE_STYLE.anchorPointPixelRadius);
     mesh.visible = this.outlineLine.visible;
     this.scene.add(mesh);
 
@@ -176,7 +170,7 @@ export class PolygonMask {
     this.ignoreNextDblClick = true;
     setTimeout(() => {
       this.ignoreNextDblClick = false;
-    }, DOUBLE_CLICK_INSERT_GUARD_MS);
+    }, POLYGON_HANDLE_STYLE.doubleClickInsertGuardMs);
   }
 
   private removeNode(nodeIndex: number): void {
@@ -213,7 +207,7 @@ export class PolygonMask {
     this.boundClickHandler = (event: MouseEvent) => {
       if (!this.outlineLine.visible) return;
       raycaster.setFromCamera(toNDC(event), this.camera);
-      raycaster.params.Line = { threshold: this.lastPixelToWorld * EDGE_HIT_PIXEL_RADIUS };
+      raycaster.params.Line = { threshold: this.lastPixelToWorld * POLYGON_HANDLE_STYLE.edgeHitPixelRadius };
 
       if (raycaster.intersectObjects(this.anchorObjects).length > 0) return;
 
@@ -273,7 +267,7 @@ export class PolygonMask {
 
   public updateControlPointsScale(pixelToWorld: number): void {
     this.lastPixelToWorld = pixelToWorld;
-    const size = pixelToWorld * HANDLE_PIXEL_RADIUS;
+    const size = pixelToWorld * POLYGON_HANDLE_STYLE.anchorPointPixelRadius;
     for (const mesh of this.anchorObjects) {
       mesh.scale.setScalar(size);
     }

@@ -58,7 +58,7 @@ export class ProjectionMapperGUI {
   private cornersOutlineState = { enabled: true };
   private syncSettingButtons: () => void = () => {};
   private syncControlsButton: () => void = () => {};
-  private onControlsVisibilityChange: ((visible: boolean) => void) = () => {};
+  private onControlsVisibilityChange: (visible: boolean) => void = () => {};
 
   private readonly STORAGE_KEY = GUI_STORAGE_KEY;
 
@@ -139,7 +139,7 @@ export class ProjectionMapperGUI {
       view: 'buttongrid',
       size: [2, 1],
       cells: (x: number) => ({ title: ['Testcard', 'Warp'][x] }),
-    }) as ButtonGridBladeApi;
+    }) as unknown as ButtonGridBladeApi;
 
     const [testcardBtn, warpBtn] = Array.from(
       settingsBtnGrid.element.querySelectorAll('button'),
@@ -247,11 +247,9 @@ export class ProjectionMapperGUI {
       view: 'buttongrid',
       size: [2, 1],
       cells: (x: number) => ({ title: ['Controls', 'Show All'][x] }),
-    }) as ButtonGridBladeApi;
+    }) as unknown as ButtonGridBladeApi;
 
-    const [controlsBtn] = Array.from(
-      warpBtnGrid.element.querySelectorAll('button'),
-    ) as HTMLButtonElement[];
+    const [controlsBtn] = Array.from(warpBtnGrid.element.querySelectorAll('button')) as HTMLButtonElement[];
 
     this.syncControlsButton = () => {
       const anyVisible = this.settings.showGrid || this.settings.showCornerPoints || this.settings.showOutline;
@@ -406,7 +404,7 @@ export class ProjectionMapperGUI {
         view: 'buttongrid',
         size: [2, 1],
         cells: (x: number) => ({ title: ['Enabled', 'Controls'][x] }),
-      }) as ButtonGridBladeApi;
+      }) as unknown as ButtonGridBladeApi;
 
       const [enabledBtn, controlsBtn] = Array.from(
         polyBtnGrid.element.querySelectorAll('button'),
@@ -450,11 +448,13 @@ export class ProjectionMapperGUI {
           this.saveSettings();
         });
 
-      (polygonSubFolder.addBlade({
-        view: 'buttongrid',
-        size: [2, 1],
-        cells: (x: number) => ({ title: ['Reset', 'Delete'][x] }),
-      }) as ButtonGridBladeApi).on('click', (ev) => {
+      (
+        polygonSubFolder.addBlade({
+          view: 'buttongrid',
+          size: [2, 1],
+          cells: (x: number) => ({ title: ['Reset', 'Delete'][x] }),
+        }) as unknown as ButtonGridBladeApi
+      ).on('click', (ev) => {
         if (ev.index[0] === 0) {
           this.mapper.resetPolygonMask();
         } else {
@@ -466,7 +466,7 @@ export class ProjectionMapperGUI {
       });
     };
 
-    const edgeMaskFolder = masksFolder.addFolder({ title: 'Edge Mask', expanded: true });
+    const edgeMaskFolder = masksFolder.addFolder({ title: 'Edge Mask', expanded: false });
 
     edgeMaskFolder
       .addBinding(this.settings, 'maskEnabled', { label: 'Enabled' })
