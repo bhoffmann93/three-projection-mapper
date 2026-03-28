@@ -25,6 +25,7 @@ Editing:
 import * as THREE from 'three';
 import { DragControls } from 'three/examples/jsm/controls/DragControls.js';
 import { RenderOrder } from '../core/RenderOrder';
+import { MAX_POLYGON_POINTS } from '../core/defaults';
 
 export interface UVPoint {
   u: number;
@@ -38,7 +39,6 @@ const EDGE_HIT_PIXEL_RADIUS = 8;
 const DOUBLE_CLICK_INSERT_GUARD_MS = 300;
 
 const ANCHOR_COLOR = 0x00ffff;
-const ANCHOR_Z = 0.02;
 
 const DEFAULT_NODES: UVPoint[] = [
   { u: 0.25, v: 0.25 },
@@ -106,7 +106,7 @@ export class PolygonMask {
     const mat = new THREE.MeshBasicMaterial({ color: ANCHOR_COLOR, depthTest: false, transparent: true });
     const mesh = new THREE.Mesh(geo, mat);
     const pos = this.uvToWorld(uv);
-    mesh.position.set(pos.x, pos.y, ANCHOR_Z);
+    mesh.position.set(pos.x, pos.y, 0);
     mesh.renderOrder = RenderOrder.CONTROLS;
     return mesh;
   }
@@ -174,7 +174,9 @@ export class PolygonMask {
     this.onChanged();
 
     this.ignoreNextDblClick = true;
-    setTimeout(() => { this.ignoreNextDblClick = false; }, DOUBLE_CLICK_INSERT_GUARD_MS);
+    setTimeout(() => {
+      this.ignoreNextDblClick = false;
+    }, DOUBLE_CLICK_INSERT_GUARD_MS);
   }
 
   private removeNode(nodeIndex: number): void {
@@ -264,7 +266,7 @@ export class PolygonMask {
     for (let i = 0; i < this.nodeList.length; i++) {
       const flat = this.uvToWorld(this.nodeList[i]);
       const warped = transform(flat.x, flat.y);
-      this.anchorObjects[i].position.set(warped.x, warped.y, ANCHOR_Z);
+      this.anchorObjects[i].position.set(warped.x, warped.y, 0);
     }
     this.updateOutline();
   }

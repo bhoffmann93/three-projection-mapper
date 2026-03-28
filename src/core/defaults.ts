@@ -32,3 +32,6 @@ export const DEFAULT_IMAGE_SETTINGS: Readonly<ImageSettings> = {
 };
 
 export const DEFAULT_POLYGON_FEATHER = 0.005;
+
+/** Maximum polygon mask nodes. Injected into mask.frag as a #define via ShaderMaterial.defines. */
+export const MAX_POLYGON_POINTS = 16;

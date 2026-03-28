@@ -14,10 +14,8 @@ import * as THREE from 'three';
 import maskFragmentShader from '../shaders/mask.frag';
 import perspectiveVertexShader from '../shaders/perspective.vert';
 import { RenderOrder } from '../core/RenderOrder';
-import { DEFAULT_POLYGON_FEATHER } from '../core/defaults';
+import { DEFAULT_POLYGON_FEATHER, MAX_POLYGON_POINTS } from '../core/defaults';
 import type { UVPoint } from './PolygonMask';
-
-const MAX_POLYGON_POINTS = 16; // injected into mask.frag as a define, keeping TS and GLSL in sync
 
 export interface MaskPlaneConfig {
   worldWidth: number;
