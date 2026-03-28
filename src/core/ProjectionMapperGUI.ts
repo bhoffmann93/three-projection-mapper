@@ -1,7 +1,13 @@
 import * as THREE from 'three';
 import { FolderApi, Pane, TpChangeEvent } from 'tweakpane';
 import { ProjectionMapper } from './ProjectionMapper';
-import { GUI_STORAGE_KEY, DEFAULT_IMAGE_SETTINGS, DEFAULT_POLYGON_FEATHER } from './defaults';
+import {
+  GUI_STORAGE_KEY,
+  DEFAULT_IMAGE_SETTINGS,
+  DEFAULT_POLYGON_FEATHER,
+  DEFAULTS,
+  MESH_WARP_GRID_SIZE,
+} from './defaults';
 import type { ImageSettings } from './defaults';
 import { WARP_MODE } from '../warp/MeshWarper';
 import { EventChannel } from '../ipc/EventChannel';
@@ -301,8 +307,8 @@ export class ProjectionMapperGUI {
     gridFolder
       .addBinding(this.settings, 'gridSize', {
         label: 'Grid Size',
-        x: { min: 2, max: 10, step: 1 },
-        y: { min: 2, max: 10, step: 1 },
+        x: { min: MESH_WARP_GRID_SIZE.minimum, max: MESH_WARP_GRID_SIZE.maximum, step: 1 },
+        y: { min: MESH_WARP_GRID_SIZE.minimum, max: MESH_WARP_GRID_SIZE.maximum, step: 1 },
       })
       .on('change', (e: TpChangeEvent<unknown>) => {
         const val = e.value as { x: number; y: number };

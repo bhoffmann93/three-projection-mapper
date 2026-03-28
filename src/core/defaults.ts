@@ -1,5 +1,18 @@
 export const GUI_STORAGE_KEY = 'projection-mapper-gui-settings';
 
+export const DEFAULTS = {
+  segments: 50,
+  planeScale: 0.5, // zoom
+  aa: true,
+  minGridWarpPoints: 4, // default other axis gets calculated from aspect ratio
+  maxGridWarpPoints: 10,
+} as const;
+
+export const MESH_WARP_GRID_SIZE = {
+  minimum: 2,
+  maximum: 10,
+} as const;
+
 export interface ImageSettings {
   maskEnabled: boolean;
   feather: number;
@@ -9,8 +22,6 @@ export interface ImageSettings {
   hue: number;
 }
 
-export const DEFAULT_POLYGON_FEATHER = 0.005;
-
 export const DEFAULT_IMAGE_SETTINGS: Readonly<ImageSettings> = {
   maskEnabled: false,
   feather: 0.05,
@@ -19,3 +30,5 @@ export const DEFAULT_IMAGE_SETTINGS: Readonly<ImageSettings> = {
   contrast: 1.0,
   hue: 0.0,
 };
+
+export const DEFAULT_POLYGON_FEATHER = 0.005;

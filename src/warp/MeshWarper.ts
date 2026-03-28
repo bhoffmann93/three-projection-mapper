@@ -24,6 +24,7 @@ import { isQuadConcave } from './geometry';
 import { clamp } from 'three/src/math/MathUtils';
 import meshWarpVertexShader from '../shaders/warp.vert';
 import { RenderOrder } from '../core/RenderOrder';
+import { MESH_WARP_GRID_SIZE } from '../core/defaults';
 
 const STORAGE_KEY = 'warp-grid-control-points';
 
@@ -565,8 +566,8 @@ export class MeshWarper {
 
   // Dynamic grid resizing
   public setGridSize(x: number, y: number): void {
-    x = Math.max(2, Math.min(10, Math.floor(x)));
-    y = Math.max(2, Math.min(10, Math.floor(y)));
+    x = Math.max(MESH_WARP_GRID_SIZE.minimum, Math.min(MESH_WARP_GRID_SIZE.maximum, Math.floor(x)));
+    y = Math.max(MESH_WARP_GRID_SIZE.minimum, Math.min(MESH_WARP_GRID_SIZE.maximum, Math.floor(y)));
 
     if (x === this.xControlPointAmount && y === this.yControlPointAmount) {
       return;

@@ -5,7 +5,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import projectionFragmentShader from '../shaders/projection.frag';
 import { calculateGridPoints } from '../warp/geometry';
-import { GUI_STORAGE_KEY, DEFAULT_IMAGE_SETTINGS } from './defaults';
+import { GUI_STORAGE_KEY, DEFAULT_IMAGE_SETTINGS, DEFAULTS } from './defaults';
 import type { ImageSettings } from './defaults';
 import { PolygonMask, type UVPoint } from '../mask/PolygonMask';
 import { MaskPlane } from '../mask/MaskPlane';
@@ -89,21 +89,16 @@ export class ProjectionMapper {
 
     // Normalize to small world units: height is always 10, width follows aspect
     const aspectRatio = this.resolution.width / this.resolution.height;
-    this.worldHeight = 10;
+    this.worldHeight = 10; // fixed internal coordinate system: height=10, width follows aspect ratio
     this.worldWidth = 10 * aspectRatio;
 
-    const DEFAULT_MIN_GRID_WARP_POINTS = 4;
-    const DEFAULT_PLANE_SCALE = 0.5;
-    const DEFAULT_SEGMENTS = 50;
-    const DEFAULT_AA = true;
-
-    const gridControlPoints = this.getGridControlPoints(config, aspectRatio, DEFAULT_MIN_GRID_WARP_POINTS);
+    const gridControlPoints = this.getGridControlPoints(config, aspectRatio, DEFAULTS.minGridWarpPoints);
 
     this.config = {
-      segments: config.segments ?? DEFAULT_SEGMENTS,
+      segments: config.segments ?? DEFAULTS.segments,
       gridControlPoints,
-      antialias: config.antialias ?? DEFAULT_AA,
-      planeScale: config.planeScale ?? DEFAULT_PLANE_SCALE,
+      antialias: config.antialias ?? DEFAULTS.aa,
+      planeScale: config.planeScale ?? DEFAULTS.planeScale,
     };
 
     this.scene = new THREE.Scene();
@@ -170,7 +165,7 @@ export class ProjectionMapper {
   private getGridControlPoints(
     config: ProjectionMapperConfig,
     aspectRatio: number,
-    DEFAULT_MIN_GRID_WARP_POINTS: number,
+    minGridWarpPoints: number,
   ) {
     let gridControlPoints = config.gridControlPoints;
     if (!gridControlPoints) {
@@ -185,7 +180,7 @@ export class ProjectionMapper {
       } catch {
         // ignore parse errors
       }
-      gridControlPoints = gridControlPoints ?? calculateGridPoints(aspectRatio, DEFAULT_MIN_GRID_WARP_POINTS);
+      gridControlPoints = gridControlPoints ?? calculateGridPoints(aspectRatio, minGridWarpPoints);
     }
     return gridControlPoints;
   }
