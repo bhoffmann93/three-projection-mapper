@@ -82,7 +82,7 @@ export class ProjectionMapperGUI {
       zoom: mapper.getZoom(),
       showCornerPoints: true,
       showOutline: true,
-      imageExpanded: true,
+      imageExpanded: false,
       polygonFeather: DEFAULT_POLYGON_FEATHER,
       polygonInvert: false,
       ...DEFAULT_IMAGE_SETTINGS,
@@ -393,7 +393,7 @@ export class ProjectionMapperGUI {
   }
 
   private initMasksFolder(): void {
-    const masksFolder = this.pane.addFolder({ title: 'Masks', expanded: true });
+    const masksFolder = this.pane.addFolder({ title: 'Masks', expanded: false });
 
     const polygonMaskState = {
       enabled: true,
