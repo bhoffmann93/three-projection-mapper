@@ -9,6 +9,8 @@ export interface ImageSettings {
   hue: number;
 }
 
+export const DEFAULT_POLYGON_FEATHER = 0.005;
+
 export const DEFAULT_IMAGE_SETTINGS: Readonly<ImageSettings> = {
   maskEnabled: false,
   feather: 0.05,

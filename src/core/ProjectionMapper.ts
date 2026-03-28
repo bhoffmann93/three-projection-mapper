@@ -323,6 +323,7 @@ export class ProjectionMapper {
 
   setShouldWarp(enabled: boolean): void {
     this.meshWarper.setShouldWarp(enabled);
+    this.maskPlane.setShouldWarp(enabled);
   }
 
   isWarpEnabled(): boolean {

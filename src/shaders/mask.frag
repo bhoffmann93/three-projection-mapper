@@ -9,6 +9,23 @@ uniform int uPolygonPointCount;
 uniform vec2 uPolygonPoints[MAX_POLYGON_POINTS];
 uniform float uPolygonFeather;
 
+uniform bool uShouldWarp;
+
+float aastep(float edge, float value) {
+    float afwidth = fwidth(value);
+    return smoothstep(edge - afwidth, edge + afwidth, value);
+}
+
+// Draws a 2-pixel-wide border at each UV edge (0 and 1).
+float drawBorderLines(vec2 uv) {
+    float thicknessInPixel = 2.0;
+    float leftLine = 1.0 - aastep(fwidth(uv.x) * thicknessInPixel, uv.x);
+    float rightLine = 1.0 - aastep(fwidth(uv.x) * thicknessInPixel, 1.0 - uv.x);
+    float bottomLine = 1.0 - aastep(fwidth(uv.y) * thicknessInPixel, uv.y);
+    float topLine = 1.0 - aastep(fwidth(uv.y) * thicknessInPixel, 1.0 - uv.y);
+    return clamp(max(leftLine, max(rightLine, max(bottomLine, topLine))), 0.0, 1.0);
+}
+
 float smootherstep(float edge0, float edge1, float x) {
     x = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
     return x * x * x * (x * (x * 6.0 - 15.0) + 10.0);
@@ -73,5 +90,16 @@ void main() {
         reveal *= polyMask;
     }
 
-    gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0 - reveal);
+    // Border: visible when warp is off as an alignment guide; polygon mask overwrites it.
+    if(!uShouldWarp) {
+        reveal *= (1.0 - drawBorderLines(vUv));
+    }
+
+    vec3 color = vec3(0.0);
+    if(uShouldWarp == false) {
+        float borderLines = drawBorderLines(vUv);
+        color = mix(color, vec3(0.75), borderLines);
+    }
+
+    gl_FragColor = vec4(color, 1.0 - reveal);
 }

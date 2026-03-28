@@ -14,6 +14,7 @@ import * as THREE from 'three';
 import maskFragmentShader from '../shaders/mask.frag';
 import perspectiveVertexShader from '../shaders/perspective.vert';
 import { RenderOrder } from '../core/RenderOrder';
+import { DEFAULT_POLYGON_FEATHER } from '../core/defaults';
 import type { UVPoint } from './PolygonMask';
 
 const MAX_POLYGON_POINTS = 16; // injected into mask.frag as a define, keeping TS and GLSL in sync
@@ -43,6 +44,7 @@ export class MaskPlane {
     uPolygonPointCount: { value: number };
     uPolygonPoints: { value: THREE.Vector2[] };
     uPolygonFeather: { value: number };
+    uShouldWarp: { value: boolean };
   };
 
   constructor(config: MaskPlaneConfig) {
@@ -64,7 +66,8 @@ export class MaskPlane {
       uPolygonMaskEnabled: { value: false },
       uPolygonPointCount: { value: 0 },
       uPolygonPoints: { value: Array.from({ length: MAX_POLYGON_POINTS }, () => new THREE.Vector2()) },
-      uPolygonFeather: { value: 0.005 },
+      uPolygonFeather: { value: DEFAULT_POLYGON_FEATHER },
+      uShouldWarp: { value: false },
     };
 
     this.material = new THREE.ShaderMaterial({
@@ -112,6 +115,10 @@ export class MaskPlane {
 
   setPolygonFeather(feather: number): void {
     this.uniforms.uPolygonFeather.value = feather;
+  }
+
+  setShouldWarp(enabled: boolean): void {
+    this.uniforms.uShouldWarp.value = enabled;
   }
 
   dispose(): void {

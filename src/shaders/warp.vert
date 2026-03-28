@@ -141,6 +141,8 @@ void main() {
     if(uWarpMode == BICUBIC_INTERPOLATION) {
         vertexPos = bicubicInterpolate(localCellUvX, localCellUvY, cellIndexX, cellIndexY);
     }
-    //viewMatrix because we use world space vertex position and dont care about the mesh original vertex positions
+    // The vertex position is computed in world space directly from the homography,
+    // bypassing the mesh geometry. modelViewMatrix would incorrectly apply the
+    // mesh's modelMatrix on top, so viewMatrix is used instead.
     gl_Position = projectionMatrix * viewMatrix * vec4(vec3(vertexPos, 0.0), 1.0);
 }

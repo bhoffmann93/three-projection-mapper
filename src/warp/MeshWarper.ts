@@ -456,8 +456,7 @@ export class MeshWarper {
   }
 
   // Returns the 9 homography coefficients for the current perspective warp.
-  // Used by MaskPlane to apply the identical projective transform on the GPU,
-  // so mask boundaries and drag handles stay spatially aligned.
+  // Used to apply the identical projective transform on the GPU vertex shader,
   public getPerspectiveCoeffs(): number[] {
     const currentCorners = this.dragCornerControlPoints.flatMap((p) => [p.x, p.y]);
     return new PerspT(this.quadData.initalCorners, currentCorners).coeffs;

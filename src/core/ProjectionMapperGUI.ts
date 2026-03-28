@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { FolderApi, Pane, TpChangeEvent } from 'tweakpane';
 import { ProjectionMapper } from './ProjectionMapper';
-import { GUI_STORAGE_KEY, DEFAULT_IMAGE_SETTINGS } from './defaults';
+import { GUI_STORAGE_KEY, DEFAULT_IMAGE_SETTINGS, DEFAULT_POLYGON_FEATHER } from './defaults';
 import type { ImageSettings } from './defaults';
 import { WARP_MODE } from '../warp/MeshWarper';
 import { EventChannel } from '../ipc/EventChannel';
@@ -367,7 +367,7 @@ export class ProjectionMapperGUI {
   private initMasksFolder(): void {
     const masksFolder = this.pane.addFolder({ title: 'Masks', expanded: true });
 
-    const polygonMaskState = { enabled: true, feather: 0.005, showHandles: true };
+    const polygonMaskState = { enabled: true, feather: DEFAULT_POLYGON_FEATHER, showHandles: true };
     let polygonSubFolder: FolderApi | null = null;
 
     const showPolygonSubFolder = () => {
