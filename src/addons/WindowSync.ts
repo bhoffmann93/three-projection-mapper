@@ -113,7 +113,7 @@ export class WindowSync {
   private setupProjectorSync(): void {
     // Configure mapper for projector mode (receive-only, no user interaction)
     this.mapper.setControlsVisible(false);
-    this.mapper.setPlaneScale(1.0);
+    this.mapper.setZoom(1.0);
     this.mapper.getWarper().setDragEnabled(false);
 
     // Request full state from controller

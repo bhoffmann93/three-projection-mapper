@@ -2,7 +2,7 @@ export const GUI_STORAGE_KEY = 'projection-mapper-gui-settings';
 
 export const DEFAULTS = {
   segments: 50,
-  planeScale: 0.5, // zoom
+  zoom: 0.5, // zoom
   aa: true,
   minGridWarpPoints: 4, // default other axis gets calculated from aspect ratio
   maxGridWarpPoints: 10,

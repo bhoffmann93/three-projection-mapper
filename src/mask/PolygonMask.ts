@@ -17,6 +17,10 @@ so there is no conflict between DragControls and the per-frame repositioning.
 
 UV space (ground truth) → T (perspective homography) → World space (sphere display)
 Fragment shader receives flat vUv → sdPolygon SDF → smoothstep mask → applied to color
+
+Editing:
+  Click on an outline edge  → insert new node at that position
+  Double-click on a handle  → remove that node (minimum 3 nodes)
 */
 import * as THREE from 'three';
 import { DragControls } from 'three/examples/jsm/controls/DragControls.js';
@@ -50,6 +54,12 @@ export class PolygonMask {
   private dragControls!: DragControls;
 
   private inverseTransform: ((x: number, y: number) => THREE.Vector2) | null = null;
+  private lastPixelToWorld = 0;
+  private ignoreNextDblClick = false;
+
+  // Stored so they can be removed in dispose()
+  private boundClickHandler!: (e: PointerEvent) => void;
+  private boundDblClickHandler!: (e: MouseEvent) => void;
 
   public onChanged: () => void = () => {};
 
@@ -114,12 +124,116 @@ export class PolygonMask {
     (this.outlineLine.geometry as THREE.BufferGeometry).attributes.position.needsUpdate = true;
   }
 
+  private rebuildOutline(): void {
+    this.outlineLine.geometry.dispose();
+    this.outlinePositions = new Float32Array(this.nodes.length * 3);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(this.outlinePositions, 3));
+    this.outlineLine.geometry = geo;
+    this.updateOutline();
+  }
+
+  private recreateDragControls(): void {
+    this.dragControls.dispose();
+    this.dragControls = new DragControls(this.anchorObjects, this.camera, this.renderer.domElement);
+    this.dragControls.addEventListener('drag', this.handleDrag.bind(this));
+    this.dragControls.addEventListener('dragend', () => {
+      this.saveToStorage();
+    });
+  }
+
+  private insertNode(segmentIndex: number, uv: UVPoint): void {
+    const geo = new THREE.SphereGeometry(1, 8, 8);
+    const mat = new THREE.MeshBasicMaterial({ color: 0x00ffff, depthTest: false, transparent: true });
+    const mesh = new THREE.Mesh(geo, mat);
+    const pos = this.uvToWorld(uv);
+    mesh.position.set(pos.x, pos.y, 0.02);
+    mesh.scale.setScalar(this.lastPixelToWorld * 5);
+    mesh.renderOrder = RenderOrder.CONTROLS;
+    mesh.visible = this.outlineLine.visible;
+    this.scene.add(mesh);
+
+    const insertAt = segmentIndex + 1;
+    this.anchorObjects.splice(insertAt, 0, mesh);
+    this.nodes.splice(insertAt, 0, uv);
+
+    this.rebuildOutline();
+    this.recreateDragControls();
+    this.saveToStorage();
+    this.onChanged();
+
+    // Prevent the dblclick that can follow a rapid double-click from deleting the new node
+    this.ignoreNextDblClick = true;
+    setTimeout(() => { this.ignoreNextDblClick = false; }, 300);
+  }
+
+  private removeNode(nodeIndex: number): void {
+    if (this.nodes.length <= 3) return;
+
+    const mesh = this.anchorObjects[nodeIndex];
+    this.scene.remove(mesh);
+    mesh.geometry.dispose();
+    (mesh.material as THREE.Material).dispose();
+
+    this.anchorObjects.splice(nodeIndex, 1);
+    this.nodes.splice(nodeIndex, 1);
+
+    this.rebuildOutline();
+    this.recreateDragControls();
+    this.saveToStorage();
+    this.onChanged();
+  }
+
   private initDragControls(): void {
     this.dragControls = new DragControls(this.anchorObjects, this.camera, this.renderer.domElement);
     this.dragControls.addEventListener('drag', this.handleDrag.bind(this));
     this.dragControls.addEventListener('dragend', () => {
       this.saveToStorage();
     });
+
+    const raycaster = new THREE.Raycaster();
+
+    const toNDC = (event: MouseEvent): THREE.Vector2 => {
+      const rect = this.renderer.domElement.getBoundingClientRect();
+      return new THREE.Vector2(
+        ((event.clientX - rect.left) / rect.width) * 2 - 1,
+        -((event.clientY - rect.top) / rect.height) * 2 + 1,
+      );
+    };
+
+    // Click on edge → insert node
+    this.boundClickHandler = (event: PointerEvent) => {
+      if (!this.outlineLine.visible) return;
+      raycaster.setFromCamera(toNDC(event), this.camera);
+      raycaster.params.Line = { threshold: this.lastPixelToWorld * 8 };
+
+      // Let DragControls own anchor clicks
+      if (raycaster.intersectObjects(this.anchorObjects).length > 0) return;
+
+      const hits = raycaster.intersectObject(this.outlineLine);
+      if (hits.length === 0) return;
+
+      const segmentIndex = hits[0].index ?? 0;
+      const worldPt = hits[0].point;
+      const flat = this.inverseTransform
+        ? this.inverseTransform(worldPt.x, worldPt.y)
+        : new THREE.Vector2(worldPt.x, worldPt.y);
+      this.insertNode(segmentIndex, this.worldToUV(flat.x, flat.y));
+    };
+
+    // Double-click on handle → remove node
+    this.boundDblClickHandler = (event: MouseEvent) => {
+      if (!this.outlineLine.visible) return;
+      if (this.ignoreNextDblClick) return;
+      raycaster.setFromCamera(toNDC(event), this.camera);
+      const hits = raycaster.intersectObjects(this.anchorObjects);
+      if (hits.length === 0) return;
+      const nodeIndex = this.anchorObjects.indexOf(hits[0].object as THREE.Mesh);
+      this.removeNode(nodeIndex);
+    };
+
+    this.renderer.domElement.addEventListener('click', this.boundClickHandler);
+    this.renderer.domElement.addEventListener('dblclick', this.boundDblClickHandler);
   }
 
   private handleDrag(event: { object: THREE.Object3D }): void {
@@ -152,6 +266,7 @@ export class PolygonMask {
   }
 
   public updateControlPointsScale(pixelToWorld: number): void {
+    this.lastPixelToWorld = pixelToWorld;
     const size = pixelToWorld * 5;
     for (const mesh of this.anchorObjects) {
       mesh.scale.setScalar(size);
@@ -188,6 +303,8 @@ export class PolygonMask {
   }
 
   public dispose(): void {
+    this.renderer.domElement.removeEventListener('click', this.boundClickHandler);
+    this.renderer.domElement.removeEventListener('dblclick', this.boundDblClickHandler);
     this.dragControls.dispose();
     for (const mesh of this.anchorObjects) {
       this.scene.remove(mesh);

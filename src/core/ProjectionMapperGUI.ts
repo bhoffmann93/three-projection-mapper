@@ -35,6 +35,7 @@ export interface ProjectionMapperGUISettings extends ImageSettings {
   showCornerPoints: boolean;
   showOutline: boolean;
   imageExpanded: boolean;
+  polygonFeather: number;
 }
 
 export { GUI_STORAGE_KEY, DEFAULT_IMAGE_SETTINGS } from './defaults';
@@ -71,10 +72,11 @@ export class ProjectionMapperGUI {
         x: mapper.getWarper().getGridSizeX(),
         y: mapper.getWarper().getGridSizeY(),
       },
-      zoom: mapper.getPlaneScale(),
+      zoom: mapper.getZoom(),
       showCornerPoints: true,
       showOutline: true,
       imageExpanded: true,
+      polygonFeather: DEFAULT_POLYGON_FEATHER,
       ...DEFAULT_IMAGE_SETTINGS,
     };
 
@@ -166,7 +168,7 @@ export class ProjectionMapperGUI {
     settingsFolder
       .addBinding(this.settings, 'zoom', { label: 'Zoom', min: 0.125, max: 1.0, step: 0.01 })
       .on('change', (e: TpChangeEvent<unknown>) => {
-        this.mapper.setPlaneScale(e.value as number);
+        this.mapper.setZoom(e.value as number);
         this.saveSettings();
         // NOTE: Zoom is controller-local only, not broadcast to projector
       });
@@ -387,7 +389,7 @@ export class ProjectionMapperGUI {
   private initMasksFolder(): void {
     const masksFolder = this.pane.addFolder({ title: 'Masks', expanded: true });
 
-    const polygonMaskState = { enabled: true, feather: DEFAULT_POLYGON_FEATHER, showHandles: true };
+    const polygonMaskState = { enabled: true, feather: this.settings.polygonFeather, showHandles: true };
     let polygonSubFolder: FolderApi | null = null;
 
     const showPolygonSubFolder = () => {
@@ -406,14 +408,12 @@ export class ProjectionMapperGUI {
 
       const syncPolyButtons = () => {
         enabledBtn.style.opacity = polygonMaskState.enabled ? '1' : '0.35';
-        controlsBtn.style.opacity = polygonMaskState.enabled && polygonMaskState.showHandles ? '1' : '0.35';
-        controlsBtn.style.pointerEvents = polygonMaskState.enabled ? 'auto' : 'none';
+        controlsBtn.style.opacity = polygonMaskState.showHandles ? '1' : '0.35';
       };
       syncPolyButtons();
 
       let savedPolyHandles: boolean | null = null;
       this.onControlsVisibilityChange = (visible: boolean) => {
-        if (!polygonMaskState.enabled) return;
         if (visible) {
           polygonMaskState.showHandles = savedPolyHandles ?? polygonMaskState.showHandles;
           savedPolyHandles = null;
@@ -429,7 +429,6 @@ export class ProjectionMapperGUI {
         if (ev.index[0] === 0) {
           polygonMaskState.enabled = !polygonMaskState.enabled;
           this.mapper.setPolygonMaskEnabled(polygonMaskState.enabled);
-          this.mapper.getPolygonMask()?.setVisible(polygonMaskState.enabled && polygonMaskState.showHandles);
         } else {
           polygonMaskState.showHandles = !polygonMaskState.showHandles;
           this.mapper.getPolygonMask()?.setVisible(polygonMaskState.showHandles);
@@ -440,7 +439,9 @@ export class ProjectionMapperGUI {
       polygonSubFolder
         .addBinding(polygonMaskState, 'feather', { label: 'Feather', min: 0.0, max: 0.1, step: 0.001 })
         .on('change', (e: TpChangeEvent<unknown>) => {
-          this.mapper.setPolygonFeather(e.value as number);
+          this.settings.polygonFeather = e.value as number;
+          this.mapper.setPolygonFeather(this.settings.polygonFeather);
+          this.saveSettings();
         });
 
       (
@@ -497,6 +498,7 @@ export class ProjectionMapperGUI {
     // Restore if mask was saved in previous session
     if (localStorage.getItem('polygon-mask')) {
       this.mapper.addPolygonMask();
+      this.mapper.setPolygonFeather(this.settings.polygonFeather);
       showPolygonSubFolder();
     }
   }
@@ -573,7 +575,7 @@ export class ProjectionMapperGUI {
       this.mapper.setGridSize(this.settings.gridSize.x, this.settings.gridSize.y);
     }
     this.mapper.getWarper().setWarpMode(this.settings.warpMode);
-    this.mapper.setPlaneScale(this.settings.zoom);
+    this.mapper.setZoom(this.settings.zoom);
     this.applyVisibility();
     this.mapper.setImageSettings({
       maskEnabled: this.settings.maskEnabled,

@@ -23,7 +23,7 @@ export interface ProjectionMapperConfig {
   /** Enable anti-aliasing (default: true) */
   antialias?: boolean;
   /** Scale factor for how much of the window the plane fills (default: 0.9 = 90%) */
-  planeScale?: number;
+  zoom?: number;
 }
 
 /**
@@ -98,7 +98,7 @@ export class ProjectionMapper {
       segments: config.segments ?? DEFAULTS.segments,
       gridControlPoints,
       antialias: config.antialias ?? DEFAULTS.aa,
-      planeScale: config.planeScale ?? DEFAULTS.planeScale,
+      zoom: config.zoom ?? DEFAULTS.zoom,
     };
 
     this.scene = new THREE.Scene();
@@ -162,11 +162,7 @@ export class ProjectionMapper {
 
   // Use saved grid size from GUI settings if available, so MeshWarper
   // is created with the correct grid size before loading stored control points
-  private getGridControlPoints(
-    config: ProjectionMapperConfig,
-    aspectRatio: number,
-    minGridWarpPoints: number,
-  ) {
+  private getGridControlPoints(config: ProjectionMapperConfig, aspectRatio: number, minGridWarpPoints: number) {
     let gridControlPoints = config.gridControlPoints;
     if (!gridControlPoints) {
       try {
@@ -269,7 +265,7 @@ export class ProjectionMapper {
     const height = window.innerHeight;
     const windowAspect = width / height;
     const planeAspect = this.worldWidth / this.worldHeight;
-    const scale = 1 / this.config.planeScale;
+    const scale = 1 / this.config.zoom;
 
     if (windowAspect > planeAspect) {
       this.camera.top = (this.worldHeight / 2) * scale;
@@ -326,13 +322,13 @@ export class ProjectionMapper {
     return this.meshWarper.getShouldWarp();
   }
 
-  setPlaneScale(scale: number): void {
-    this.config.planeScale = scale;
+  setZoom(scale: number): void {
+    this.config.zoom = scale;
     this.updateCameraFrustum();
   }
 
-  getPlaneScale(): number {
-    return this.config.planeScale;
+  getZoom(): number {
+    return this.config.zoom;
   }
 
   setCameraOffset(x: number, y: number): void {
@@ -365,8 +361,12 @@ export class ProjectionMapper {
   addPolygonMask(nodes?: UVPoint[]): PolygonMask {
     if (this.polygonMask) this.removePolygonMask();
     this.polygonMask = new PolygonMask(
-      this.scene, this.camera, this.renderer,
-      this.worldWidth, this.worldHeight, nodes,
+      this.scene,
+      this.camera,
+      this.renderer,
+      this.worldWidth,
+      this.worldHeight,
+      nodes,
     );
     this.polygonMask.onChanged = () => this.syncPolygonMaskUniforms();
     this.polygonMask.setVisible(this.meshWarper.getShouldWarp());
