@@ -53,16 +53,21 @@ float gaussianRectMask(vec2 uv, vec2 res, float soft) {
     return gaussianRect(p, insetSize, soft);
 }
 
-// Polygon SDF — Inigo Quilez (adapted for GLSL ES 1.0 fixed-size uniform array)
-float sdPolygon(vec2 p) {
-    float d = dot(p - uPolygonPoints[0], p - uPolygonPoints[0]);
+// Polygon SDF — MIT Inigo Quilez (adapted for GLSL ES 1.0 fixed-size uniform array)
+// UV space is non-square (e.g. 16:9), so distances are scaled by aspect ratio before
+// computing so feather is uniform in world space. Inside/outside is topologically
+// invariant to this scaling, so the boundary stays pixel-aligned with the handles.
+float sdPolygon(vec2 p, float aspect) {
+    p = p * vec2(aspect, 1.0);
+    vec2 p0 = uPolygonPoints[0] * vec2(aspect, 1.0);
+    float d = dot(p - p0, p - p0);
     float s = 1.0;
     int j = uPolygonPointCount - 1;
     for(int i = 0; i < MAX_POLYGON_POINTS; i++) {
         if(i >= uPolygonPointCount)
             break;
-        vec2 vi = uPolygonPoints[i];
-        vec2 vj = uPolygonPoints[j];
+        vec2 vi = uPolygonPoints[i] * vec2(aspect, 1.0);
+        vec2 vj = uPolygonPoints[j] * vec2(aspect, 1.0);
         vec2 e = vj - vi;
         vec2 w = p - vi;
         vec2 b = w - e * clamp(dot(w, e) / dot(e, e), 0.0, 1.0);
@@ -84,7 +89,8 @@ void main() {
     }
 
     if(uPolygonMaskEnabled && uPolygonPointCount >= 3) {
-        float dist = sdPolygon(vUv);
+        float aspect = uWarpPlaneSize.x / uWarpPlaneSize.y;
+        float dist = sdPolygon(vUv, aspect);
         float fw = fwidth(dist);
         float polyMask = 1.0 - smootherstep(-(uPolygonFeather + fw), fw + uPolygonFeather, dist);
         reveal *= polyMask;
@@ -100,6 +106,5 @@ void main() {
         float borderLines = drawBorderLines(vUv);
         color = mix(color, vec3(0.75), borderLines);
     }
-
     gl_FragColor = vec4(color, 1.0 - reveal);
 }

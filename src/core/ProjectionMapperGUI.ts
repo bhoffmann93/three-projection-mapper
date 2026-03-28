@@ -387,7 +387,7 @@ export class ProjectionMapperGUI {
         });
 
       polygonSubFolder
-        .addBinding(polygonMaskState, 'feather', { label: 'Feather', min: 0.0, max: 0.05, step: 0.001 })
+        .addBinding(polygonMaskState, 'feather', { label: 'Feather', min: 0.0, max: 0.1, step: 0.001 })
         .on('change', (e: TpChangeEvent<unknown>) => {
           this.mapper.setPolygonFeather(e.value as number);
         });
