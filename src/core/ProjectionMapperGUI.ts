@@ -70,7 +70,7 @@ export class ProjectionMapperGUI {
       zoom: mapper.getPlaneScale(),
       showCornerPoints: true,
       showOutline: true,
-      imageExpanded: false,
+      imageExpanded: true,
       ...DEFAULT_IMAGE_SETTINGS,
     };
 
@@ -166,30 +166,6 @@ export class ProjectionMapperGUI {
       this.settings.imageExpanded = imageFolder.expanded;
       this.saveSettings();
     });
-
-    imageFolder
-      .addBinding(this.settings, 'maskEnabled', { label: 'Mask' })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        const enabled = e.value as boolean;
-        this.mapper.setImageSettings({ maskEnabled: enabled });
-        featherBinding.disabled = !enabled;
-        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
-        this.saveSettings();
-      });
-
-    const featherBinding = imageFolder
-      .addBinding(this.settings, 'feather', {
-        label: 'Feather',
-        min: 0.0,
-        max: 0.5,
-        step: 0.01,
-        disabled: !this.settings.maskEnabled,
-      })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        this.mapper.setImageSettings({ feather: e.value as number });
-        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
-        this.saveSettings();
-      });
 
     imageFolder
       .addBinding(this.settings, 'tonemap', { label: 'ACES Tonemap' })
@@ -404,6 +380,32 @@ export class ProjectionMapperGUI {
         polygonSubFolder = null;
       });
     };
+
+    const edgeMaskFolder = masksFolder.addFolder({ title: 'Edge Mask', expanded: true });
+
+    edgeMaskFolder
+      .addBinding(this.settings, 'maskEnabled', { label: 'Enabled' })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        const enabled = e.value as boolean;
+        this.mapper.setImageSettings({ maskEnabled: enabled });
+        featherBinding.disabled = !enabled;
+        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
+        this.saveSettings();
+      });
+
+    const featherBinding = edgeMaskFolder
+      .addBinding(this.settings, 'feather', {
+        label: 'Feather',
+        min: 0.0,
+        max: 0.5,
+        step: 0.01,
+        disabled: !this.settings.maskEnabled,
+      })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        this.mapper.setImageSettings({ feather: e.value as number });
+        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
+        this.saveSettings();
+      });
 
     masksFolder.addButton({ title: 'Add Polygon Mask' }).on('click', () => {
       if (!this.mapper.getPolygonMask()) {
