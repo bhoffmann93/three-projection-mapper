@@ -86,6 +86,7 @@ export class PolygonMask {
 
     this.buildObjects();
     this.initDragControls();
+    this.saveToStorage(); // persist immediately so refresh restores the mask
   }
 
   private uvToWorld(uv: UVPoint): THREE.Vector2 {
@@ -116,7 +117,11 @@ export class PolygonMask {
     this.outlinePositions = new Float32Array(this.nodeList.length * 3);
     const outlineGeo = new THREE.BufferGeometry();
     outlineGeo.setAttribute('position', new THREE.BufferAttribute(this.outlinePositions, 3));
-    const outlineMat = new THREE.LineBasicMaterial({ color: POLYGON_HANDLE_STYLE.color, depthTest: false, transparent: true });
+    const outlineMat = new THREE.LineBasicMaterial({
+      color: POLYGON_HANDLE_STYLE.color,
+      depthTest: false,
+      transparent: true,
+    });
     this.outlineLine = new THREE.LineLoop(outlineGeo, outlineMat);
     this.outlineLine.renderOrder = RenderOrder.CONTROLS;
     this.scene.add(this.outlineLine);
@@ -143,8 +148,7 @@ export class PolygonMask {
   }
 
   private attachDragListeners(): void {
-    this.dragControls.addEventListener('drag', this.handleDrag.bind(this));
-    this.dragControls.addEventListener('dragend', () => this.saveToStorage());
+    this.dragControls.addEventListener('drag', (e) => this.handleDrag(e as { object: THREE.Object3D }));
   }
 
   private recreateDragControls(): void {
@@ -312,6 +316,7 @@ export class PolygonMask {
 
     this.nodeList[nodeIndex] = this.worldToUV(flat.x, flat.y);
     this.updateOutline();
+    this.saveToStorage();
     this.onChanged();
   }
 
