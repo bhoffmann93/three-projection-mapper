@@ -532,6 +532,13 @@ export class ProjectionMapperGUI {
           polygonSubFolder = null;
           this.onControlsVisibilityChange = () => {};
           addBtn.hidden = false;
+          polygonMaskState.feather = DEFAULT_POLYGON_FEATHER;
+          polygonMaskState.inverted = false;
+          polygonMaskState.enabled = true;
+          polygonMaskState.showHandles = true;
+          this.settings.polygonFeather = DEFAULT_POLYGON_FEATHER;
+          this.settings.polygonInvert = false;
+          this.saveSettings();
         }
       });
     };
@@ -539,6 +546,7 @@ export class ProjectionMapperGUI {
     const addBtn = masksFolder.addButton({ title: 'Add Polygon Mask' });
     addBtn.on('click', () => {
       if (!this.mapper.getPolygonMask()) {
+        localStorage.removeItem(POLYGON_MASK_STORAGE_KEY);
         this.mapper.addPolygonMask();
       }
       showPolygonSubFolder();
