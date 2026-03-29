@@ -80,6 +80,7 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
+    "@tweakpane/plugin-essentials": "^0.2.1",
     "convex-hull": "^1.0.3",
     "tweakpane": "^4.0.5"
   }

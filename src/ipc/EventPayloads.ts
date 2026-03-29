@@ -1,5 +1,5 @@
 import { ProjectionEventType } from './EventTypes';
-import type { ImageSettings } from '../core/ProjectionMapper';
+import type { ImageSettings } from '../core/defaults';
 
 /**
  * Normalized point format (0-1 range) for resolution-independent serialization
@@ -24,6 +24,16 @@ export interface GridSize {
 export interface CameraOffset {
   x: number;
   y: number;
+}
+
+/**
+ * Polygon mask state for synchronization
+ */
+export interface PolygonMaskSyncState {
+  nodes: { u: number; v: number }[];
+  enabled: boolean;
+  inverted: boolean;
+  feather: number;
 }
 
 /**
@@ -52,6 +62,9 @@ export interface FullProjectionState {
 
   // Image adjustments
   imageSettings: ImageSettings;
+
+  // Polygon mask (optional — absent means no mask active)
+  polygonMask?: PolygonMaskSyncState;
 }
 
 /**
@@ -74,5 +87,8 @@ export interface ProjectionEventPayloads {
   [ProjectionEventType.REQUEST_FULL_STATE]: {};
   [ProjectionEventType.FULL_STATE_SYNC]: { state: FullProjectionState };
   [ProjectionEventType.IMAGE_SETTINGS_CHANGED]: { settings: ImageSettings };
+  [ProjectionEventType.POLYGON_MASK_NODES_CHANGED]: { nodes: { u: number; v: number }[] };
+  [ProjectionEventType.POLYGON_MASK_SETTINGS_CHANGED]: { enabled: boolean; inverted: boolean; feather: number };
+  [ProjectionEventType.POLYGON_MASK_REMOVED]: {};
   [ProjectionEventType.RESET_WARP]: {};
 }

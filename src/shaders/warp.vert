@@ -8,6 +8,11 @@
  * Used with explicit permission to re-license from AGPL to MIT for this project.
  *
  * Licensed under the MIT License.
+
+ * Warp vertex shader: Displaces mesh vertices using a control point grid. (Interpolated the vertices between Grid Points)
+ * Supports bilinear (fast, C0) and bicubic Catmull-Rom (smooth, C1) interpolation.
+ * Bicubic uses mirror extrapolation at edges for smooth warps.
+ * Fragment shader recieves untouched uvs only the vertices get deformed.
  */
 
 varying vec2 vUv;
@@ -136,6 +141,8 @@ void main() {
     if(uWarpMode == BICUBIC_INTERPOLATION) {
         vertexPos = bicubicInterpolate(localCellUvX, localCellUvY, cellIndexX, cellIndexY);
     }
-
-    gl_Position = projectionMatrix * viewMatrix * vec4(vec3(vertexPos, 0.0), 1.0); //world space vertex position
+    // The vertex position is computed in world space directly from the homography,
+    // bypassing the mesh geometry. modelViewMatrix would incorrectly apply the
+    // mesh's modelMatrix on top, so viewMatrix is used instead.
+    gl_Position = projectionMatrix * viewMatrix * vec4(vec3(vertexPos, 0.0), 1.0);
 }

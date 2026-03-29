@@ -21,8 +21,6 @@ uniform bool uShowControlLines;
 uniform int uGridSizeX;
 uniform int uGridSizeY;
 
-uniform bool uMaskEnabled;
-uniform float uFeather;
 uniform bool uTonemap;
 uniform float uGamma;
 uniform float uContrast;
@@ -210,31 +208,6 @@ float drawBorderLines(vec2 uv) {
     return clamp(max(leftLine, max(rightLine, max(bottomLine, topLine))), 0.0, 1.0);
 }
 
-// Gaussian Filtered Rectangle 
-// Mathematically based on the Error Function (erf) approximation.
-// Reference: https://www.shadertoy.com/view/NsVSWy
-// More Information: https://raphlinus.github.io/graphics/2020/04/21/blurred-rounded-rects.html
-float erf(in float x) {
-    return sign(x) * sqrt(1.0 - exp2(-1.787776 * x * x));
-}
-
-// Gaussian filtered blurry rectangle
-float gaussianRect(in vec2 p, in vec2 b, in float w) {
-    float u = erf((p.x + b.x) / w) - erf((p.x - b.x) / w);
-    float v = erf((p.y + b.y) / w) - erf((p.y - b.y) / w);
-    return u * v / 4.0;
-}
-
-float gaussianRectMask(vec2 uv, vec2 res, float soft) {
-    float aspect = res.x / res.y;
-    vec2 p = (uv - 0.5) * vec2(aspect, 1.0);
-
-    vec2 baseSize = vec2(aspect, 1.0) * 0.5;
-    vec2 insetSize = baseSize - (soft * 1.5);
-    float rectmask = gaussianRect(p, insetSize, soft);
-    return rectmask;
-}
-
 vec3 acesTonemap(vec3 v) {
     v *= 0.6;
     float a = 2.51;
@@ -282,12 +255,8 @@ void main() {
     // color = vec3(checkerboard(vUv, vec2(7.0, 4.0))); //for development tests
     color = imageAdjust(color);
 
-    // Feather mask
-    if(uMaskEnabled) {
-        float soft = mix(0.0, 0.25, uFeather);
-        float mask = gaussianRectMask(vUv, uShouldWarp ? uWarpPlaneSize : uBufferResolution, soft);
-        color = mix(vec3(0.0), color, mask);
-    }
+    //Dither: Reduce Banding Artifacts
+    color += (1.0 / 255.0) * hash12(gl_FragCoord.xy + fract(uTime)) - (0.5 / 255.0);
 
     if(uShouldWarp == false || uShowControlLines) {
         float borderLines = drawBorderLines(vUv);
@@ -299,7 +268,6 @@ void main() {
         color = mix(color, vec3(0.75), lines);
     }
 
-    color += (1.0 / 255.0) * hash12(gl_FragCoord.xy + fract(uTime)) - (0.5 / 255.0); //dither banding reduction
     color = clamp(color, 0.0, 1.0);
 
     gl_FragColor = vec4(color, 1.0);

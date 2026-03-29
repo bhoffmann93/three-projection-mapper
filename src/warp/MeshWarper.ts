@@ -1,3 +1,16 @@
+/*
+MeshWarper
+-----------
+This class manages interactive warping of a plane mesh using draggable grid and corner control points.
+Conceptually, imagine a regular (reference) grid in the background: this is the reference grid. When you move the visible control points, you are warping this grid into a new shape via a perspective (homography) transform.
+Dragging a grid point updates its position in the warped (output) space, but to keep the mapping consistent, we use the inverse transform to update its corresponding position in the reference (input) grid. 
+The Control points live in world space.
+The warped grid control points are passed to the vertex shader for bilinear or bicubic interpolation, enabling flexible projection mapping and perspective correction.
+4 Corner Points (world space) → Homography → Grid Control Points (world space) → Vertex Shader
+interpolates vertex positions between grid points → flat UVs passed through unchanged → Fragment Shader
+receives original flat UV (they are baked into mesh geometry and passed from the displaced vertex)
+*/
+
 import * as THREE from 'three';
 import { DragControls } from 'three/examples/jsm/controls/DragControls.js';
 //@ts-ignore
@@ -10,6 +23,10 @@ import PerspT from '../utils/perspective';
 import { isQuadConcave } from './geometry';
 import { clamp } from 'three/src/math/MathUtils';
 import meshWarpVertexShader from '../shaders/warp.vert';
+import { RenderOrder } from '../core/RenderOrder';
+import { MESH_WARP_GRID_SIZE, WARP_HANDLE_STYLE } from '../core/defaults';
+
+const STORAGE_KEY = 'warp-grid-control-points';
 
 export enum WARP_MODE {
   bilinear = 0,
@@ -30,8 +47,6 @@ export interface MeshWarperConfig {
   globalDefines: Record<string, unknown>;
   bufferTexture: THREE.Texture;
 }
-
-const STORAGE_KEY = 'warp-grid-control-points';
 
 interface StoredControlPoints {
   /** Grid dimensions at time of save, used for validation on load */
@@ -178,9 +193,10 @@ export class MeshWarper {
 
       const object = new THREE.Mesh(
         boxGeometry,
-        new THREE.MeshBasicMaterial({ color: 'hsl(23, 80%, 80%)', transparent: true, opacity: 0.9 }),
+        new THREE.MeshBasicMaterial({ color: WARP_HANDLE_STYLE.cornerColor, transparent: true, opacity: 0.9 }),
       );
       object.position.set(x, y, 0);
+      object.renderOrder = RenderOrder.CONTROLS;
       object.userData.group = 'grid';
 
       this.gridObjects.push(object);
@@ -208,9 +224,10 @@ export class MeshWarper {
 
       const object = new THREE.Mesh(
         boxGeometry,
-        new THREE.MeshBasicMaterial({ color: 'orange', transparent: true, opacity: 0.8 }),
+        new THREE.MeshBasicMaterial({ color: WARP_HANDLE_STYLE.gridColor, transparent: true, opacity: 0.8 }),
       );
       object.position.set(x, y, 0);
+      object.renderOrder = RenderOrder.CONTROLS;
       object.userData.group = 'corner';
       object.userData.lastValidPosition = object.position.clone();
 
@@ -230,12 +247,12 @@ export class MeshWarper {
     ]);
 
     const lineMaterial = new LineMaterial({
-      color: 'orange',
-      linewidth: 4,
+      color: WARP_HANDLE_STYLE.outlineColor,
+      linewidth: WARP_HANDLE_STYLE.outlineLineWidth,
     });
 
     const line = new Line2(outlineGeometry, lineMaterial);
-    line.position.setZ(0.001);
+    line.renderOrder = RenderOrder.CONTROLS;
 
     return line;
   }
@@ -427,6 +444,25 @@ export class MeshWarper {
     return this.dragGridControlPoints;
   }
 
+  public applyPerspectiveTransform(x: number, y: number): THREE.Vector2 {
+    const currentCorners = this.dragCornerControlPoints.flatMap((p) => [p.x, p.y]);
+    const [wx, wy] = new PerspT(this.quadData.initalCorners, currentCorners).transform(x, y);
+    return new THREE.Vector2(wx, wy);
+  }
+
+  public applyInversePerspectiveTransform(x: number, y: number): THREE.Vector2 {
+    const currentCorners = this.dragCornerControlPoints.flatMap((p) => [p.x, p.y]);
+    const [wx, wy] = new PerspT(this.quadData.initalCorners, currentCorners).transformInverse(x, y);
+    return new THREE.Vector2(wx, wy);
+  }
+
+  // Returns the 9 homography coefficients for the current perspective warp.
+  // Used to apply the identical projective transform on the GPU vertex shader,
+  public getPerspectiveCoeffs(): number[] {
+    const currentCorners = this.dragCornerControlPoints.flatMap((p) => [p.x, p.y]);
+    return new PerspT(this.quadData.initalCorners, currentCorners).coeffs;
+  }
+
   public dispose(): void {
     this.planeGeometry.dispose();
     this.dragControls.dispose();
@@ -464,8 +500,8 @@ export class MeshWarper {
   }
 
   public updateControlPointsScale(screenScale: number): void {
-    const cornerCubeSize = screenScale * 20.0;
-    const gridControlCubeSize = screenScale * 15.0;
+    const cornerCubeSize = screenScale * WARP_HANDLE_STYLE.cornerPointPixelRadius;
+    const gridControlCubeSize = screenScale * WARP_HANDLE_STYLE.gridPointPixelRadius;
 
     this.cornerObjects.forEach((obj) => obj.scale.setScalar(cornerCubeSize));
     this.gridObjects.forEach((obj) => obj.scale.setScalar(gridControlCubeSize));
@@ -530,8 +566,8 @@ export class MeshWarper {
 
   // Dynamic grid resizing
   public setGridSize(x: number, y: number): void {
-    x = Math.max(2, Math.min(10, Math.floor(x)));
-    y = Math.max(2, Math.min(10, Math.floor(y)));
+    x = Math.max(MESH_WARP_GRID_SIZE.minimum, Math.min(MESH_WARP_GRID_SIZE.maximum, Math.floor(x)));
+    y = Math.max(MESH_WARP_GRID_SIZE.minimum, Math.min(MESH_WARP_GRID_SIZE.maximum, Math.floor(y)));
 
     if (x === this.xControlPointAmount && y === this.yControlPointAmount) {
       return;

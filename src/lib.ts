@@ -10,7 +10,8 @@
  * For multi-window support, import from 'three-projection-mapper/addons'
  */
 
-export { ProjectionMapper, DEFAULT_IMAGE_SETTINGS, type ProjectionMapperConfig, type ImageSettings } from './core/ProjectionMapper';
+export { ProjectionMapper, type ProjectionMapperConfig } from './core/ProjectionMapper';
+export { DEFAULT_IMAGE_SETTINGS, type ImageSettings, GUI_STORAGE_KEY } from './core/defaults';
 export {
   ProjectionMapperGUI,
   type GUIAnchor,
@@ -18,3 +19,4 @@ export {
 } from './core/ProjectionMapperGUI';
 export { ProjectorCamera } from './core/ProjectorCamera';
 export { MeshWarper, WARP_MODE, type MeshWarperConfig } from './warp/MeshWarper';
+export { PolygonMask, type UVPoint } from './mask/PolygonMask';

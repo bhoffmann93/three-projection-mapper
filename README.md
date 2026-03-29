@@ -38,8 +38,9 @@ The texture source can be a **3D scene** rendered into a `WebGLRenderTarget`, a 
 
 - **Corner control points** — 4 outer points for broad perspective correction
 - **Grid control points** — configurable inner grid for fine-grained surface warping (Bilinear or Bicubic Warping)
+- **Polygon mask** — interactive closed polygon evaluated as an SDF in the fragment shader; click edges to insert nodes, double-click to remove, with feather and invert support
 - **Image adjustments** — contrast, hue, gamma, ACES tonemapping, feather mask
-- **Testcard overlay** — procedural pattern (resolution- and aspectindependent)
+- **Testcard overlay** — procedural pattern (resolution- and aspect-independent)
 - **GUI** — Tweakpane based UI included
 - **Auto-save** — all settings saved to `localStorage`, restored on reload
 - **Multi-window mode** — separate controller and projector windows, synced in real time (no server needed)
@@ -376,6 +377,39 @@ const sync = new WindowSync(mapper, { mode: WINDOW_SYNC_MODE.PROJECTOR });
 
 ---
 
+### Polygon Mask
+
+An interactive polygon mask that clips the texture in the fragment shader via a signed distance field. The mask shape is defined in UV space and is independent of the perspective warp.
+
+```typescript
+// Add a polygon mask (starts as a default rectangle)
+const mask = mapper.addPolygonMask();
+
+// Editing (via GUI or programmatically)
+mapper.setPolygonMaskEnabled(true);
+mapper.setPolygonFeather(0.02);   // 0.0 = hard edge
+mapper.setPolygonInvert(false);
+
+// Reset shape to default rectangle
+mapper.resetPolygonMask();
+
+// Remove mask entirely
+mapper.removePolygonMask();
+
+// Access current nodes (UV space, read-only)
+mapper.getPolygonMask()?.nodes;
+```
+
+**Editing interactions (when handles are visible):**
+
+| Action | Result |
+| --- | --- |
+| Click on an edge | Insert node at that position |
+| Double-click a handle | Remove node (minimum 3) |
+| Drag a handle | Move node |
+
+---
+
 ### `MeshWarper` (advanced)
 
 Direct access to the warp mesh for custom setups.
@@ -403,7 +437,7 @@ npm test           # Run tests with Vitest
 
 ## Roadmap
 
-- [ ] Option to draw SDF-Based Bezier Mask in Fragment Shader
+- [ ] Bezier mask — SDF-based interactive Bezier mask in fragment shader
 - [ ] Save and Load Warp Settings (JSON Export Import)
 - [ ] Tutorial: Optical Alignment of Virtual Threejs Camera with the Physical Projector
 - [ ] Test React Three Fiber Compatibility
@@ -430,4 +464,5 @@ The following parts have been developed with AI-Assistance (Claude):
 
 - GUI Local Storage Saving
 - Multi Window System
+- Polygon Mask
 - Readme

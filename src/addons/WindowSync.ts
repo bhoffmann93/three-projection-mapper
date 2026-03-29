@@ -19,11 +19,11 @@
 
 import * as THREE from 'three';
 import { ProjectionMapper } from '../core/ProjectionMapper';
-import type { ImageSettings } from '../core/ProjectionMapper';
+import type { ImageSettings } from '../core/defaults';
 import { EventChannel } from '../ipc/EventChannel';
 import { WindowManager } from '../windows/WindowManager';
 import { ProjectionEventType } from '../ipc/EventTypes';
-import { FullProjectionState, NormalizedPoint } from '../ipc/EventPayloads';
+import { FullProjectionState, NormalizedPoint, PolygonMaskSyncState } from '../ipc/EventPayloads';
 
 export const enum WINDOW_SYNC_MODE {
   CONTROLLER = 'controller',
@@ -113,7 +113,8 @@ export class WindowSync {
   private setupProjectorSync(): void {
     // Configure mapper for projector mode (receive-only, no user interaction)
     this.mapper.setControlsVisible(false);
-    this.mapper.setPlaneScale(1.0);
+    this.mapper.setShowBorderLines(false);
+    this.mapper.setZoom(1.0);
     this.mapper.getWarper().setDragEnabled(false);
 
     // Request full state from controller
@@ -152,15 +153,14 @@ export class WindowSync {
 
     this.eventChannel.on(ProjectionEventType.SHOULD_WARP_CHANGED, ({ shouldWarp }) => {
       this.mapper.setShouldWarp(shouldWarp);
+      this.mapper.getPolygonMask()?.setVisible(false);
     });
 
     this.eventChannel.on(ProjectionEventType.TESTCARD_TOGGLED, ({ show }) => {
       this.mapper.setShowTestCard(show);
     });
 
-    this.eventChannel.on(ProjectionEventType.CONTROLS_VISIBILITY_CHANGED, ({ visible }) => {
-      this.mapper.setControlsVisible(visible);
-    });
+    // Projector never shows editing controls regardless of controller state
 
     this.eventChannel.on(ProjectionEventType.CAMERA_OFFSET_CHANGED, ({ offset }) => {
       this.mapper.setCameraOffset(offset.x, offset.y);
@@ -174,6 +174,35 @@ export class WindowSync {
       this.mapper.reset();
       setTimeout(() => window.location.reload(), 100);
     });
+
+    this.eventChannel.on(ProjectionEventType.POLYGON_MASK_NODES_CHANGED, ({ nodes }) => {
+      if (!this.mapper.getPolygonMask()) this.mapper.addPolygonMask(nodes);
+      else this.mapper.getPolygonMask()!.setNodes(nodes);
+      this.mapper.getPolygonMask()?.setVisible(false);
+    });
+
+    this.eventChannel.on(ProjectionEventType.POLYGON_MASK_SETTINGS_CHANGED, ({ enabled, inverted, feather }) => {
+      this.mapper.setPolygonMaskEnabled(enabled);
+      this.mapper.setPolygonInvert(inverted);
+      this.mapper.setPolygonFeather(feather);
+    });
+
+    this.eventChannel.on(ProjectionEventType.POLYGON_MASK_REMOVED, () => {
+      this.mapper.removePolygonMask();
+    });
+  }
+
+  private applyPolygonMaskState(state: PolygonMaskSyncState): void {
+    if (!this.mapper.getPolygonMask()) {
+      this.mapper.addPolygonMask(state.nodes);
+    } else {
+      this.mapper.getPolygonMask()!.setNodes(state.nodes);
+    }
+    this.mapper.setPolygonMaskEnabled(state.enabled);
+    this.mapper.setPolygonInvert(state.inverted);
+    this.mapper.setPolygonFeather(state.feather);
+    // Projector never shows mask handles
+    this.mapper.getPolygonMask()?.setVisible(false);
   }
 
   /**
@@ -244,6 +273,7 @@ export class WindowSync {
       showControls: false, // Projector controls default to hidden
       cameraOffset: this.mapper.getCameraOffset(),
       imageSettings: this.mapper.getImageSettings(),
+      polygonMask: this.mapper.getPolygonMaskFullState() ?? undefined,
     };
   }
 
@@ -286,7 +316,7 @@ export class WindowSync {
 
     // 5. Apply warp settings
     warper.setWarpMode(state.warpMode);
-    warper.setShouldWarp(state.shouldWarp);
+    this.mapper.setShouldWarp(state.shouldWarp); // use mapper so maskPlane.uShouldWarp is updated
 
     // 6. Apply visual settings
     this.mapper.setShowTestCard(state.showTestcard);
@@ -298,6 +328,15 @@ export class WindowSync {
 
     // 8. Apply image settings
     this.mapper.setImageSettings(state.imageSettings);
+
+    // 9. Apply polygon mask (applyPolygonMaskState always hides handles on projector)
+    if (state.polygonMask) {
+      this.applyPolygonMaskState(state.polygonMask);
+    } else if (this.mapper.getPolygonMask()) {
+      this.mapper.removePolygonMask();
+    }
+    // Ensure mask handles are hidden even if setShouldWarp re-enabled them
+    this.mapper.getPolygonMask()?.setVisible(false);
 
     // Update mesh
     (warper as any).updateLine();
