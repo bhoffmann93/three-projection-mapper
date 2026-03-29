@@ -56,9 +56,8 @@ float gaussianRectMask(vec2 uv, vec2 res, float soft) {
 }
 
 // Polygon SDF — MIT Inigo Quilez (adapted for GLSL ES 1.0 fixed-size uniform array)
-// UV space is non-square (e.g. 16:9), so distances are scaled by aspect ratio before
-// computing so feather is uniform in world space. Inside/outside is topologically
-// invariant to this scaling, so the boundary stays pixel-aligned with the handles.
+// https://www.shadertoy.com/view/wdBXRW
+// Adapted for aspect ratio correction so smoothstep (feather) is uniform 
 float sdPolygon(vec2 p, float aspect) {
     p = p * vec2(aspect, 1.0);
     vec2 p0 = uPolygonPoints[0] * vec2(aspect, 1.0);
