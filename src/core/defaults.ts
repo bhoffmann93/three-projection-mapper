@@ -33,7 +33,7 @@ export const DEFAULT_IMAGE_SETTINGS: Readonly<ImageSettings> = {
   hue: 0.0,
 };
 
-export const DEFAULT_POLYGON_FEATHER = 0.005;
+export const DEFAULT_POLYGON_FEATHER = 0.0;
 export const MAX_POLYGON_POINTS = 16;
 
 /** Visual style of warp control handles. Sizes in screen pixels. */

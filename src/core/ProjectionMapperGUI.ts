@@ -428,6 +428,17 @@ export class ProjectionMapperGUI {
       feather: this.settings.polygonFeather,
       showHandles: true,
     };
+
+    const resetPolygonMaskState = () => {
+      polygonMaskState.feather = DEFAULT_POLYGON_FEATHER;
+      polygonMaskState.inverted = false;
+      polygonMaskState.enabled = true;
+      polygonMaskState.showHandles = true;
+      this.settings.polygonFeather = DEFAULT_POLYGON_FEATHER;
+      this.settings.polygonInvert = false;
+      this.saveSettings();
+    };
+
     let polygonSubFolder: FolderApi | null = null;
 
     const showPolygonSubFolder = () => {
@@ -532,13 +543,7 @@ export class ProjectionMapperGUI {
           polygonSubFolder = null;
           this.onControlsVisibilityChange = () => {};
           addBtn.hidden = false;
-          polygonMaskState.feather = DEFAULT_POLYGON_FEATHER;
-          polygonMaskState.inverted = false;
-          polygonMaskState.enabled = true;
-          polygonMaskState.showHandles = true;
-          this.settings.polygonFeather = DEFAULT_POLYGON_FEATHER;
-          this.settings.polygonInvert = false;
-          this.saveSettings();
+          resetPolygonMaskState();
         }
       });
     };

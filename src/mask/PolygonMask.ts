@@ -57,8 +57,7 @@ export class PolygonMask {
   private inverseTransform: ((x: number, y: number) => THREE.Vector2) | null = null;
   private lastPixelToWorld = 0;
   private ignoreNextDblClick = false;
-  private wasDragging = false;
-  private lastDragEndTime = 0;
+  private lastDragMoveTime = 0;
 
   private boundClickHandler!: (e: MouseEvent) => void;
   private boundDblClickHandler!: (e: MouseEvent) => void;
@@ -151,14 +150,8 @@ export class PolygonMask {
 
   private attachDragListeners(): void {
     this.dragControls.addEventListener('drag', (e) => {
-      this.wasDragging = true;
+      this.lastDragMoveTime = Date.now();
       this.handleDrag(e as { object: THREE.Object3D });
-    });
-    this.dragControls.addEventListener('dragend', () => {
-      if (this.wasDragging) {
-        this.lastDragEndTime = Date.now();
-        this.wasDragging = false;
-      }
     });
   }
 
@@ -290,7 +283,7 @@ export class PolygonMask {
     this.boundDblClickHandler = (event: MouseEvent) => {
       if (!this.outlineLine.visible) return;
       if (this.ignoreNextDblClick) return;
-      if (Date.now() - this.lastDragEndTime < POLYGON_HANDLE_STYLE.doubleClickInsertGuardMs) return;
+      if (Date.now() - this.lastDragMoveTime < POLYGON_HANDLE_STYLE.doubleClickInsertGuardMs) return;
       raycaster.setFromCamera(toNDC(event), this.camera);
       const hits = raycaster.intersectObjects(this.anchorObjects);
       if (hits.length === 0) return;
