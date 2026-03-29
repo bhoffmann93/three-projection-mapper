@@ -9,6 +9,7 @@ export const DEFAULTS = {
   minGridWarpPoints: 4, // default other axis gets calculated from aspect ratio
 } as const;
 
+//just a clamp
 export const MESH_WARP_GRID_SIZE = {
   minimum: 2,
   maximum: 10,

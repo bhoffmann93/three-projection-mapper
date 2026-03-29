@@ -35,7 +35,7 @@ export interface ProjectionMapperGUIConfig {
 export interface ProjectionMapperGUISettings extends ImageSettings {
   shouldWarp: boolean;
   showTestcard: boolean;
-  showGrid: boolean;
+  showWarpGrid: boolean;
   warpMode: WARP_MODE;
   gridSize: { x: number; y: number };
   zoom: number;
@@ -54,8 +54,10 @@ export class ProjectionMapperGUI {
   private mapper: ProjectionMapper;
   private pane: Pane;
   private settings: ProjectionMapperGUISettings;
-  private savedVisibility: Pick<ProjectionMapperGUISettings, 'showGrid' | 'showCornerPoints' | 'showOutline'> | null =
-    null;
+  private savedVisibility: Pick<
+    ProjectionMapperGUISettings,
+    'showWarpGrid' | 'showCornerPoints' | 'showOutline'
+  > | null = null;
   private warpFolder!: FolderApi;
   private config: ProjectionMapperGUIConfig;
   private cornersOutlineState = { enabled: true };
@@ -75,7 +77,7 @@ export class ProjectionMapperGUI {
     this.settings = {
       shouldWarp: mapper.isWarpEnabled(),
       showTestcard: mapper.isShowingTestCard(),
-      showGrid: false,
+      showWarpGrid: true,
       warpMode: mapper.getWarper().getWarpMode(),
       gridSize: {
         x: mapper.getWarper().getGridSizeX(),
@@ -84,7 +86,7 @@ export class ProjectionMapperGUI {
       zoom: mapper.getZoom(),
       showCornerPoints: true,
       showOutline: true,
-      imageExpanded: false,
+      imageExpanded: true,
       masksExpanded: true,
       polygonFeather: DEFAULT_POLYGON_FEATHER,
       polygonInvert: false,
@@ -283,7 +285,7 @@ export class ProjectionMapperGUI {
     const [controlsBtn] = Array.from(warpBtnGrid.element.querySelectorAll('button')) as HTMLButtonElement[];
 
     this.syncControlsButton = () => {
-      const anyVisible = this.settings.showGrid || this.settings.showCornerPoints || this.settings.showOutline;
+      const anyVisible = this.settings.showWarpGrid || this.settings.showCornerPoints || this.settings.showOutline;
       controlsBtn.style.opacity = anyVisible ? '1' : '0.35';
     };
     this.syncControlsButton();
@@ -292,7 +294,7 @@ export class ProjectionMapperGUI {
       if (ev.index[0] === 0) {
         this.toggleWarpUI();
       } else {
-        this.settings.showGrid = true;
+        this.settings.showWarpGrid = true;
         this.settings.showCornerPoints = true;
         this.settings.showOutline = true;
         this.cornersOutlineState.enabled = true;
@@ -385,7 +387,7 @@ export class ProjectionMapperGUI {
       });
 
     gridWarpFolder
-      .addBinding(this.settings, 'showGrid', { label: 'Show' })
+      .addBinding(this.settings, 'showWarpGrid', { label: 'Show' })
       .on('change', (e: TpChangeEvent<unknown>) => {
         const show = e.value as boolean;
         this.mapper.setGridPointsVisible(show);
@@ -553,24 +555,24 @@ export class ProjectionMapperGUI {
   }
 
   private applyVisibility(): void {
-    this.mapper.setGridPointsVisible(this.settings.showGrid);
-    this.mapper.setShowControlLines(this.settings.showGrid);
+    this.mapper.setGridPointsVisible(this.settings.showWarpGrid);
+    this.mapper.setShowControlLines(this.settings.showWarpGrid);
     this.mapper.setCornerPointsVisible(this.settings.showCornerPoints);
     this.mapper.setOutlineVisible(this.settings.showOutline);
   }
 
   public toggleWarpUI(forceState?: boolean): void {
-    const anyVisible = this.settings.showGrid || this.settings.showCornerPoints || this.settings.showOutline;
+    const anyVisible = this.settings.showWarpGrid || this.settings.showCornerPoints || this.settings.showOutline;
 
     const shouldHide = forceState !== undefined ? !forceState : anyVisible;
 
     if (shouldHide && anyVisible) {
       this.savedVisibility = {
-        showGrid: this.settings.showGrid,
+        showWarpGrid: this.settings.showWarpGrid,
         showCornerPoints: this.settings.showCornerPoints,
         showOutline: this.settings.showOutline,
       };
-      this.settings.showGrid = false;
+      this.settings.showWarpGrid = false;
       this.settings.showCornerPoints = false;
       this.settings.showOutline = false;
       this.cornersOutlineState.enabled = false;
@@ -578,13 +580,13 @@ export class ProjectionMapperGUI {
       // Already hidden, nothing to do
     } else {
       if (this.savedVisibility) {
-        this.settings.showGrid = this.savedVisibility.showGrid;
+        this.settings.showWarpGrid = this.savedVisibility.showWarpGrid;
         this.settings.showCornerPoints = this.savedVisibility.showCornerPoints;
         this.settings.showOutline = this.savedVisibility.showOutline;
         this.cornersOutlineState.enabled = this.savedVisibility.showCornerPoints;
         this.savedVisibility = null;
       } else {
-        this.settings.showGrid = true;
+        this.settings.showWarpGrid = true;
         this.settings.showCornerPoints = true;
         this.settings.showOutline = true;
         this.cornersOutlineState.enabled = true;
@@ -599,7 +601,7 @@ export class ProjectionMapperGUI {
     }
 
     this.applyVisibility();
-    const controlsVisible = this.settings.showGrid || this.settings.showCornerPoints || this.settings.showOutline;
+    const controlsVisible = this.settings.showWarpGrid || this.settings.showCornerPoints || this.settings.showOutline;
     this.onControlsVisibilityChange(controlsVisible);
     this.pane.refresh();
     this.syncSettingButtons();
@@ -607,10 +609,10 @@ export class ProjectionMapperGUI {
     this.saveSettings();
 
     this.broadcast(ProjectionEventType.CONTROLS_VISIBILITY_CHANGED, {
-      visible: this.settings.showGrid || this.settings.showCornerPoints || this.settings.showOutline,
+      visible: this.settings.showWarpGrid || this.settings.showCornerPoints || this.settings.showOutline,
     });
     this.broadcast(ProjectionEventType.CONTROL_LINES_TOGGLED, {
-      show: this.settings.showGrid,
+      show: this.settings.showWarpGrid,
     });
   }
 
