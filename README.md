@@ -437,7 +437,7 @@ npm test           # Run tests with Vitest
 
 ## Roadmap
 
-- [x] Polygon mask — SDF-based interactive polygon mask in fragment shader
+- [ ] Bezier mask — SDF-based interactive Bezier mask in fragment shader
 - [ ] Save and Load Warp Settings (JSON Export Import)
 - [ ] Tutorial: Optical Alignment of Virtual Threejs Camera with the Physical Projector
 - [ ] Test React Three Fiber Compatibility
