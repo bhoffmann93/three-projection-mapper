@@ -1,6 +1,6 @@
 {
   "name": "three-projection-mapper",
-  "version": "0.1.0",
+  "version": "0.1.0-alpha.1",
   "description": "Projection mapping library for Three.js with interactive warp grid control, bicubic interpolation, and multi-window synchronization",
   "type": "module",
   "main": "dist/lib.js",
@@ -54,11 +54,19 @@
     "url": "https://github.com/bhoffmann93/three-projection-mapper/issues"
   },
   "peerDependencies": {
+    "@tweakpane/plugin-essentials": "^0.2.1",
     "@types/three": ">=0.150.0",
-    "three": ">=0.150.0"
+    "three": ">=0.150.0",
+    "tweakpane": "^4.0.5"
   },
   "peerDependenciesMeta": {
     "@types/three": {
+      "optional": true
+    },
+    "tweakpane": {
+      "optional": true
+    },
+    "@tweakpane/plugin-essentials": {
       "optional": true
     }
   },
@@ -80,8 +88,6 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
-    "@tweakpane/plugin-essentials": "^0.2.1",
-    "convex-hull": "^1.0.3",
-    "tweakpane": "^4.0.5"
+    "convex-hull": "^1.0.3"
   }
 }

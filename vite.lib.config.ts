@@ -25,7 +25,7 @@ export default defineConfig({
       formats: ['es'],
     },
     rollupOptions: {
-      external: ['three'],
+      external: ['three', 'tweakpane', '@tweakpane/core', '@tweakpane/plugin-essentials'],
       output: {
         globals: {
           three: 'THREE',

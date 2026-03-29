@@ -11,7 +11,7 @@
  */
 
 export { ProjectionMapper, type ProjectionMapperConfig } from './core/ProjectionMapper';
-export { DEFAULT_IMAGE_SETTINGS, type ImageSettings, GUI_STORAGE_KEY } from './core/defaults';
+export { DEFAULT_IMAGE_SETTINGS, type ImageSettings } from './core/defaults';
 export {
   ProjectionMapperGUI,
   type GUIAnchor,
