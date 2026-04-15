@@ -17,6 +17,8 @@ A projection mapping library for [Three.js](https://threejs.org/).
 
 **[Live Examples](https://bhoffmann93.github.io/three-projection-mapper/)**
 
+The main use case is to match your Three.js camera to the physical projector's real-world position and optics using ProjectorCamera, so the virtual scene aligns with the physical surface which can then be fine tuned with warping.
+
 ---
 
 ## How it works
