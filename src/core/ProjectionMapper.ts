@@ -349,8 +349,6 @@ export class ProjectionMapper {
 
   reset(): void {
     this.meshWarper.resetToDefault();
-    // Clear GUI settings so visibility and grid size reset on reload
-    localStorage.removeItem(GUI_STORAGE_KEY);
   }
 
   getScene(): THREE.Scene {

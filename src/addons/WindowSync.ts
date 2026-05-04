@@ -172,7 +172,6 @@ export class WindowSync {
 
     this.eventChannel.on(ProjectionEventType.RESET_WARP, () => {
       this.mapper.reset();
-      setTimeout(() => window.location.reload(), 100);
     });
 
     this.eventChannel.on(ProjectionEventType.POLYGON_MASK_NODES_CHANGED, ({ nodes }) => {

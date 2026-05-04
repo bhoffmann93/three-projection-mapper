@@ -399,18 +399,8 @@ export class ProjectionMapperGUI {
     this.warpFolder.addBlade({ view: 'separator' });
 
     this.warpFolder.addButton({ title: 'Reset Warp' }).on('click', () => {
-      // Broadcast reset to projector
       this.broadcast(ProjectionEventType.RESET_WARP, {});
-
-      // Reset locally and reload
       this.mapper.reset();
-      if (this.isMultiWindowMode()) {
-        setTimeout(() => {
-          window.location.reload();
-        }, 100);
-      } else {
-        window.location.reload();
-      }
     });
   }
 
