@@ -102,7 +102,8 @@ animate();
 
 // Hotkeys are not built into the library — wire them yourself:
 const hint = document.createElement('div');
-hint.style.cssText = 'position:fixed;bottom:16px;left:16px;color:rgba(255,255,255,0.5);font:12px/1.6 monospace;pointer-events:none';
+hint.style.cssText =
+  'position:fixed;bottom:16px;left:16px;color:rgba(255,255,255,0.5);font:12px/1.6 monospace;pointer-events:none';
 hint.innerHTML = '<span>G</span> toggle UI<br><span>T</span> test card<br><span>W</span> warp controls';
 document.body.appendChild(hint);
 
@@ -195,8 +196,10 @@ const gui = new ProjectionMapperGUI(mapper, {
 
 // Hotkeys are not built into the library — wire them yourself:
 const hint = document.createElement('div');
-hint.style.cssText = 'position:fixed;bottom:16px;left:16px;color:rgba(255,255,255,0.5);font:12px/1.6 monospace;pointer-events:none';
-hint.innerHTML = '<span>G</span> toggle UI<br><span>T</span> test card<br><span>W</span> warp controls<br><span>O</span> open projector';
+hint.style.cssText =
+  'position:fixed;bottom:16px;left:16px;color:rgba(255,255,255,0.5);font:12px/1.6 monospace;pointer-events:none';
+hint.innerHTML =
+  '<span>G</span> toggle UI<br><span>T</span> test card<br><span>W</span> warp controls<br><span>O</span> open projector';
 document.body.appendChild(hint);
 
 window.addEventListener('keydown', (e) => {
@@ -308,11 +311,11 @@ const gui = new ProjectionMapperGUI(mapper, {
   anchor: 'left', // or 'right'
 });
 
-gui.toggle();        // show/hide the GUI panel
+gui.toggle(); // show/hide the GUI panel
 gui.show();
 gui.hide();
 gui.toggleTestCard(); // toggle testcard overlay
-gui.toggleWarpUI();   // toggle warp control points
+gui.toggleWarpUI(); // toggle warp control points
 gui.collapse();
 gui.dispose();
 
@@ -389,7 +392,7 @@ const mask = mapper.addPolygonMask();
 
 // Editing (via GUI or programmatically)
 mapper.setPolygonMaskEnabled(true);
-mapper.setPolygonFeather(0.02);   // 0.0 = hard edge
+mapper.setPolygonFeather(0.02); // 0.0 = hard edge
 mapper.setPolygonInvert(false);
 
 // Reset shape to default rectangle
@@ -404,11 +407,11 @@ mapper.getPolygonMask()?.nodes;
 
 **Editing interactions (when handles are visible):**
 
-| Action | Result |
-| --- | --- |
-| Click on an edge | Insert node at that position |
-| Double-click a handle | Remove node (minimum 3) |
-| Drag a handle | Move node |
+| Action                | Result                       |
+| --------------------- | ---------------------------- |
+| Click on an edge      | Insert node at that position |
+| Double-click a handle | Remove node (minimum 3)      |
+| Drag a handle         | Move node                    |
 
 ---
 

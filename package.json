@@ -54,25 +54,18 @@
     "url": "https://github.com/bhoffmann93/three-projection-mapper/issues"
   },
   "peerDependencies": {
-    "@tweakpane/plugin-essentials": "^0.2.1",
     "@types/three": ">=0.150.0",
-    "three": ">=0.150.0",
-    "tweakpane": "^4.0.5"
+    "three": ">=0.150.0"
   },
   "peerDependenciesMeta": {
     "@types/three": {
-      "optional": true
-    },
-    "tweakpane": {
-      "optional": true
-    },
-    "@tweakpane/plugin-essentials": {
       "optional": true
     }
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
     "@tweakpane/core": "^2.0.5",
+    "@tweakpane/plugin-essentials": "^0.2.1",
     "@types/three": "^0.181.0",
     "@typescript-eslint/eslint-plugin": "^8.46.4",
     "@typescript-eslint/parser": "^8.46.4",
@@ -80,6 +73,7 @@
     "eslint": "^9.39.1",
     "globals": "^16.5.0",
     "p5": "^2.2.2",
+    "tweakpane": "^4.0.5",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.4",
     "vite": "^7.2.2",
@@ -88,6 +82,8 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
-    "convex-hull": "^1.0.3"
+    "@tweakpane/plugin-essentials": "^0.2.1",
+    "convex-hull": "^1.0.3",
+    "tweakpane": "^4.0.5"
   }
 }
