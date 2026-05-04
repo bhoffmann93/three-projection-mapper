@@ -1,6 +1,6 @@
 //@ts-ignore
 import calcConvexHull from 'convex-hull';
-import { lerp } from 'three/src/math/MathUtils';
+import { lerp } from '../utils/math';
 
 export const toTuples = (arr: number[]): [number, number][] => {
   if (arr.length % 2 !== 0) throw new Error('Array length must be even to form [x, y] pairs.');

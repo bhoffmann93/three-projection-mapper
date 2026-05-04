@@ -21,7 +21,7 @@ import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import PerspT from '../utils/perspective';
 import { isQuadConcave } from './geometry';
-import { clamp } from 'three/src/math/MathUtils';
+import { clamp } from '../utils/math';
 import meshWarpVertexShader from '../shaders/warp.vert';
 import { RenderOrder } from '../core/RenderOrder';
 import { MESH_WARP_GRID_SIZE, WARP_HANDLE_STYLE } from '../core/defaults';
@@ -710,7 +710,40 @@ export class MeshWarper {
   }
 
   public resetToDefault(): void {
+    // Reset corners — dragCornerControlPoints[i] IS cornerObjects[i].position (same ref)
+    for (let i = 0; i < 4; i++) {
+      const x = this.quadData.initalCorners[i * 2];
+      const y = this.quadData.initalCorners[i * 2 + 1];
+      this.dragCornerControlPoints[i].set(x, y, 0);
+      this.cornerObjects[i].userData.lastValidPosition?.set(x, y, 0);
+    }
+
+    // Rebuild initial grid positions from a fresh PlaneGeometry (matches constructor)
+    const geom = new THREE.PlaneGeometry(
+      this.config.width,
+      this.config.height,
+      this.xControlPointAmount - 1,
+      this.yControlPointAmount - 1,
+    );
+    const pos = geom.attributes.position.array as Float32Array;
+    const initialGridPositions = this.reoderGridPointsToBottomLeftOrigin(
+      Array.from({ length: pos.length / 3 }, (_, i) => new THREE.Vector3(pos[i * 3], pos[i * 3 + 1], 0)),
+      this.xControlPointAmount,
+      this.yControlPointAmount,
+    );
+    geom.dispose();
+
+    // dragGridControlPoints[i] IS the scene object's position (same ref), so this moves visuals too
+    for (let i = 0; i < this.referenceGridControlPoints.length; i++) {
+      this.referenceGridControlPoints[i].copy(initialGridPositions[i]);
+      this.dragGridControlPoints[i].copy(initialGridPositions[i]);
+    }
+
+    this.updateLine();
+    this.averageDimensions = this.getAverageDimensions();
+    if (this.material.uniforms.uWarpPlaneSize) {
+      this.material.uniforms.uWarpPlaneSize.value.set(this.averageDimensions.width, this.averageDimensions.height);
+    }
     localStorage.removeItem(STORAGE_KEY);
-    console.log('Control points reset - reload page to apply');
   }
 }

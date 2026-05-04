@@ -18,6 +18,8 @@ import { ProjectionEventType } from '../ipc/EventTypes';
 import type { ProjectionEventPayloads } from '../ipc/EventPayloads';
 import { POLYGON_MASK_STORAGE_KEY } from '../mask/PolygonMask';
 
+const RESET_BUTTON_COLOR = 'hsl(0, 10%, 70%)';
+
 interface ButtonGridBladeApi {
   element: HTMLElement;
   on(event: 'click', callback: (ev: { index: [number, number] }) => void): void;
@@ -109,6 +111,12 @@ export class ProjectionMapperGUI {
     }
 
     this.initPane();
+  }
+
+  private addResetButton(folder: FolderApi, title: string, onClick: () => void): void {
+    const btn = folder.addButton({ title });
+    (btn.element.querySelector('button') as HTMLButtonElement).style.background = RESET_BUTTON_COLOR;
+    btn.on('click', onClick);
   }
 
   private isMultiWindowMode(): boolean {
@@ -254,7 +262,7 @@ export class ProjectionMapperGUI {
 
     imageFolder.addBlade({ view: 'separator' });
 
-    imageFolder.addButton({ title: 'Reset Image' }).on('click', () => {
+    this.addResetButton(imageFolder, 'Reset Image', () => {
       Object.assign(this.settings, DEFAULT_IMAGE_SETTINGS);
       this.mapper.setImageSettings(DEFAULT_IMAGE_SETTINGS);
       this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
@@ -397,20 +405,9 @@ export class ProjectionMapperGUI {
       });
 
     this.warpFolder.addBlade({ view: 'separator' });
-
-    this.warpFolder.addButton({ title: 'Reset Warp' }).on('click', () => {
-      // Broadcast reset to projector
+    this.addResetButton(this.warpFolder, 'Reset Warp', () => {
       this.broadcast(ProjectionEventType.RESET_WARP, {});
-
-      // Reset locally and reload
       this.mapper.reset();
-      if (this.isMultiWindowMode()) {
-        setTimeout(() => {
-          window.location.reload();
-        }, 100);
-      } else {
-        window.location.reload();
-      }
     });
   }
 
@@ -526,13 +523,15 @@ export class ProjectionMapperGUI {
           broadcastPolySettings();
         });
 
-      (
-        polygonSubFolder.addBlade({
-          view: 'buttongrid',
-          size: [2, 1],
-          cells: (x: number) => ({ title: ['Reset', 'Delete'][x] }),
-        }) as unknown as ButtonGridBladeApi
-      ).on('click', (ev) => {
+      const polyActionGrid = polygonSubFolder.addBlade({
+        view: 'buttongrid',
+        size: [2, 1],
+        cells: (x: number) => ({ title: ['Reset', 'Delete'][x] }),
+      }) as unknown as ButtonGridBladeApi;
+
+      (polyActionGrid.element.querySelectorAll('button')[0] as HTMLButtonElement).style.background = RESET_BUTTON_COLOR;
+
+      polyActionGrid.on('click', (ev) => {
         if (ev.index[0] === 0) {
           this.mapper.resetPolygonMask();
         } else {
