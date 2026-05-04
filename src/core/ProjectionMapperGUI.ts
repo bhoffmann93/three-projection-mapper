@@ -72,7 +72,7 @@ export class ProjectionMapperGUI {
     this.config = config;
 
     const title = config.title || 'Projection Mapper';
-    const anchor = config.anchor || 'right';
+    const anchor = config.anchor || 'left';
 
     this.settings = {
       shouldWarp: mapper.isWarpEnabled(),
