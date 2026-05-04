@@ -21,7 +21,7 @@ import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import PerspT from '../utils/perspective';
 import { isQuadConcave } from './geometry';
-import { clamp } from 'three/src/math/MathUtils';
+import { clamp } from '../utils/math';
 import meshWarpVertexShader from '../shaders/warp.vert';
 import { RenderOrder } from '../core/RenderOrder';
 import { MESH_WARP_GRID_SIZE, WARP_HANDLE_STYLE } from '../core/defaults';
