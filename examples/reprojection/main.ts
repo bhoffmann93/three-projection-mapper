@@ -1,21 +1,15 @@
 /**
  * Reprojection Example
  *
- * Implements the two-pass reprojection approach described in projection mapping
- * workflows: content is rendered from one camera, then re-projected onto a 3D
- * surface viewed from a completely different (extreme) angle.
+ * Pass 1 — Bergi rendered from viewerCamera → viewerRT
  *
- * Pass 1 — Animated cube swarm rendered from a standard front-view
- *           content camera → contentRT
- *
- * Pass 2 — bergi.obj + ground plane textured with a projective-texture shader
- *           that maps contentRT onto world-space geometry using the content
- *           camera's projection matrix. This scene is rendered from an EXTREME
- *           oblique projector camera → warpRT
+ * Pass 2 — Bergi + ground in projectorScene, textured with a projective shader
+ *           that maps viewerRT onto world-space geometry using the viewerCamera's
+ *           projection matrix. Rendered from projectorCamera → warpRT
  *
  * Pass 3 — ProjectionMapper warps warpRT for interactive calibration output.
  *
- * Controls: G/P toggle GUI  |  T testcard  |  W toggle warp handles
+ * Controls: G/P toggle GUI  |  T testcard  |  W toggle warp handles  |  C preview viewerRT
  */
 
 import * as THREE from 'three';
@@ -23,7 +17,6 @@ import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { ProjectionMapper } from '../../src/core/ProjectionMapper';
 import { ProjectionMapperGUI, GUI_ANCHOR } from '../../src/core/ProjectionMapperGUI';
-import { ProjectorCamera } from '../../src/core/ProjectorCamera';
 
 // ── Renderer ──────────────────────────────────────────────────────────────────
 
@@ -37,24 +30,26 @@ const projectionResolution = new THREE.Vector2(1920, 1080);
 const renderRes = projectionResolution.clone().multiplyScalar(oversamplingFactor);
 const aspect = projectionResolution.x / projectionResolution.y;
 
-// ── Scene A: Viewer's perspective — bergi as it should appear to the audience ──
+// ── Viewer scene — bergi as seen from the audience position ───────────────────
 //
-// This is what gets projected onto the physical geometry. The viewer stands at
-// contentCamera's position. The projector takes this rendered image and warps it
-// so that from the viewer's eye, FLUCHTEN converge correctly — anamorphic billboard.
+// Rendered into viewerRT each frame. This image is then projected onto the
+// physical geometry from the projector's position, so that from the viewer's
+// eye the FLUCHTEN converge correctly — anamorphic billboard effect.
 
-const contentScene = new THREE.Scene();
-contentScene.background = new THREE.Color(0x060609);
+const viewerScene = new THREE.Scene();
+viewerScene.background = new THREE.Color(0x000000);
 
-// Viewer position — in front of and slightly below the model center
-const contentCamera = new THREE.PerspectiveCamera(40, aspect, 0.1, 100);
-contentCamera.position.set(0, 1.5, 6);
-contentCamera.lookAt(0, 1, 0);
-contentCamera.updateMatrixWorld();
+// Viewer camera — initial placeholder, repositioned after model loads
+const viewerCamera = new THREE.PerspectiveCamera(40, aspect, 0.1, 100);
+viewerCamera.position.set(0, 1.0, 4);
+viewerCamera.lookAt(0, 1, 0);
+viewerCamera.updateMatrixWorld();
 
 const textureLoader = new THREE.TextureLoader();
 // @ts-ignore
-const concreteTexture = textureLoader.load(`${import.meta.env.BASE_URL}concrete_0019_1k_K4mRwL/concrete_0019_color_1k.jpg`);
+const concreteTexture = textureLoader.load(
+  `${import.meta.env.BASE_URL}concrete_0019_1k_K4mRwL/concrete_0019_color_1k.jpg`,
+);
 concreteTexture.wrapS = THREE.RepeatWrapping;
 concreteTexture.wrapT = THREE.RepeatWrapping;
 
@@ -64,15 +59,14 @@ const concreteMat = new THREE.MeshStandardMaterial({
   metalness: 0.0,
 });
 
-contentScene.add(new THREE.AmbientLight(0xffffff, 0.6));
+viewerScene.add(new THREE.AmbientLight(0xffffff, 0.6));
 const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
 dirLight.position.set(3, 6, 4);
-contentScene.add(dirLight);
+viewerScene.add(dirLight);
 
-// Load bergi into viewer scene with concrete material
-const loaderContent = new OBJLoader();
+const loaderViewer = new OBJLoader();
 // @ts-ignore
-loaderContent.load(`${import.meta.env.BASE_URL}bergi.obj`, (obj) => {
+loaderViewer.load(`${import.meta.env.BASE_URL}bergi.obj`, (obj) => {
   obj.traverse((child) => {
     if ((child as THREE.Mesh).isMesh) {
       (child as THREE.Mesh).material = concreteMat;
@@ -85,11 +79,26 @@ loaderContent.load(`${import.meta.env.BASE_URL}bergi.obj`, (obj) => {
   box.setFromObject(obj);
   obj.position.set(0, -box.min.y * 1.3, 0);
   obj.rotation.y = -Math.PI / 2;
-  contentScene.add(obj);
+  viewerScene.add(obj);
+  obj.updateMatrixWorld(true);
+
+  const finalBox = new THREE.Box3().setFromObject(obj);
+  const center = finalBox.getCenter(new THREE.Vector3());
+  const height = finalBox.max.y - finalBox.min.y;
+
+  // Front-center viewer position
+  // viewerCamera.position.set(center.x, center.y, center.z + height * 3);
+
+  // Slightly left of center — mild anamorphic angle
+  // Closer = text appears smaller on geometry
+  viewerCamera.position.set(center.x - height * 0.6, center.y, center.z + height * 1.65);
+  viewerCamera.lookAt(center);
+  viewerCamera.updateMatrixWorld();
+  viewerCameraHelper.update();
 });
 
-// Render target for the content pass
-const contentRT = new THREE.WebGLRenderTarget(renderRes.x, renderRes.y, {
+// Viewer render target — what viewerCamera sees each frame
+const viewerRT = new THREE.WebGLRenderTarget(renderRes.x, renderRes.y, {
   minFilter: THREE.LinearFilter,
   magFilter: THREE.LinearFilter,
   generateMipmaps: false,
@@ -97,21 +106,25 @@ const contentRT = new THREE.WebGLRenderTarget(renderRes.x, renderRes.y, {
 
 // ── Projective texture shader ─────────────────────────────────────────────────
 //
-// For each world-space fragment on the projection geometry (bergi + ground),
-// compute where that point would appear in the content camera's view and sample
-// contentRT at that UV. This "paints" the animated cubes onto the 3D surface.
+// For each world-space fragment, compute where it projects into viewerCamera's
+// image and sample the projected texture at that UV.
 
-const contentMatrixUniform = { value: new THREE.Matrix4() };
+const viewerMatrixUniform = { value: new THREE.Matrix4() };
+
+// @ts-ignore
+const uvGridTexture = textureLoader.load(`${import.meta.env.BASE_URL}uv-grid.jpg`);
+// @ts-ignore
+const typeTexture = textureLoader.load(`${import.meta.env.BASE_URL}type.png`);
 
 const projTexMat = new THREE.ShaderMaterial({
   vertexShader: /* glsl */ `
     varying vec4 vProjCoord;
     varying vec2 vUv;
-    uniform mat4 uContentMatrix;
+    uniform mat4 uViewerMatrix;
 
     void main() {
       vec4 worldPos = modelMatrix * vec4(position, 1.0);
-      vProjCoord = uContentMatrix * worldPos;
+      vProjCoord = uViewerMatrix * worldPos;
       vUv = uv;
       gl_Position = projectionMatrix * viewMatrix * worldPos;
     }
@@ -119,14 +132,13 @@ const projTexMat = new THREE.ShaderMaterial({
   fragmentShader: /* glsl */ `
     varying vec4 vProjCoord;
     varying vec2 vUv;
-    uniform sampler2D uContentTexture;
+    uniform sampler2D uProjectedTexture;
     uniform sampler2D uModelTexture;
     uniform float uMix;
 
     void main() {
       vec4 modelColor = texture2D(uModelTexture, vUv);
 
-      // Outside projector frustum — show only model texture
       if (vProjCoord.w <= 0.0) {
         gl_FragColor = modelColor;
         return;
@@ -137,32 +149,30 @@ const projTexMat = new THREE.ShaderMaterial({
         return;
       }
 
-      vec4 projColor = texture2D(uContentTexture, projUv);
+      vec4 projColor = texture2D(uProjectedTexture, projUv);
       gl_FragColor = mix(modelColor, projColor, uMix);
     }
   `,
   uniforms: {
-    uContentTexture: { value: contentRT.texture },
+    uProjectedTexture: { value: typeTexture }, // swap to uvGridTexture to debug
     uModelTexture: { value: concreteTexture },
-    uContentMatrix: contentMatrixUniform,
-    uMix: { value: 0.75 },
+    uViewerMatrix: viewerMatrixUniform,
+    uMix: { value: 1.0 },
   },
 });
 
-// ── Scene B: Projection surface (bergi + ground with projected content) ────────
+// ── Projector scene — physical geometry receiving the projection ───────────────
 
-const projScene = new THREE.Scene();
-projScene.background = new THREE.Color(0x020204);
+const projectorScene = new THREE.Scene();
+projectorScene.background = new THREE.Color(0x000000);
 
-// Ground plane — receives the projected cube animation
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), projTexMat);
 ground.rotation.x = -Math.PI / 2;
-projScene.add(ground);
+projectorScene.add(ground);
 
-// bergi.obj — the sculptural surface the content is reprojected onto
-const loader = new OBJLoader();
+const loaderProjector = new OBJLoader();
 // @ts-ignore
-loader.load(`${import.meta.env.BASE_URL}bergi.obj`, (obj) => {
+loaderProjector.load(`${import.meta.env.BASE_URL}bergi.obj`, (obj) => {
   obj.traverse((child) => {
     if ((child as THREE.Mesh).isMesh) {
       (child as THREE.Mesh).material = projTexMat;
@@ -175,22 +185,17 @@ loader.load(`${import.meta.env.BASE_URL}bergi.obj`, (obj) => {
   box.setFromObject(obj);
   obj.position.set(0, -box.min.y * 1.3, 0);
   obj.rotation.y = -Math.PI / 2;
-  projScene.add(obj);
+  projectorScene.add(obj);
 });
 
-// ── Extreme perspective projector camera ──────────────────────────────────────
-//
-// Simulates a short-throw projector mounted high and far to one side, aimed
-// steeply downward at the sculpture. The combination of a low throw ratio
-// (wide-angle optics) and heavy lens shift produces severe oblique keystoning —
-// exactly the kind of distortion that the ProjectionMapper is designed to correct.
+// ── Projector camera — output view, orbitable ─────────────────────────────────
 
-// TEST: Use standard perspective camera first to verify geometry renders
 const projectorCamera = new THREE.PerspectiveCamera(50, aspect, 0.1, 200);
-projectorCamera.position.set(2.8, 5.2, 5.8);
-projectorCamera.lookAt(0, 0.3, 0);
+projectorCamera.position.set(0, 1, 6);
+projectorCamera.lookAt(0, 1, 0);
 
-// Uncomment this to use the actual ProjectorCamera with lens shift:
+// ProjectorCamera with lens shift (uncomment to simulate real projector optics):
+// import { ProjectorCamera } from '../../src/core/ProjectorCamera';
 // const projectorCamera = new ProjectorCamera(0.55, 1.75, aspect, 0.1, 200);
 // projectorCamera.position.set(2.8, 5.2, 5.8);
 // projectorCamera.lookAt(0, 0.3, 0);
@@ -209,35 +214,62 @@ const gui = new ProjectionMapperGUI(mapper, {
   title: 'Reprojection Demo',
   anchor: GUI_ANCHOR.LEFT,
 });
+gui.collapse();
 
-// ── Camera controls ──────────────────────────────────────────────────────────
+// ── Camera controls ───────────────────────────────────────────────────────────
 
 const controls = new OrbitControls(projectorCamera, renderer.domElement);
-controls.target.set(0, 0.3, 0);
+controls.target.set(0, 1, 0);
 controls.enableDamping = false;
 controls.autoRotate = false;
 
-// Visualize the texture projector (contentCamera) in the projection scene
-const contentCameraHelper = new THREE.CameraHelper(contentCamera);
-contentCameraHelper.scale.setScalar(0.2);
-projScene.add(contentCameraHelper);
+// Viewer camera visualized in projector scene (orange = where type is projected from)
+const viewerCameraHelper = new THREE.CameraHelper(viewerCamera);
+viewerCameraHelper.scale.setScalar(0.2);
+projectorScene.add(viewerCameraHelper);
 
-const contentCameraMarker = new THREE.Mesh(
+const viewerCameraMarker = new THREE.Mesh(
   new THREE.SphereGeometry(0.05, 6, 6),
-  new THREE.MeshBasicMaterial({ color: 0xff6600 })
+  new THREE.MeshBasicMaterial({ color: 0xff6600 }),
 );
-contentCameraMarker.position.copy(contentCamera.position);
-projScene.add(contentCameraMarker);
+viewerCameraMarker.position.copy(viewerCamera.position);
+projectorScene.add(viewerCameraMarker);
 
-const contentViewDir = new THREE.Vector3(0, 0, -1).applyQuaternion(contentCamera.quaternion).normalize();
-const arrowHelper = new THREE.ArrowHelper(contentViewDir, contentCamera.position, 1, 0xff6600);
-projScene.add(arrowHelper);
+const viewerDir = new THREE.Vector3(0, 0, -1).applyQuaternion(viewerCamera.quaternion).normalize();
+const arrowHelper = new THREE.ArrowHelper(viewerDir, viewerCamera.position, 1, 0xff6600);
+projectorScene.add(arrowHelper);
 
 // ── Animation loop ─────────────────────────────────────────────────────────────
 
-const clock = new THREE.Clock();
+let showViewerRT = false;
+
+const viewerRTPreviewMat = new THREE.MeshBasicMaterial({ map: viewerRT.texture });
+const viewerRTPreviewScene = new THREE.Scene();
+viewerRTPreviewScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), viewerRTPreviewMat));
+const viewerRTPreviewCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+function updateViewerRTPreviewCam() {
+  const screenAspect = window.innerWidth / window.innerHeight;
+  const rtAspect = projectionResolution.x / projectionResolution.y;
+  if (screenAspect > rtAspect) {
+    const s = screenAspect / rtAspect;
+    viewerRTPreviewCam.left = -s;
+    viewerRTPreviewCam.right = s;
+    viewerRTPreviewCam.top = 1;
+    viewerRTPreviewCam.bottom = -1;
+  } else {
+    const s = rtAspect / screenAspect;
+    viewerRTPreviewCam.left = -1;
+    viewerRTPreviewCam.right = 1;
+    viewerRTPreviewCam.top = s;
+    viewerRTPreviewCam.bottom = -s;
+  }
+  viewerRTPreviewCam.updateProjectionMatrix();
+}
+updateViewerRTPreviewCam();
 
 window.addEventListener('keydown', (e) => {
+  if (e.key.toLowerCase() === 'c') showViewerRT = !showViewerRT;
   if (e.key === 'g' || e.key === 'p') gui.toggle();
   if (e.key === 't') gui.toggleTestCard();
   if (e.key === 'w') gui.toggleWarpUI();
@@ -246,34 +278,39 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
   mapper.resize(window.innerWidth, window.innerHeight);
+  updateViewerRTPreviewCam();
 });
 
 function animate() {
   requestAnimationFrame(animate);
 
   controls.update();
-  contentCameraHelper.update();
-  contentCameraMarker.position.copy(contentCamera.position);
+  viewerCameraHelper.update();
+  viewerCameraMarker.position.copy(viewerCamera.position);
 
-  const contentViewDir = new THREE.Vector3(0, 0, -1).applyQuaternion(contentCamera.quaternion).normalize();
-  arrowHelper.setDirection(contentViewDir);
-  arrowHelper.position.copy(contentCamera.position);
+  const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(viewerCamera.quaternion).normalize();
+  arrowHelper.setDirection(dir);
+  arrowHelper.position.copy(viewerCamera.position);
 
-  // Recompute content projection matrix each frame
-  contentCamera.updateMatrixWorld();
-  contentMatrixUniform.value.multiplyMatrices(contentCamera.projectionMatrix, contentCamera.matrixWorldInverse);
+  viewerCamera.updateMatrixWorld();
+  viewerMatrixUniform.value.multiplyMatrices(viewerCamera.projectionMatrix, viewerCamera.matrixWorldInverse);
 
-    // Pass 1: Render bergi from viewer's perspective
-  renderer.setRenderTarget(contentRT);
-  renderer.render(contentScene, contentCamera);
+  // Pass 1: Render bergi from viewer's perspective
+  renderer.setRenderTarget(viewerRT);
+  renderer.render(viewerScene, viewerCamera);
 
-  // Pass 2: Project viewer's render onto physical geometry from projector angle
+  // Pass 2: Project onto geometry from projector's position
+  // (uProjectedTexture is currently typeTexture — swap to viewerRT.texture for live reprojection)
   renderer.setRenderTarget(warpRT);
-  renderer.render(projScene, projectorCamera);
+  renderer.render(projectorScene, projectorCamera);
 
-  // Pass 3: Warp & output to screen
+  // Pass 3: Output — or press C to preview viewerRT
   renderer.setRenderTarget(null);
-  mapper.render();
+  if (showViewerRT) {
+    renderer.render(viewerRTPreviewScene, viewerRTPreviewCam);
+  } else {
+    mapper.render();
+  }
 }
 
 animate();
