@@ -37,63 +37,56 @@ const projectionResolution = new THREE.Vector2(1920, 1080);
 const renderRes = projectionResolution.clone().multiplyScalar(oversamplingFactor);
 const aspect = projectionResolution.x / projectionResolution.y;
 
-// ── Scene A: Content (animated cube swarm) ────────────────────────────────────
+// ── Scene A: Viewer's perspective — bergi as it should appear to the audience ──
+//
+// This is what gets projected onto the physical geometry. The viewer stands at
+// contentCamera's position. The projector takes this rendered image and warps it
+// so that from the viewer's eye, FLUCHTEN converge correctly — anamorphic billboard.
 
 const contentScene = new THREE.Scene();
 contentScene.background = new THREE.Color(0x060609);
 
-// Texture projector — positioned in front of the building like a real projector
+// Viewer position — in front of and slightly below the model center
 const contentCamera = new THREE.PerspectiveCamera(40, aspect, 0.1, 100);
 contentCamera.position.set(0, 1.5, 6);
 contentCamera.lookAt(0, 1, 0);
 contentCamera.updateMatrixWorld();
 
-// Cube swarm orbiting the origin at varying radii, speeds, and heights
-const NUM_CUBES = 50;
-const palette = [0xff2255, 0x2299ff, 0xffcc00, 0x33ee88, 0xff6600, 0xaa33ff, 0x00ddff, 0xff3399];
+const textureLoader = new THREE.TextureLoader();
+// @ts-ignore
+const concreteTexture = textureLoader.load(`${import.meta.env.BASE_URL}concrete_0019_1k_K4mRwL/concrete_0019_color_1k.jpg`);
+concreteTexture.wrapS = THREE.RepeatWrapping;
+concreteTexture.wrapT = THREE.RepeatWrapping;
 
-interface CubeData {
-  mesh: THREE.Mesh;
-  r: number;
-  speed: number;
-  phase: number;
-  h: number;
-  hSpeed: number;
-  hPhase: number;
-}
+const concreteMat = new THREE.MeshStandardMaterial({
+  map: concreteTexture,
+  roughness: 0.9,
+  metalness: 0.0,
+});
 
-const cubes: CubeData[] = [];
+contentScene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+dirLight.position.set(3, 6, 4);
+contentScene.add(dirLight);
 
-for (let i = 0; i < NUM_CUBES; i++) {
-  const s = 0.06 + Math.random() * 0.22;
-  const col = palette[i % palette.length];
-  const mesh = new THREE.Mesh(
-    new THREE.BoxGeometry(s, s, s),
-    new THREE.MeshStandardMaterial({
-      color: col,
-      emissive: new THREE.Color(col).multiplyScalar(0.45),
-      roughness: 0.2,
-      metalness: 0.75,
-    }),
-  );
-  cubes.push({
-    mesh,
-    r: 0.4 + Math.random() * 2.4,
-    speed: (0.2 + Math.random() * 0.6) * (Math.random() > 0.5 ? 1 : -1),
-    phase: Math.random() * Math.PI * 2,
-    h: Math.random() * 2.4,
-    hSpeed: 0.18 + Math.random() * 0.5,
-    hPhase: Math.random() * Math.PI * 2,
+// Load bergi into viewer scene with concrete material
+const loaderContent = new OBJLoader();
+// @ts-ignore
+loaderContent.load(`${import.meta.env.BASE_URL}bergi.obj`, (obj) => {
+  obj.traverse((child) => {
+    if ((child as THREE.Mesh).isMesh) {
+      (child as THREE.Mesh).material = concreteMat;
+    }
   });
-  contentScene.add(mesh);
-}
-
-// Content scene lighting
-contentScene.add(new THREE.HemisphereLight(0x3355aa, 0x221100, 0.5));
-const cL1 = new THREE.PointLight(0xff2255, 10, 7);
-const cL2 = new THREE.PointLight(0x2299ff, 10, 7);
-const cL3 = new THREE.PointLight(0xffcc00, 7, 6);
-contentScene.add(cL1, cL2, cL3);
+  const box = new THREE.Box3().setFromObject(obj);
+  const size = box.getSize(new THREE.Vector3());
+  const scale = 2 / Math.max(size.x, size.y, size.z);
+  obj.scale.setScalar(scale);
+  box.setFromObject(obj);
+  obj.position.set(0, -box.min.y * 1.3, 0);
+  obj.rotation.y = -Math.PI / 2;
+  contentScene.add(obj);
+});
 
 // Render target for the content pass
 const contentRT = new THREE.WebGLRenderTarget(renderRes.x, renderRes.y, {
@@ -109,10 +102,6 @@ const contentRT = new THREE.WebGLRenderTarget(renderRes.x, renderRes.y, {
 // contentRT at that UV. This "paints" the animated cubes onto the 3D surface.
 
 const contentMatrixUniform = { value: new THREE.Matrix4() };
-
-const textureLoader = new THREE.TextureLoader();
-// @ts-ignore
-const concreteTexture = textureLoader.load(`${import.meta.env.BASE_URL}concrete_0019_1k_K4mRwL/concrete_0019_color_1k.jpg`);
 
 const projTexMat = new THREE.ShaderMaterial({
   vertexShader: /* glsl */ `
@@ -261,7 +250,6 @@ window.addEventListener('resize', () => {
 
 function animate() {
   requestAnimationFrame(animate);
-  const t = clock.getElapsedTime();
 
   controls.update();
   contentCameraHelper.update();
@@ -271,35 +259,15 @@ function animate() {
   arrowHelper.setDirection(contentViewDir);
   arrowHelper.position.copy(contentCamera.position);
 
-  // Orbit + bob + spin each cube
-  cubes.forEach((c) => {
-    const angle = t * c.speed + c.phase;
-    c.mesh.position.set(
-      Math.cos(angle) * c.r,
-      c.h + Math.sin(t * c.hSpeed + c.hPhase) * 0.38,
-      Math.sin(angle) * c.r,
-    );
-    c.mesh.rotation.set(t * 0.9, t * 0.65, t * 0.45);
-  });
-
-  // Orbit the content lights around the swarm
-  cL1.position.set(Math.sin(t * 0.65) * 2.2, 1.6 + Math.cos(t * 0.9) * 0.7, Math.cos(t * 0.65) * 2.2);
-  cL2.position.set(
-    Math.sin(t * 0.65 + Math.PI) * 2.2,
-    1.3 + Math.cos(t * 0.9 + Math.PI) * 0.7,
-    Math.cos(t * 0.65 + Math.PI) * 2.2,
-  );
-  cL3.position.set(Math.sin(t * 1.15) * 3.0, 3.0, Math.cos(t * 1.35) * 3.0);
-
   // Recompute content projection matrix each frame
   contentCamera.updateMatrixWorld();
   contentMatrixUniform.value.multiplyMatrices(contentCamera.projectionMatrix, contentCamera.matrixWorldInverse);
 
-  // Pass 1: Render cube animation from content camera
+    // Pass 1: Render bergi from viewer's perspective
   renderer.setRenderTarget(contentRT);
   renderer.render(contentScene, contentCamera);
 
-  // Pass 2: Render bergi with projected content, from projector angle
+  // Pass 2: Project viewer's render onto physical geometry from projector angle
   renderer.setRenderTarget(warpRT);
   renderer.render(projScene, projectorCamera);
 
