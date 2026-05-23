@@ -12,6 +12,8 @@
  * Controls: G/P toggle GUI  |  T testcard  |  W toggle warp handles  |  C preview viewerRT
  */
 
+//* viecam is the texture projector and projector cam is our output camera / what we see :)
+
 import * as THREE from 'three';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -124,9 +126,17 @@ const projTexMat = new THREE.ShaderMaterial({
 
     void main() {
       vec4 worldPos = modelMatrix * vec4(position, 1.0);
-      vProjCoord = uViewerMatrix * worldPos;
-      vUv = uv;
+
+      // Standard MVP — positions geometry from the projector's point of view
       gl_Position = projectionMatrix * viewMatrix * worldPos;
+
+      // The reprojection trick: run the same vertex through a second camera (the viewer).
+      // uViewerMatrix = viewer's (projection * view). Result is clip-space coords as seen
+      // from the viewer's eye — kept as vec4 to defer the perspective divide (xy/w)
+      // to the fragment shader, so interpolation across triangles stays perspective-correct.
+      vProjCoord = uViewerMatrix * worldPos;
+
+      vUv = uv;
     }
   `,
   fragmentShader: /* glsl */ `
@@ -293,6 +303,7 @@ function animate() {
   arrowHelper.position.copy(viewerCamera.position);
 
   viewerCamera.updateMatrixWorld();
+  //matrixWorldInverse == viewmat
   viewerMatrixUniform.value.multiplyMatrices(viewerCamera.projectionMatrix, viewerCamera.matrixWorldInverse);
 
   // Pass 1: Render bergi from viewer's perspective
