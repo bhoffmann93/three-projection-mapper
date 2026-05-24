@@ -19,7 +19,7 @@ import { ProjectionEventType } from '../ipc/EventTypes';
 import type { ProjectionEventPayloads } from '../ipc/EventPayloads';
 import { POLYGON_MASK_STORAGE_KEY } from '../mask/PolygonMask';
 
-const RESET_BUTTON_COLOR = 'hsl(0, 10%, 70%)';
+const RESET_BUTTON_COLOR = 'oklch(60% 0.05 30)';
 
 interface ButtonGridBladeApi {
   element: HTMLElement;
