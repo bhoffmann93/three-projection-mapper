@@ -58,8 +58,11 @@ export class ProjectionMapper {
     uShowTestCard: { value: boolean };
     uShowControlLines: { value: boolean };
     uTonemap: { value: boolean };
+    uShadows: { value: number };
+    uHighlights: { value: number };
     uGamma: { value: number };
     uContrast: { value: number };
+    uSaturation: { value: number };
     uHue: { value: number };
   };
 
@@ -123,8 +126,11 @@ export class ProjectionMapper {
       uShowTestCard: { value: false },
       uShowControlLines: { value: true },
       uTonemap: { value: DEFAULT_IMAGE_SETTINGS.tonemap },
+      uShadows: { value: DEFAULT_IMAGE_SETTINGS.shadows },
+      uHighlights: { value: DEFAULT_IMAGE_SETTINGS.highlights },
       uGamma: { value: DEFAULT_IMAGE_SETTINGS.gamma },
       uContrast: { value: DEFAULT_IMAGE_SETTINGS.contrast },
+      uSaturation: { value: DEFAULT_IMAGE_SETTINGS.saturation },
       uHue: { value: DEFAULT_IMAGE_SETTINGS.hue },
     };
 
@@ -245,6 +251,14 @@ export class ProjectionMapper {
       this.imageSettings.tonemap = settings.tonemap;
       this.uniforms.uTonemap.value = settings.tonemap;
     }
+    if (settings.shadows !== undefined) {
+      this.imageSettings.shadows = settings.shadows;
+      this.uniforms.uShadows.value = settings.shadows;
+    }
+    if (settings.highlights !== undefined) {
+      this.imageSettings.highlights = settings.highlights;
+      this.uniforms.uHighlights.value = settings.highlights;
+    }
     if (settings.gamma !== undefined) {
       this.imageSettings.gamma = settings.gamma;
       this.uniforms.uGamma.value = settings.gamma;
@@ -252,6 +266,10 @@ export class ProjectionMapper {
     if (settings.contrast !== undefined) {
       this.imageSettings.contrast = settings.contrast;
       this.uniforms.uContrast.value = settings.contrast;
+    }
+    if (settings.saturation !== undefined) {
+      this.imageSettings.saturation = settings.saturation;
+      this.uniforms.uSaturation.value = settings.saturation;
     }
     if (settings.hue !== undefined) {
       this.imageSettings.hue = settings.hue;

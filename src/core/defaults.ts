@@ -1,6 +1,6 @@
 export const GUI_STORAGE_KEY = 'projection-mapper-gui-settings';
 export const SHOW_ACES_TOGGLE = false;
-export const STORAGE_VERSION = 1; //when making breaking changes just increment so old data gets wiped
+export const STORAGE_VERSION = 3; //when making breaking changes just increment so old data gets wiped
 
 //Default initialized values if nothing from local storage is loaded
 export const DEFAULTS = {
@@ -20,8 +20,11 @@ export interface ImageSettings {
   maskEnabled: boolean;
   feather: number;
   tonemap: boolean;
+  shadows: number;
   gamma: number;
+  highlights: number;
   contrast: number;
+  saturation: number;
   hue: number;
 }
 
@@ -29,8 +32,11 @@ export const DEFAULT_IMAGE_SETTINGS: Readonly<ImageSettings> = {
   maskEnabled: false,
   feather: 0.05,
   tonemap: false,
+  shadows: 0.0,
   gamma: 1.0,
+  highlights: 1.0,
   contrast: 1.0,
+  saturation: 1.0,
   hue: 0.0,
 };
 
