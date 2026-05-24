@@ -9,6 +9,7 @@ import {
   DEFAULTS,
   MESH_WARP_GRID_SIZE,
   STORAGE_VERSION,
+  SHOW_ACES_TOGGLE,
 } from './defaults';
 import type { ImageSettings } from './defaults';
 import { WARP_MODE } from '../warp/MeshWarper';
@@ -18,7 +19,7 @@ import { ProjectionEventType } from '../ipc/EventTypes';
 import type { ProjectionEventPayloads } from '../ipc/EventPayloads';
 import { POLYGON_MASK_STORAGE_KEY } from '../mask/PolygonMask';
 
-const RESET_BUTTON_COLOR = 'hsl(0, 10%, 70%)';
+const RESET_BUTTON_COLOR = 'oklch(60% 0.05 30)';
 
 interface ButtonGridBladeApi {
   element: HTMLElement;
@@ -202,13 +203,15 @@ export class ProjectionMapperGUI {
       this.saveSettings();
     });
 
-    imageFolder
-      .addBinding(this.settings, 'tonemap', { label: 'ACES Tonemap' })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        this.mapper.setImageSettings({ tonemap: e.value as boolean });
-        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
-        this.saveSettings();
-      });
+    if (SHOW_ACES_TOGGLE) {
+      imageFolder
+        .addBinding(this.settings, 'tonemap', { label: 'ACES Tonemap' })
+        .on('change', (e: TpChangeEvent<unknown>) => {
+          this.mapper.setImageSettings({ tonemap: e.value as boolean });
+          this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
+          this.saveSettings();
+        });
+    }
 
     imageFolder
       .addBinding(this.settings, 'gamma', { label: 'Gamma', min: 0.5, max: 2.0, step: 0.01 })
