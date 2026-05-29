@@ -22,8 +22,11 @@ uniform int uGridSizeX;
 uniform int uGridSizeY;
 
 uniform bool uTonemap;
+uniform float uShadows;
+uniform float uHighlights;
 uniform float uGamma;
 uniform float uContrast;
+uniform float uSaturation;
 uniform float uHue;
 
 #define PI 3.14159265359
@@ -107,30 +110,30 @@ vec3 testCard(vec2 vUv, vec2 dimensions, float time) {
     float y = clamp((vUv.y - 0.25) / 0.5, 0.0, 1.0);
 
     // Color bars
-    if(vUv.y < tileSize.y * 0.75 && vUv.x > 0.25 && vUv.x < 0.75) {
+    if (vUv.y < tileSize.y * 0.75 && vUv.x > 0.25 && vUv.x < 0.75) {
         float segment = floor(x * 8.0);
 
         vec3 barColor = BLACK;
-        if(segment == 0.0)
+        if (segment == 0.0)
             barColor = WHITE;
-        else if(segment == 1.0)
+        else if (segment == 1.0)
             barColor = YELLOW;
-        else if(segment == 2.0)
+        else if (segment == 2.0)
             barColor = CYAN;
-        else if(segment == 3.0)
+        else if (segment == 3.0)
             barColor = GREEN;
-        else if(segment == 4.0)
+        else if (segment == 4.0)
             barColor = MAGENTA;
-        else if(segment == 5.0)
+        else if (segment == 5.0)
             barColor = RED;
-        else if(segment == 6.0)
+        else if (segment == 6.0)
             barColor = BLUE;
 
         color = barColor;
     }
 
     // Grey gradient steps
-    if(1.0 - vUv.y < tileSize.y * 0.75 && vUv.x > 0.25 && vUv.x < 0.75) {
+    if (1.0 - vUv.y < tileSize.y * 0.75 && vUv.x > 0.25 && vUv.x < 0.75) {
         color = mix(BLACK, WHITE, floor(x * 8.0) / 7.0);
     }
 
@@ -163,25 +166,25 @@ vec3 testCard(vec2 vUv, vec2 dimensions, float time) {
     color = mix(color, WHITE, max(leftLine, rightLine));
     color = mix(color, WHITE, max(bottomLine, topLine));
 
-        // Grey gradient
-    if(vUv.y > 0.25 && vUv.y < 0.75 && vUv.x > tileSize.x / 2.0 && vUv.x < tileSize.x * 1.5) {
+    // Grey gradient
+    if (vUv.y > 0.25 && vUv.y < 0.75 && vUv.x > tileSize.x / 2.0 && vUv.x < tileSize.x * 1.5) {
         color = mix(BLACK, WHITE, y);
     }
 
     // RGB gradient
-    if(vUv.y > 0.25 && vUv.y < 0.75 && vUv.x > 1.0 - tileSize.x * 1.5 && vUv.x < 1.0 - tileSize.x / 2.0) {
+    if (vUv.y > 0.25 && vUv.y < 0.75 && vUv.x > 1.0 - tileSize.x * 1.5 && vUv.x < 1.0 - tileSize.x / 2.0) {
         color = 0.5 + 0.5 * cos((TAU * y - time) + vec3(0.0, 2.094, 4.188));
     }
 
     // Red corners
     float cornerSize = 1.0 / tileCount.y * 0.5;
-    if(vUv.x < cornerSize && vUv.y < cornerSize * ratio)
+    if (vUv.x < cornerSize && vUv.y < cornerSize * ratio)
         color = RED;
-    if(vUv.x > 1.0 - cornerSize && vUv.y < cornerSize * ratio)
+    if (vUv.x > 1.0 - cornerSize && vUv.y < cornerSize * ratio)
         color = RED;
-    if(vUv.x < cornerSize && vUv.y > 1.0 - cornerSize * ratio)
+    if (vUv.x < cornerSize && vUv.y > 1.0 - cornerSize * ratio)
         color = RED;
-    if(vUv.x > 1.0 - cornerSize && vUv.y > 1.0 - cornerSize * ratio)
+    if (vUv.x > 1.0 - cornerSize && vUv.y > 1.0 - cornerSize * ratio)
         color = RED;
 
     return color;
@@ -230,15 +233,23 @@ vec3 brightnessContrast(vec3 col, float brightness, float contrast) {
 }
 
 vec3 imageAdjust(vec3 color) {
-    if(uTonemap)
+    if (uTonemap)
         color = acesTonemap(color); //hdr to 0.0-1.0 range
+
+    float blacks = uShadows;
+    float whites = max(uHighlights, blacks + 0.001);
+    color = clamp((color - blacks) / (whites - blacks), 0.0, 1.0);
+    color = pow(color, vec3(1.0 / uGamma)); //midtone gamma
 
     color = brightnessContrast(color, 0.0, uContrast);
 
-    if(abs(uHue) > 0.001)
+    //sat
+    float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
+    color = mix(vec3(luma), color, uSaturation);
+
+    if (abs(uHue) > 0.001)
         color = hueShift(color, uHue);
 
-    color = pow(max(color, 0.0), vec3(1.0 / uGamma)); //gamma
     return clamp(color, 0.0, 1.0);
 }
 
@@ -246,7 +257,7 @@ void main() {
     vec3 color;
 
     //test card always gets displayed at full res (render res)
-    if(uShowTestCard) {
+    if (uShowTestCard) {
         color = testCard(vUv, uShouldWarp ? uWarpPlaneSize : uBufferResolution, uTime);
     } else {
         color = texture2D(uBuffer, vUv).rgb;
@@ -258,12 +269,12 @@ void main() {
     //Dither: Reduce Banding Artifacts
     color += (1.0 / 255.0) * hash12(gl_FragCoord.xy + fract(uTime)) - (0.5 / 255.0);
 
-    if(uShouldWarp == false || uShowControlLines) {
+    if (uShouldWarp == false || uShowControlLines) {
         float borderLines = drawBorderLines(vUv);
         color = mix(color, vec3(0.75), borderLines);
     }
 
-    if(uShowControlLines) {
+    if (uShowControlLines) {
         float lines = drawControlLines(vUv, vec2(float(uGridSizeX), float(uGridSizeY)));
         color = mix(color, vec3(0.75), lines);
     }

@@ -214,9 +214,25 @@ export class ProjectionMapperGUI {
     }
 
     imageFolder
-      .addBinding(this.settings, 'gamma', { label: 'Gamma', min: 0.5, max: 2.0, step: 0.01 })
+      .addBinding(this.settings, 'shadows', { label: 'Blacks', min: 0, max: 0.99, step: 0.001 })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        this.mapper.setImageSettings({ shadows: e.value as number });
+        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
+        this.saveSettings();
+      });
+
+    imageFolder
+      .addBinding(this.settings, 'gamma', { label: 'Gamma', min: 0.1, max: 4.0, step: 0.01 })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setImageSettings({ gamma: e.value as number });
+        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
+        this.saveSettings();
+      });
+
+    imageFolder
+      .addBinding(this.settings, 'highlights', { label: 'Whites', min: 0.01, max: 1, step: 0.001 })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        this.mapper.setImageSettings({ highlights: e.value as number });
         this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
         this.saveSettings();
       });
@@ -225,6 +241,14 @@ export class ProjectionMapperGUI {
       .addBinding(this.settings, 'contrast', { label: 'Contrast', min: 1.0, max: 2.0, step: 0.01 })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setImageSettings({ contrast: e.value as number });
+        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
+        this.saveSettings();
+      });
+
+    imageFolder
+      .addBinding(this.settings, 'saturation', { label: 'Saturation', min: 0, max: 2.0, step: 0.01 })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        this.mapper.setImageSettings({ saturation: e.value as number });
         this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
         this.saveSettings();
       });
@@ -646,8 +670,11 @@ export class ProjectionMapperGUI {
     this.mapper.setImageSettings({
       maskEnabled: this.settings.maskEnabled,
       feather: this.settings.feather,
+      shadows: this.settings.shadows,
       gamma: this.settings.gamma,
+      highlights: this.settings.highlights,
       contrast: this.settings.contrast,
+      saturation: this.settings.saturation,
       hue: this.settings.hue,
     });
   }
