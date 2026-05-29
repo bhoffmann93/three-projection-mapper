@@ -446,6 +446,18 @@ export class WindowSync {
     this.windowManager.closeProjectorWindow();
   }
 
+  public updateMapper(mapper: ProjectionMapper): void {
+    this.mapper = mapper;
+    if (this.mode === WINDOW_SYNC_MODE.CONTROLLER) {
+      this.reattachDragListener();
+    } else {
+      this.mapper.setControlsVisible(false);
+      this.mapper.setShowBorderLines(false);
+      this.mapper.setZoom(1.0);
+      this.mapper.getWarper().setDragEnabled(false);
+    }
+  }
+
   /**
    * Register callback for when projector connects
    */
