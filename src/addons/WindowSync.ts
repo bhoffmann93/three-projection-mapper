@@ -455,6 +455,10 @@ export class WindowSync {
       this.mapper.setShowBorderLines(false);
       this.mapper.setZoom(1.0);
       this.mapper.getWarper().setDragEnabled(false);
+      // New mapper has default state — re-request full state from controller so all
+      // projection state (test card, polygon mask, image settings, warp, etc.) is restored.
+      this.eventChannel.emit(ProjectionEventType.PROJECTOR_READY, {});
+      this.eventChannel.emit(ProjectionEventType.REQUEST_FULL_STATE, {});
     }
   }
 
