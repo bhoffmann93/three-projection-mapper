@@ -309,12 +309,14 @@ import { ProjectionMapperGUI } from 'three-projection-mapping';
 const gui = new ProjectionMapperGUI(mapper, {
   title: 'My Projection',
   anchor: 'left', // or 'right'
+  enableWhiteOut: true, // optional: adds a full-screen white button beside Testcard
 });
 
 gui.toggle(); // show/hide the GUI panel
 gui.show();
 gui.hide();
 gui.toggleTestCard(); // toggle testcard overlay
+gui.toggleWhiteOut(); // toggle full-screen white (only meaningful when enableWhiteOut: true)
 gui.toggleWarpUI(); // toggle warp control points
 gui.collapse();
 gui.dispose();
