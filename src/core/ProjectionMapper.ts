@@ -66,6 +66,7 @@ export class ProjectionMapper {
     uHue: { value: number };
   };
 
+  private whiteOut = false;
   private polygonMask: PolygonMask | null = null;
 
   /** Called whenever polygon mask nodes change (drag, insert, delete, reset). */
@@ -191,6 +192,17 @@ export class ProjectionMapper {
   }
 
   render(): void {
+    if (this.whiteOut) {
+      const savedColor = new THREE.Color();
+      const savedAlpha = this.renderer.getClearAlpha();
+      this.renderer.getClearColor(savedColor);
+      this.renderer.setClearColor(0xffffff, 1);
+      this.renderer.setRenderTarget(null);
+      this.renderer.clear();
+      this.renderer.setClearColor(savedColor, savedAlpha);
+      return;
+    }
+
     this.uniforms.uTime.value = this.clock.getElapsedTime();
 
     // Constant screen-pixel size: convert 1 pixel to world units
@@ -228,6 +240,14 @@ export class ProjectionMapper {
 
   isShowingTestCard(): boolean {
     return this.uniforms.uShowTestCard.value;
+  }
+
+  setWhiteOut(show: boolean): void {
+    this.whiteOut = show;
+  }
+
+  isWhiteOut(): boolean {
+    return this.whiteOut;
   }
 
   setShowControlLines(show: boolean): void {

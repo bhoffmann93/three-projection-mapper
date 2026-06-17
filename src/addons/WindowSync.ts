@@ -160,6 +160,10 @@ export class WindowSync {
       this.mapper.setShowTestCard(show);
     });
 
+    this.eventChannel.on(ProjectionEventType.WHITE_OUT_TOGGLED, ({ show }) => {
+      this.mapper.setWhiteOut(show);
+    });
+
     // Projector never shows editing controls regardless of controller state
 
     this.eventChannel.on(ProjectionEventType.CAMERA_OFFSET_CHANGED, ({ offset }) => {
@@ -268,6 +272,7 @@ export class WindowSync {
       warpMode: warper.getWarpMode(),
       shouldWarp: warper.getShouldWarp(),
       showTestcard: this.mapper.isShowingTestCard(),
+      showWhiteOut: this.mapper.isWhiteOut(),
       showControlLines: this.mapper.isShowingControlLines(),
       showControls: false, // Projector controls default to hidden
       cameraOffset: this.mapper.getCameraOffset(),
@@ -319,6 +324,7 @@ export class WindowSync {
 
     // 6. Apply visual settings
     this.mapper.setShowTestCard(state.showTestcard);
+    this.mapper.setWhiteOut(state.showWhiteOut);
     this.mapper.setShowControlLines(false); // Always hide on projector
     this.mapper.setControlsVisible(state.showControls);
 

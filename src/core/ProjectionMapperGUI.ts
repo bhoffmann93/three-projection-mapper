@@ -33,11 +33,13 @@ export interface ProjectionMapperGUIConfig {
   anchor?: GUIAnchor;
   eventChannel?: EventChannel; // Optional: enables event broadcasting
   windowManager?: WindowManager; // Optional: enables projector window button
+  enableWhiteOut?: boolean; // Optional: adds a full-screen white-out toggle button
 }
 
 export interface ProjectionMapperGUISettings extends ImageSettings {
   shouldWarp: boolean;
   showTestcard: boolean;
+  showWhiteOut: boolean;
   showWarpGrid: boolean;
   warpMode: WARP_MODE;
   gridSize: { x: number; y: number };
@@ -80,6 +82,7 @@ export class ProjectionMapperGUI {
     this.settings = {
       shouldWarp: mapper.isWarpEnabled(),
       showTestcard: mapper.isShowingTestCard(),
+      showWhiteOut: mapper.isWhiteOut(),
       showWarpGrid: true,
       warpMode: mapper.getWarper().getWarpMode(),
       gridSize: {
@@ -151,28 +154,36 @@ export class ProjectionMapperGUI {
 
     const settingsFolder = this.pane.addFolder({ title: 'Settings', expanded: true });
 
+    const hasWhiteOut = !!this.config.enableWhiteOut;
+    const buttonLabels = hasWhiteOut ? ['Testcard', 'White', 'Warp'] : ['Testcard', 'Warp'];
+
     const settingsBtnGrid = settingsFolder.addBlade({
       view: 'buttongrid',
-      size: [2, 1],
-      cells: (x: number) => ({ title: ['Testcard', 'Warp'][x] }),
+      size: [buttonLabels.length, 1],
+      cells: (x: number) => ({ title: buttonLabels[x] }),
     }) as unknown as ButtonGridBladeApi;
 
-    const [testcardBtn, warpBtn] = Array.from(
-      settingsBtnGrid.element.querySelectorAll('button'),
-    ) as HTMLButtonElement[];
+    const buttons = Array.from(settingsBtnGrid.element.querySelectorAll('button')) as HTMLButtonElement[];
+    const testcardBtn = buttons[0];
+    const whiteOutBtn = hasWhiteOut ? buttons[1] : null;
+    const warpBtn = hasWhiteOut ? buttons[2] : buttons[1];
 
     this.syncSettingButtons = () => {
       testcardBtn.style.opacity = this.settings.showTestcard ? '1' : '0.35';
+      if (whiteOutBtn) whiteOutBtn.style.opacity = this.settings.showWhiteOut ? '1' : '0.35';
       warpBtn.style.opacity = this.settings.shouldWarp ? '1' : '0.35';
     };
     this.syncSettingButtons();
 
     settingsBtnGrid.on('click', (ev) => {
-      if (ev.index[0] === 0) {
+      const col = ev.index[0];
+      if (col === 0) {
         this.settings.showTestcard = !this.settings.showTestcard;
         this.mapper.setShowTestCard(this.settings.showTestcard);
         this.saveSettings();
         this.broadcast(ProjectionEventType.TESTCARD_TOGGLED, { show: this.settings.showTestcard });
+      } else if (hasWhiteOut && col === 1) {
+        this.toggleWhiteOut();
       } else {
         const enabled = !this.settings.shouldWarp;
         this.settings.shouldWarp = enabled;
@@ -658,6 +669,7 @@ export class ProjectionMapperGUI {
   private applySettings(): void {
     this.mapper.setShouldWarp(this.settings.shouldWarp);
     this.mapper.setShowTestCard(this.settings.showTestcard);
+    this.mapper.setWhiteOut(this.settings.showWhiteOut);
     //only apply if settings differ
     const currentX = this.mapper.getWarper().getGridSizeX();
     const currentY = this.mapper.getWarper().getGridSizeY();
@@ -686,6 +698,16 @@ export class ProjectionMapperGUI {
     this.saveSettings();
     this.broadcast(ProjectionEventType.TESTCARD_TOGGLED, {
       show: this.settings.showTestcard,
+    });
+  }
+
+  toggleWhiteOut(): void {
+    this.settings.showWhiteOut = !this.settings.showWhiteOut;
+    this.mapper.setWhiteOut(this.settings.showWhiteOut);
+    this.syncSettingButtons();
+    this.saveSettings();
+    this.broadcast(ProjectionEventType.WHITE_OUT_TOGGLED, {
+      show: this.settings.showWhiteOut,
     });
   }
 

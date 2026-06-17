@@ -54,6 +54,7 @@ export interface FullProjectionState {
 
   // Visual settings
   showTestcard: boolean;
+  showWhiteOut: boolean;
   showControlLines: boolean;
   showControls: boolean;
 
@@ -78,6 +79,7 @@ export interface ProjectionEventPayloads {
   [ProjectionEventType.WARP_MODE_CHANGED]: { mode: number };
   [ProjectionEventType.SHOULD_WARP_CHANGED]: { shouldWarp: boolean };
   [ProjectionEventType.TESTCARD_TOGGLED]: { show: boolean };
+  [ProjectionEventType.WHITE_OUT_TOGGLED]: { show: boolean };
   [ProjectionEventType.CONTROL_LINES_TOGGLED]: { show: boolean };
   [ProjectionEventType.CONTROLS_VISIBILITY_CHANGED]: { visible: boolean };
   [ProjectionEventType.CAMERA_OFFSET_CHANGED]: { offset: CameraOffset };
