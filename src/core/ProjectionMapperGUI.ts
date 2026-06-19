@@ -18,8 +18,15 @@ import { WindowManager } from '../windows/WindowManager';
 import { ProjectionEventType } from '../ipc/EventTypes';
 import type { ProjectionEventPayloads } from '../ipc/EventPayloads';
 import { POLYGON_MASK_STORAGE_KEY } from '../mask/PolygonMask';
-import { createElement, Eye, EyeOff, IconNode } from 'lucide';
-import { RESET_BUTTON_COLOR, WARP_BUTTON_EYE_ICON } from './gui.config';
+import { createElement, Eye, EyeOff, Feather, IconNode } from 'lucide';
+import {
+  RESET_BUTTON_COLOR,
+  WARP_BUTTON_EYE_ICON,
+  MASK_TOGGLE_BUTTON,
+  TOGGLE_ENABLED_OPACITY,
+  TOGGLE_DISABLED_OPACITY,
+} from './gui.config';
+import { createTweakpaneButton, replaceLabelWithButton } from './tweakpaneUtils';
 
 interface ButtonGridBladeApi {
   element: HTMLElement;
@@ -164,8 +171,9 @@ export class ProjectionMapperGUI {
     const whiteOutBtn = hasWhiteOut ? settingsButtons[1] : null;
 
     this.syncSettingButtons = () => {
-      testcardBtn.style.opacity = this.settings.showTestcard ? '1' : '0.35';
-      if (whiteOutBtn) whiteOutBtn.style.opacity = this.settings.showWhiteOut ? '1' : '0.35';
+      testcardBtn.style.opacity = this.settings.showTestcard ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
+      if (whiteOutBtn)
+        whiteOutBtn.style.opacity = this.settings.showWhiteOut ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
     };
     this.syncSettingButtons();
 
@@ -295,11 +303,11 @@ export class ProjectionMapperGUI {
     };
 
     this.syncWarpButtons = () => {
-      warpEnableBtn.style.opacity = this.settings.shouldWarp ? '1' : '0.35';
+      warpEnableBtn.style.opacity = this.settings.shouldWarp ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
       perspBtn.disabled = !this.settings.shouldWarp;
       gridBtn.disabled = !this.settings.shouldWarp;
-      perspBtn.style.opacity = this.settings.showCornerPoints ? '1' : '0.35';
-      gridBtn.style.opacity = this.settings.showWarpGrid ? '1' : '0.35';
+      perspBtn.style.opacity = this.settings.showCornerPoints ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
+      gridBtn.style.opacity = this.settings.showWarpGrid ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
       setEyeButtonContent(perspBtn, this.settings.showCornerPoints ? Eye : EyeOff, 'Persp');
       setEyeButtonContent(gridBtn, this.settings.showWarpGrid ? Eye : EyeOff, 'Grid');
     };
@@ -404,19 +412,9 @@ export class ProjectionMapperGUI {
       this.saveSettings();
     });
 
-    masksFolder
-      .addBinding(this.settings, 'maskEnabled', { label: 'Edge Mask' })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        const enabled = e.value as boolean;
-        this.mapper.setImageSettings({ maskEnabled: enabled });
-        edgeFeatherBinding.disabled = !enabled;
-        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
-        this.saveSettings();
-      });
-
     const edgeFeatherBinding = masksFolder
       .addBinding(this.settings, 'feather', {
-        label: 'Feather',
+        label: 'Edge Feather',
         min: 0.0,
         max: 0.5,
         step: 0.01,
@@ -427,6 +425,37 @@ export class ProjectionMapperGUI {
         this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
         this.saveSettings();
       });
+
+    const maskToggleBtn = createTweakpaneButton(
+      '',
+      () => {
+        this.settings.maskEnabled = !this.settings.maskEnabled;
+        this.mapper.setImageSettings({ maskEnabled: this.settings.maskEnabled });
+        edgeFeatherBinding.disabled = !this.settings.maskEnabled;
+        maskToggleBtn.style.opacity = this.settings.maskEnabled ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
+        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
+        this.saveSettings();
+      },
+      {
+        width: MASK_TOGGLE_BUTTON.widthPx,
+        height: MASK_TOGGLE_BUTTON.heightPx,
+        fontSize: `${MASK_TOGGLE_BUTTON.fontSizePx}px`,
+      },
+    );
+
+    maskToggleBtn.style.gap = '4px';
+    maskToggleBtn.appendChild(document.createTextNode('Edge'));
+    maskToggleBtn.appendChild(
+      createElement(Feather, {
+        width: MASK_TOGGLE_BUTTON.iconSizePx,
+        height: MASK_TOGGLE_BUTTON.iconSizePx,
+        'stroke-width': MASK_TOGGLE_BUTTON.iconStrokeWidth,
+      }),
+    );
+    maskToggleBtn.style.opacity = this.settings.maskEnabled ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
+    maskToggleBtn.style.pointerEvents = 'auto';
+
+    replaceLabelWithButton(edgeFeatherBinding, maskToggleBtn);
 
     const polygonMaskState = {
       enabled: true,
@@ -486,9 +515,9 @@ export class ProjectionMapperGUI {
       ) as HTMLButtonElement[];
 
       const syncPolyButtons = () => {
-        enabledBtn.style.opacity = polygonMaskState.enabled ? '1' : '0.35';
-        invertBtn.style.opacity = polygonMaskState.inverted ? '1' : '0.35';
-        controlsBtn.style.opacity = polygonMaskState.showHandles ? '1' : '0.35';
+        enabledBtn.style.opacity = polygonMaskState.enabled ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
+        invertBtn.style.opacity = polygonMaskState.inverted ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
+        controlsBtn.style.opacity = polygonMaskState.showHandles ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
       };
       syncPolyButtons();
 
