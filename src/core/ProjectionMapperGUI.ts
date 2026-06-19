@@ -19,15 +19,7 @@ import { ProjectionEventType } from '../ipc/EventTypes';
 import type { ProjectionEventPayloads } from '../ipc/EventPayloads';
 import { POLYGON_MASK_STORAGE_KEY } from '../mask/PolygonMask';
 import { createElement, Eye, EyeOff, IconNode } from 'lucide';
-
-const RESET_BUTTON_COLOR = 'oklch(60% 0.05 30)';
-
-const WARP_BUTTON_EYE_ICON = {
-  enabled: true,
-  sizePx: 12,
-  strokeWidth: 2.5,
-  verticalShiftPx: 2,
-} as const;
+import { RESET_BUTTON_COLOR, WARP_BUTTON_EYE_ICON } from './gui.config';
 
 interface ButtonGridBladeApi {
   element: HTMLElement;
