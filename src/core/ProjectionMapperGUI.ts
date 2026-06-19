@@ -65,9 +65,8 @@ export class ProjectionMapperGUI {
   > | null = null;
   private warpFolder!: FolderApi;
   private config: ProjectionMapperGUIConfig;
-  private cornersOutlineState = { enabled: true };
   private syncSettingButtons: () => void = () => {};
-  private syncControlsButton: () => void = () => {};
+  private syncWarpButtons: () => void = () => {};
   private onControlsVisibilityChange: (visible: boolean) => void = () => {};
 
   private readonly STORAGE_KEY = GUI_STORAGE_KEY;
@@ -155,23 +154,21 @@ export class ProjectionMapperGUI {
     const settingsFolder = this.pane.addFolder({ title: 'Settings', expanded: true });
 
     const hasWhiteOut = !!this.config.enableWhiteOut;
-    const buttonLabels = hasWhiteOut ? ['Testcard', 'White', 'Warp'] : ['Testcard', 'Warp'];
+    const settingsButtonCount = hasWhiteOut ? 2 : 1;
 
     const settingsBtnGrid = settingsFolder.addBlade({
       view: 'buttongrid',
-      size: [buttonLabels.length, 1],
-      cells: (x: number) => ({ title: buttonLabels[x] }),
+      size: [settingsButtonCount, 1],
+      cells: (x: number) => ({ title: hasWhiteOut ? ['Testcard', 'White'][x] : 'Testcard' }),
     }) as unknown as ButtonGridBladeApi;
 
-    const buttons = Array.from(settingsBtnGrid.element.querySelectorAll('button')) as HTMLButtonElement[];
-    const testcardBtn = buttons[0];
-    const whiteOutBtn = hasWhiteOut ? buttons[1] : null;
-    const warpBtn = hasWhiteOut ? buttons[2] : buttons[1];
+    const settingsButtons = Array.from(settingsBtnGrid.element.querySelectorAll('button')) as HTMLButtonElement[];
+    const testcardBtn = settingsButtons[0];
+    const whiteOutBtn = hasWhiteOut ? settingsButtons[1] : null;
 
     this.syncSettingButtons = () => {
       testcardBtn.style.opacity = this.settings.showTestcard ? '1' : '0.35';
       if (whiteOutBtn) whiteOutBtn.style.opacity = this.settings.showWhiteOut ? '1' : '0.35';
-      warpBtn.style.opacity = this.settings.shouldWarp ? '1' : '0.35';
     };
     this.syncSettingButtons();
 
@@ -184,16 +181,6 @@ export class ProjectionMapperGUI {
         this.broadcast(ProjectionEventType.TESTCARD_TOGGLED, { show: this.settings.showTestcard });
       } else if (hasWhiteOut && col === 1) {
         this.toggleWhiteOut();
-      } else {
-        const enabled = !this.settings.shouldWarp;
-        this.settings.shouldWarp = enabled;
-        this.mapper.setShouldWarp(enabled);
-        this.warpFolder.disabled = !enabled;
-        this.warpFolder.expanded = enabled;
-        if (!enabled) this.toggleWarpUI(false);
-        else this.toggleWarpUI(true);
-        this.saveSettings();
-        this.broadcast(ProjectionEventType.SHOULD_WARP_CHANGED, { shouldWarp: enabled });
       }
       this.syncSettingButtons();
     });
@@ -314,61 +301,54 @@ export class ProjectionMapperGUI {
     // Warp UI
     this.warpFolder = this.pane.addFolder({ title: 'Warping', expanded: true });
 
-    // Ensure folder state matches loaded settings
-    this.warpFolder.disabled = !this.settings.shouldWarp;
-    if (!this.settings.shouldWarp) {
-      this.warpFolder.expanded = false;
-    }
-
     this.warpFolder.addBlade({ view: 'separator' });
 
     const warpBtnGrid = this.warpFolder.addBlade({
       view: 'buttongrid',
-      size: [2, 1],
-      cells: (x: number) => ({ title: ['Controls', 'Show All'][x] }),
+      size: [3, 1],
+      cells: (x: number) => ({ title: ['Warp', 'Persp', 'Grid'][x] }),
     }) as unknown as ButtonGridBladeApi;
 
-    const [controlsBtn] = Array.from(warpBtnGrid.element.querySelectorAll('button')) as HTMLButtonElement[];
+    const [warpEnableBtn, perspBtn, gridBtn] = Array.from(
+      warpBtnGrid.element.querySelectorAll('button'),
+    ) as HTMLButtonElement[];
 
-    this.syncControlsButton = () => {
-      const anyVisible = this.settings.showWarpGrid || this.settings.showCornerPoints || this.settings.showOutline;
-      controlsBtn.style.opacity = anyVisible ? '1' : '0.35';
+    this.syncWarpButtons = () => {
+      warpEnableBtn.style.opacity = this.settings.shouldWarp ? '1' : '0.35';
+      perspBtn.disabled = !this.settings.shouldWarp;
+      gridBtn.disabled = !this.settings.shouldWarp;
+      perspBtn.style.opacity = this.settings.showCornerPoints ? '1' : '0.35';
+      gridBtn.style.opacity = this.settings.showWarpGrid ? '1' : '0.35';
     };
-    this.syncControlsButton();
+    this.syncWarpButtons();
 
     warpBtnGrid.on('click', (ev) => {
-      if (ev.index[0] === 0) {
-        this.toggleWarpUI();
-      } else {
-        this.settings.showWarpGrid = true;
-        this.settings.showCornerPoints = true;
-        this.settings.showOutline = true;
-        this.cornersOutlineState.enabled = true;
-        this.savedVisibility = null;
-        this.applyVisibility();
-        this.onControlsVisibilityChange(true);
-        this.pane.refresh();
-        this.syncControlsButton();
+      const col = ev.index[0];
+      if (col === 0) {
+        const enabled = !this.settings.shouldWarp;
+        this.settings.shouldWarp = enabled;
+        this.mapper.setShouldWarp(enabled);
+        if (!enabled) this.toggleWarpUI(false);
+        else this.toggleWarpUI(true);
         this.saveSettings();
-        this.broadcast(ProjectionEventType.CONTROLS_VISIBILITY_CHANGED, { visible: true });
-        this.broadcast(ProjectionEventType.CONTROL_LINES_TOGGLED, { show: true });
-      }
-    });
-
-    // Perspective Warp folder
-    const perspFolder = this.warpFolder.addFolder({ title: 'Perspective Warp', expanded: true });
-
-    this.cornersOutlineState.enabled = this.settings.showCornerPoints;
-    perspFolder
-      .addBinding(this.cornersOutlineState, 'enabled', { label: 'Show' })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        const enabled = e.value as boolean;
+        this.broadcast(ProjectionEventType.SHOULD_WARP_CHANGED, { shouldWarp: enabled });
+      } else if (col === 1) {
+        const enabled = !this.settings.showCornerPoints;
         this.settings.showCornerPoints = enabled;
         this.settings.showOutline = enabled;
         this.mapper.setCornerPointsVisible(enabled);
         this.mapper.setOutlineVisible(enabled);
         this.saveSettings();
-      });
+      } else if (col === 2) {
+        const show = !this.settings.showWarpGrid;
+        this.settings.showWarpGrid = show;
+        this.mapper.setGridPointsVisible(show);
+        this.mapper.setShowControlLines(show);
+        this.saveSettings();
+        this.broadcast(ProjectionEventType.CONTROL_LINES_TOGGLED, { show });
+      }
+      this.syncWarpButtons();
+    });
 
     const onGridSizeChange = () => {
       this.mapper.setGridSize(this.settings.gridSize.x, this.settings.gridSize.y);
@@ -396,10 +376,7 @@ export class ProjectionMapperGUI {
       }
     };
 
-    // Grid Warp sub-folder
-    const gridWarpFolder = this.warpFolder.addFolder({ title: 'Grid Warp', expanded: true });
-
-    gridWarpFolder
+    this.warpFolder
       .addBlade({
         view: 'list',
         label: 'Warp Mode',
@@ -414,12 +391,10 @@ export class ProjectionMapperGUI {
         this.settings.warpMode = e.value as WARP_MODE;
         this.mapper.getWarper().setWarpMode(e.value as WARP_MODE);
         this.saveSettings();
-        this.broadcast(ProjectionEventType.WARP_MODE_CHANGED, {
-          mode: e.value as number,
-        });
+        this.broadcast(ProjectionEventType.WARP_MODE_CHANGED, { mode: e.value as number });
       });
 
-    gridWarpFolder
+    this.warpFolder
       .addBinding(this.settings, 'gridSize', {
         label: 'Grid Size',
         x: { min: MESH_WARP_GRID_SIZE.minimum, max: MESH_WARP_GRID_SIZE.maximum, step: 1 },
@@ -430,16 +405,6 @@ export class ProjectionMapperGUI {
         this.settings.gridSize.x = Math.floor(val.x);
         this.settings.gridSize.y = Math.floor(val.y);
         onGridSizeChange();
-      });
-
-    gridWarpFolder
-      .addBinding(this.settings, 'showWarpGrid', { label: 'Show' })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        const show = e.value as boolean;
-        this.mapper.setGridPointsVisible(show);
-        this.mapper.setShowControlLines(show);
-        this.saveSettings();
-        this.broadcast(ProjectionEventType.CONTROL_LINES_TOGGLED, { show });
       });
 
     this.warpFolder.addBlade({ view: 'separator' });
@@ -613,7 +578,6 @@ export class ProjectionMapperGUI {
 
   public toggleWarpUI(forceState?: boolean): void {
     const anyVisible = this.settings.showWarpGrid || this.settings.showCornerPoints || this.settings.showOutline;
-
     const shouldHide = forceState !== undefined ? !forceState : anyVisible;
 
     if (shouldHide && anyVisible) {
@@ -625,45 +589,33 @@ export class ProjectionMapperGUI {
       this.settings.showWarpGrid = false;
       this.settings.showCornerPoints = false;
       this.settings.showOutline = false;
-      this.cornersOutlineState.enabled = false;
-    } else if (shouldHide) {
-      // Already hidden, nothing to do
-    } else {
+    } else if (!shouldHide) {
       if (this.savedVisibility) {
         this.settings.showWarpGrid = this.savedVisibility.showWarpGrid;
         this.settings.showCornerPoints = this.savedVisibility.showCornerPoints;
         this.settings.showOutline = this.savedVisibility.showOutline;
-        this.cornersOutlineState.enabled = this.savedVisibility.showCornerPoints;
         this.savedVisibility = null;
       } else {
         this.settings.showWarpGrid = true;
         this.settings.showCornerPoints = true;
         this.settings.showOutline = true;
-        this.cornersOutlineState.enabled = true;
       }
 
       if (!this.settings.shouldWarp) {
         this.settings.shouldWarp = true;
         this.mapper.setShouldWarp(true);
-        this.warpFolder.disabled = false;
-        this.warpFolder.expanded = true;
       }
     }
 
     this.applyVisibility();
     const controlsVisible = this.settings.showWarpGrid || this.settings.showCornerPoints || this.settings.showOutline;
     this.onControlsVisibilityChange(controlsVisible);
-    this.pane.refresh();
     this.syncSettingButtons();
-    this.syncControlsButton();
+    this.syncWarpButtons();
     this.saveSettings();
 
-    this.broadcast(ProjectionEventType.CONTROLS_VISIBILITY_CHANGED, {
-      visible: this.settings.showWarpGrid || this.settings.showCornerPoints || this.settings.showOutline,
-    });
-    this.broadcast(ProjectionEventType.CONTROL_LINES_TOGGLED, {
-      show: this.settings.showWarpGrid,
-    });
+    this.broadcast(ProjectionEventType.CONTROLS_VISIBILITY_CHANGED, { visible: controlsVisible });
+    this.broadcast(ProjectionEventType.CONTROL_LINES_TOGGLED, { show: this.settings.showWarpGrid });
   }
 
   private applySettings(): void {
