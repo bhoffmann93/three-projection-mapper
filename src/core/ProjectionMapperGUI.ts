@@ -18,8 +18,15 @@ import { WindowManager } from '../windows/WindowManager';
 import { ProjectionEventType } from '../ipc/EventTypes';
 import type { ProjectionEventPayloads } from '../ipc/EventPayloads';
 import { POLYGON_MASK_STORAGE_KEY } from '../mask/PolygonMask';
-
-const RESET_BUTTON_COLOR = 'oklch(60% 0.05 30)';
+import { createElement, Eye, EyeOff, Feather, IconNode } from 'lucide';
+import {
+  RESET_BUTTON_COLOR,
+  WARP_BUTTON_EYE_ICON,
+  MASK_TOGGLE_BUTTON,
+  TOGGLE_ENABLED_OPACITY,
+  TOGGLE_DISABLED_OPACITY,
+} from './gui.config';
+import { createTweakpaneButton, replaceLabelWithButton } from './tweakpaneUtils';
 
 interface ButtonGridBladeApi {
   element: HTMLElement;
@@ -65,9 +72,8 @@ export class ProjectionMapperGUI {
   > | null = null;
   private warpFolder!: FolderApi;
   private config: ProjectionMapperGUIConfig;
-  private cornersOutlineState = { enabled: true };
   private syncSettingButtons: () => void = () => {};
-  private syncControlsButton: () => void = () => {};
+  private syncWarpButtons: () => void = () => {};
   private onControlsVisibilityChange: (visible: boolean) => void = () => {};
 
   private readonly STORAGE_KEY = GUI_STORAGE_KEY;
@@ -139,7 +145,6 @@ export class ProjectionMapperGUI {
       this.pane.addButton({ title: 'Open Projector' }).on('click', () => {
         this.config.windowManager!.openProjectorWindow();
       });
-      this.pane.addBlade({ view: 'separator' });
     }
 
     this.pane.addBlade({
@@ -150,28 +155,25 @@ export class ProjectionMapperGUI {
       disabled: true,
     });
 
-    this.pane.addBlade({ view: 'separator' });
-
     const settingsFolder = this.pane.addFolder({ title: 'Settings', expanded: true });
 
     const hasWhiteOut = !!this.config.enableWhiteOut;
-    const buttonLabels = hasWhiteOut ? ['Testcard', 'White', 'Warp'] : ['Testcard', 'Warp'];
+    const settingsButtonCount = hasWhiteOut ? 2 : 1;
 
     const settingsBtnGrid = settingsFolder.addBlade({
       view: 'buttongrid',
-      size: [buttonLabels.length, 1],
-      cells: (x: number) => ({ title: buttonLabels[x] }),
+      size: [settingsButtonCount, 1],
+      cells: (x: number) => ({ title: hasWhiteOut ? ['Testcard', 'White'][x] : 'Testcard' }),
     }) as unknown as ButtonGridBladeApi;
 
-    const buttons = Array.from(settingsBtnGrid.element.querySelectorAll('button')) as HTMLButtonElement[];
-    const testcardBtn = buttons[0];
-    const whiteOutBtn = hasWhiteOut ? buttons[1] : null;
-    const warpBtn = hasWhiteOut ? buttons[2] : buttons[1];
+    const settingsButtons = Array.from(settingsBtnGrid.element.querySelectorAll('button')) as HTMLButtonElement[];
+    const testcardBtn = settingsButtons[0];
+    const whiteOutBtn = hasWhiteOut ? settingsButtons[1] : null;
 
     this.syncSettingButtons = () => {
-      testcardBtn.style.opacity = this.settings.showTestcard ? '1' : '0.35';
-      if (whiteOutBtn) whiteOutBtn.style.opacity = this.settings.showWhiteOut ? '1' : '0.35';
-      warpBtn.style.opacity = this.settings.shouldWarp ? '1' : '0.35';
+      testcardBtn.style.opacity = this.settings.showTestcard ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
+      if (whiteOutBtn)
+        whiteOutBtn.style.opacity = this.settings.showWhiteOut ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
     };
     this.syncSettingButtons();
 
@@ -184,16 +186,6 @@ export class ProjectionMapperGUI {
         this.broadcast(ProjectionEventType.TESTCARD_TOGGLED, { show: this.settings.showTestcard });
       } else if (hasWhiteOut && col === 1) {
         this.toggleWhiteOut();
-      } else {
-        const enabled = !this.settings.shouldWarp;
-        this.settings.shouldWarp = enabled;
-        this.mapper.setShouldWarp(enabled);
-        this.warpFolder.disabled = !enabled;
-        this.warpFolder.expanded = enabled;
-        if (!enabled) this.toggleWarpUI(false);
-        else this.toggleWarpUI(true);
-        this.saveSettings();
-        this.broadcast(ProjectionEventType.SHOULD_WARP_CHANGED, { shouldWarp: enabled });
       }
       this.syncSettingButtons();
     });
@@ -257,7 +249,7 @@ export class ProjectionMapperGUI {
       });
 
     imageFolder
-      .addBinding(this.settings, 'saturation', { label: 'Saturation', min: 0, max: 2.0, step: 0.01 })
+      .addBinding(this.settings, 'saturation', { label: 'Sat', min: 0, max: 2.0, step: 0.01 })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setImageSettings({ saturation: e.value as number });
         this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
@@ -271,34 +263,6 @@ export class ProjectionMapperGUI {
         this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
         this.saveSettings();
       });
-
-    imageFolder.addBlade({ view: 'separator' });
-
-    imageFolder
-      .addBinding(this.settings, 'maskEnabled', { label: 'Edge Mask' })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        const enabled = e.value as boolean;
-        this.mapper.setImageSettings({ maskEnabled: enabled });
-        featherBinding.disabled = !enabled;
-        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
-        this.saveSettings();
-      });
-
-    const featherBinding = imageFolder
-      .addBinding(this.settings, 'feather', {
-        label: 'Feather',
-        min: 0.0,
-        max: 0.5,
-        step: 0.01,
-        disabled: !this.settings.maskEnabled,
-      })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        this.mapper.setImageSettings({ feather: e.value as number });
-        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
-        this.saveSettings();
-      });
-
-    imageFolder.addBlade({ view: 'separator' });
 
     this.addResetButton(imageFolder, 'Reset Image', () => {
       Object.assign(this.settings, DEFAULT_IMAGE_SETTINGS);
@@ -314,61 +278,68 @@ export class ProjectionMapperGUI {
     // Warp UI
     this.warpFolder = this.pane.addFolder({ title: 'Warping', expanded: true });
 
-    // Ensure folder state matches loaded settings
-    this.warpFolder.disabled = !this.settings.shouldWarp;
-    if (!this.settings.shouldWarp) {
-      this.warpFolder.expanded = false;
-    }
-
-    this.warpFolder.addBlade({ view: 'separator' });
-
     const warpBtnGrid = this.warpFolder.addBlade({
       view: 'buttongrid',
-      size: [2, 1],
-      cells: (x: number) => ({ title: ['Controls', 'Show All'][x] }),
+      size: [3, 1],
+      cells: (x: number) => ({ title: ['Warp', 'Persp', 'Grid'][x] }),
     }) as unknown as ButtonGridBladeApi;
 
-    const [controlsBtn] = Array.from(warpBtnGrid.element.querySelectorAll('button')) as HTMLButtonElement[];
+    const [warpEnableBtn, perspBtn, gridBtn] = Array.from(
+      warpBtnGrid.element.querySelectorAll('button'),
+    ) as HTMLButtonElement[];
 
-    this.syncControlsButton = () => {
-      const anyVisible = this.settings.showWarpGrid || this.settings.showCornerPoints || this.settings.showOutline;
-      controlsBtn.style.opacity = anyVisible ? '1' : '0.35';
+    const setEyeButtonContent = (btn: HTMLButtonElement, icon: IconNode, label: string) => {
+      if (!WARP_BUTTON_EYE_ICON.enabled) {
+        btn.replaceChildren(document.createTextNode(label));
+        return;
+      }
+      const svg = createElement(icon, {
+        width: WARP_BUTTON_EYE_ICON.sizePx,
+        height: WARP_BUTTON_EYE_ICON.sizePx,
+        'stroke-width': WARP_BUTTON_EYE_ICON.strokeWidth,
+        style: `position: relative; top: ${WARP_BUTTON_EYE_ICON.verticalShiftPx}px`,
+      });
+      btn.replaceChildren(svg, document.createTextNode(` ${label}`));
     };
-    this.syncControlsButton();
+
+    this.syncWarpButtons = () => {
+      warpEnableBtn.style.opacity = this.settings.shouldWarp ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
+      perspBtn.disabled = !this.settings.shouldWarp;
+      gridBtn.disabled = !this.settings.shouldWarp;
+      perspBtn.style.opacity = this.settings.showCornerPoints ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
+      gridBtn.style.opacity = this.settings.showWarpGrid ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
+      setEyeButtonContent(perspBtn, this.settings.showCornerPoints ? Eye : EyeOff, 'Persp');
+      setEyeButtonContent(gridBtn, this.settings.showWarpGrid ? Eye : EyeOff, 'Grid');
+    };
+    this.syncWarpButtons();
 
     warpBtnGrid.on('click', (ev) => {
-      if (ev.index[0] === 0) {
-        this.toggleWarpUI();
-      } else {
-        this.settings.showWarpGrid = true;
-        this.settings.showCornerPoints = true;
-        this.settings.showOutline = true;
-        this.cornersOutlineState.enabled = true;
-        this.savedVisibility = null;
-        this.applyVisibility();
-        this.onControlsVisibilityChange(true);
-        this.pane.refresh();
-        this.syncControlsButton();
+      const col = ev.index[0];
+      if (col === 0) {
+        const enabled = !this.settings.shouldWarp;
+        this.settings.shouldWarp = enabled;
+        this.mapper.setShouldWarp(enabled);
+        if (!enabled) this.toggleWarpUI(false);
+        else this.toggleWarpUI(true);
         this.saveSettings();
-        this.broadcast(ProjectionEventType.CONTROLS_VISIBILITY_CHANGED, { visible: true });
-        this.broadcast(ProjectionEventType.CONTROL_LINES_TOGGLED, { show: true });
-      }
-    });
-
-    // Perspective Warp folder
-    const perspFolder = this.warpFolder.addFolder({ title: 'Perspective Warp', expanded: true });
-
-    this.cornersOutlineState.enabled = this.settings.showCornerPoints;
-    perspFolder
-      .addBinding(this.cornersOutlineState, 'enabled', { label: 'Show' })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        const enabled = e.value as boolean;
+        this.broadcast(ProjectionEventType.SHOULD_WARP_CHANGED, { shouldWarp: enabled });
+      } else if (col === 1) {
+        const enabled = !this.settings.showCornerPoints;
         this.settings.showCornerPoints = enabled;
         this.settings.showOutline = enabled;
         this.mapper.setCornerPointsVisible(enabled);
         this.mapper.setOutlineVisible(enabled);
         this.saveSettings();
-      });
+      } else if (col === 2) {
+        const show = !this.settings.showWarpGrid;
+        this.settings.showWarpGrid = show;
+        this.mapper.setGridPointsVisible(show);
+        this.mapper.setShowControlLines(show);
+        this.saveSettings();
+        this.broadcast(ProjectionEventType.CONTROL_LINES_TOGGLED, { show });
+      }
+      this.syncWarpButtons();
+    });
 
     const onGridSizeChange = () => {
       this.mapper.setGridSize(this.settings.gridSize.x, this.settings.gridSize.y);
@@ -396,10 +367,7 @@ export class ProjectionMapperGUI {
       }
     };
 
-    // Grid Warp sub-folder
-    const gridWarpFolder = this.warpFolder.addFolder({ title: 'Grid Warp', expanded: true });
-
-    gridWarpFolder
+    this.warpFolder
       .addBlade({
         view: 'list',
         label: 'Warp Mode',
@@ -414,12 +382,10 @@ export class ProjectionMapperGUI {
         this.settings.warpMode = e.value as WARP_MODE;
         this.mapper.getWarper().setWarpMode(e.value as WARP_MODE);
         this.saveSettings();
-        this.broadcast(ProjectionEventType.WARP_MODE_CHANGED, {
-          mode: e.value as number,
-        });
+        this.broadcast(ProjectionEventType.WARP_MODE_CHANGED, { mode: e.value as number });
       });
 
-    gridWarpFolder
+    this.warpFolder
       .addBinding(this.settings, 'gridSize', {
         label: 'Grid Size',
         x: { min: MESH_WARP_GRID_SIZE.minimum, max: MESH_WARP_GRID_SIZE.maximum, step: 1 },
@@ -432,17 +398,6 @@ export class ProjectionMapperGUI {
         onGridSizeChange();
       });
 
-    gridWarpFolder
-      .addBinding(this.settings, 'showWarpGrid', { label: 'Show' })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        const show = e.value as boolean;
-        this.mapper.setGridPointsVisible(show);
-        this.mapper.setShowControlLines(show);
-        this.saveSettings();
-        this.broadcast(ProjectionEventType.CONTROL_LINES_TOGGLED, { show });
-      });
-
-    this.warpFolder.addBlade({ view: 'separator' });
     this.addResetButton(this.warpFolder, 'Reset Warp', () => {
       this.broadcast(ProjectionEventType.RESET_WARP, {});
       this.mapper.reset();
@@ -456,6 +411,51 @@ export class ProjectionMapperGUI {
       this.settings.masksExpanded = masksFolder.expanded;
       this.saveSettings();
     });
+
+    const edgeFeatherBinding = masksFolder
+      .addBinding(this.settings, 'feather', {
+        label: 'Edge Feather',
+        min: 0.0,
+        max: 0.5,
+        step: 0.01,
+        disabled: !this.settings.maskEnabled,
+      })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        this.mapper.setImageSettings({ feather: e.value as number });
+        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
+        this.saveSettings();
+      });
+
+    const maskToggleBtn = createTweakpaneButton(
+      '',
+      () => {
+        this.settings.maskEnabled = !this.settings.maskEnabled;
+        this.mapper.setImageSettings({ maskEnabled: this.settings.maskEnabled });
+        edgeFeatherBinding.disabled = !this.settings.maskEnabled;
+        maskToggleBtn.style.opacity = this.settings.maskEnabled ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
+        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
+        this.saveSettings();
+      },
+      {
+        width: MASK_TOGGLE_BUTTON.widthPx,
+        height: MASK_TOGGLE_BUTTON.heightPx,
+        fontSize: `${MASK_TOGGLE_BUTTON.fontSizePx}px`,
+      },
+    );
+
+    maskToggleBtn.style.gap = '4px';
+    maskToggleBtn.appendChild(document.createTextNode('Edge'));
+    maskToggleBtn.appendChild(
+      createElement(Feather, {
+        width: MASK_TOGGLE_BUTTON.iconSizePx,
+        height: MASK_TOGGLE_BUTTON.iconSizePx,
+        'stroke-width': MASK_TOGGLE_BUTTON.iconStrokeWidth,
+      }),
+    );
+    maskToggleBtn.style.opacity = this.settings.maskEnabled ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
+    maskToggleBtn.style.pointerEvents = 'auto';
+
+    replaceLabelWithButton(edgeFeatherBinding, maskToggleBtn);
 
     const polygonMaskState = {
       enabled: true,
@@ -515,9 +515,9 @@ export class ProjectionMapperGUI {
       ) as HTMLButtonElement[];
 
       const syncPolyButtons = () => {
-        enabledBtn.style.opacity = polygonMaskState.enabled ? '1' : '0.35';
-        invertBtn.style.opacity = polygonMaskState.inverted ? '1' : '0.35';
-        controlsBtn.style.opacity = polygonMaskState.showHandles ? '1' : '0.35';
+        enabledBtn.style.opacity = polygonMaskState.enabled ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
+        invertBtn.style.opacity = polygonMaskState.inverted ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
+        controlsBtn.style.opacity = polygonMaskState.showHandles ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
       };
       syncPolyButtons();
 
@@ -613,7 +613,6 @@ export class ProjectionMapperGUI {
 
   public toggleWarpUI(forceState?: boolean): void {
     const anyVisible = this.settings.showWarpGrid || this.settings.showCornerPoints || this.settings.showOutline;
-
     const shouldHide = forceState !== undefined ? !forceState : anyVisible;
 
     if (shouldHide && anyVisible) {
@@ -625,45 +624,33 @@ export class ProjectionMapperGUI {
       this.settings.showWarpGrid = false;
       this.settings.showCornerPoints = false;
       this.settings.showOutline = false;
-      this.cornersOutlineState.enabled = false;
-    } else if (shouldHide) {
-      // Already hidden, nothing to do
-    } else {
+    } else if (!shouldHide) {
       if (this.savedVisibility) {
         this.settings.showWarpGrid = this.savedVisibility.showWarpGrid;
         this.settings.showCornerPoints = this.savedVisibility.showCornerPoints;
         this.settings.showOutline = this.savedVisibility.showOutline;
-        this.cornersOutlineState.enabled = this.savedVisibility.showCornerPoints;
         this.savedVisibility = null;
       } else {
         this.settings.showWarpGrid = true;
         this.settings.showCornerPoints = true;
         this.settings.showOutline = true;
-        this.cornersOutlineState.enabled = true;
       }
 
       if (!this.settings.shouldWarp) {
         this.settings.shouldWarp = true;
         this.mapper.setShouldWarp(true);
-        this.warpFolder.disabled = false;
-        this.warpFolder.expanded = true;
       }
     }
 
     this.applyVisibility();
     const controlsVisible = this.settings.showWarpGrid || this.settings.showCornerPoints || this.settings.showOutline;
     this.onControlsVisibilityChange(controlsVisible);
-    this.pane.refresh();
     this.syncSettingButtons();
-    this.syncControlsButton();
+    this.syncWarpButtons();
     this.saveSettings();
 
-    this.broadcast(ProjectionEventType.CONTROLS_VISIBILITY_CHANGED, {
-      visible: this.settings.showWarpGrid || this.settings.showCornerPoints || this.settings.showOutline,
-    });
-    this.broadcast(ProjectionEventType.CONTROL_LINES_TOGGLED, {
-      show: this.settings.showWarpGrid,
-    });
+    this.broadcast(ProjectionEventType.CONTROLS_VISIBILITY_CHANGED, { visible: controlsVisible });
+    this.broadcast(ProjectionEventType.CONTROL_LINES_TOGGLED, { show: this.settings.showWarpGrid });
   }
 
   private applySettings(): void {
