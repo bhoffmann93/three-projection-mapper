@@ -56,12 +56,14 @@ export function appendButtonToListBinding(binding: BindingApi, button: HTMLButto
   container.style.width = 'auto';
   container.style.display = 'flex';
   container.style.gap = `${gapPx}px`;
-  const select = container.querySelector('select') as HTMLElement;
-  if (dropdownWidthPx != null) {
-    select.style.width = `${dropdownWidthPx}px`;
-    select.style.flexShrink = '0';
-  } else {
-    select.style.flex = '1';
+  const select = container.querySelector('select') as HTMLElement | null;
+  if (select != null) {
+    if (dropdownWidthPx != null) {
+      select.style.width = `${dropdownWidthPx}px`;
+      select.style.flexShrink = '0';
+    } else {
+      select.style.flex = '1';
+    }
   }
   container.appendChild(button);
 }

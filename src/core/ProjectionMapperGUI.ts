@@ -249,7 +249,7 @@ export class ProjectionMapperGUI {
       });
 
     imageFolder
-      .addBinding(this.settings, 'saturation', { label: 'Saturation', min: 0, max: 2.0, step: 0.01 })
+      .addBinding(this.settings, 'saturation', { label: 'Sat', min: 0, max: 2.0, step: 0.01 })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setImageSettings({ saturation: e.value as number });
         this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
