@@ -18,8 +18,16 @@ import { WindowManager } from '../windows/WindowManager';
 import { ProjectionEventType } from '../ipc/EventTypes';
 import type { ProjectionEventPayloads } from '../ipc/EventPayloads';
 import { POLYGON_MASK_STORAGE_KEY } from '../mask/PolygonMask';
+import { createElement, Eye, EyeOff, IconNode } from 'lucide';
 
 const RESET_BUTTON_COLOR = 'oklch(60% 0.05 30)';
+
+const WARP_BUTTON_EYE_ICON = {
+  enabled: true,
+  sizePx: 12,
+  strokeWidth: 2.5,
+  verticalShiftPx: 2,
+} as const;
 
 interface ButtonGridBladeApi {
   element: HTMLElement;
@@ -313,12 +321,28 @@ export class ProjectionMapperGUI {
       warpBtnGrid.element.querySelectorAll('button'),
     ) as HTMLButtonElement[];
 
+    const setEyeButtonContent = (btn: HTMLButtonElement, icon: IconNode, label: string) => {
+      if (!WARP_BUTTON_EYE_ICON.enabled) {
+        btn.replaceChildren(document.createTextNode(label));
+        return;
+      }
+      const svg = createElement(icon, {
+        width: WARP_BUTTON_EYE_ICON.sizePx,
+        height: WARP_BUTTON_EYE_ICON.sizePx,
+        'stroke-width': WARP_BUTTON_EYE_ICON.strokeWidth,
+        style: `position: relative; top: ${WARP_BUTTON_EYE_ICON.verticalShiftPx}px`,
+      });
+      btn.replaceChildren(svg, document.createTextNode(` ${label}`));
+    };
+
     this.syncWarpButtons = () => {
       warpEnableBtn.style.opacity = this.settings.shouldWarp ? '1' : '0.35';
       perspBtn.disabled = !this.settings.shouldWarp;
       gridBtn.disabled = !this.settings.shouldWarp;
       perspBtn.style.opacity = this.settings.showCornerPoints ? '1' : '0.35';
       gridBtn.style.opacity = this.settings.showWarpGrid ? '1' : '0.35';
+      setEyeButtonContent(perspBtn, this.settings.showCornerPoints ? Eye : EyeOff, 'Persp');
+      setEyeButtonContent(gridBtn, this.settings.showWarpGrid ? Eye : EyeOff, 'Grid');
     };
     this.syncWarpButtons();
 
