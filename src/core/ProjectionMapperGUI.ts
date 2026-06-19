@@ -138,7 +138,6 @@ export class ProjectionMapperGUI {
       this.pane.addButton({ title: 'Open Projector' }).on('click', () => {
         this.config.windowManager!.openProjectorWindow();
       });
-      this.pane.addBlade({ view: 'separator' });
     }
 
     this.pane.addBlade({
@@ -148,8 +147,6 @@ export class ProjectionMapperGUI {
       parse: (v: unknown) => v,
       disabled: true,
     });
-
-    this.pane.addBlade({ view: 'separator' });
 
     const settingsFolder = this.pane.addFolder({ title: 'Settings', expanded: true });
 
@@ -259,34 +256,6 @@ export class ProjectionMapperGUI {
         this.saveSettings();
       });
 
-    imageFolder.addBlade({ view: 'separator' });
-
-    imageFolder
-      .addBinding(this.settings, 'maskEnabled', { label: 'Edge Mask' })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        const enabled = e.value as boolean;
-        this.mapper.setImageSettings({ maskEnabled: enabled });
-        featherBinding.disabled = !enabled;
-        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
-        this.saveSettings();
-      });
-
-    const featherBinding = imageFolder
-      .addBinding(this.settings, 'feather', {
-        label: 'Feather',
-        min: 0.0,
-        max: 0.5,
-        step: 0.01,
-        disabled: !this.settings.maskEnabled,
-      })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        this.mapper.setImageSettings({ feather: e.value as number });
-        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
-        this.saveSettings();
-      });
-
-    imageFolder.addBlade({ view: 'separator' });
-
     this.addResetButton(imageFolder, 'Reset Image', () => {
       Object.assign(this.settings, DEFAULT_IMAGE_SETTINGS);
       this.mapper.setImageSettings(DEFAULT_IMAGE_SETTINGS);
@@ -300,8 +269,6 @@ export class ProjectionMapperGUI {
 
     // Warp UI
     this.warpFolder = this.pane.addFolder({ title: 'Warping', expanded: true });
-
-    this.warpFolder.addBlade({ view: 'separator' });
 
     const warpBtnGrid = this.warpFolder.addBlade({
       view: 'buttongrid',
@@ -423,7 +390,6 @@ export class ProjectionMapperGUI {
         onGridSizeChange();
       });
 
-    this.warpFolder.addBlade({ view: 'separator' });
     this.addResetButton(this.warpFolder, 'Reset Warp', () => {
       this.broadcast(ProjectionEventType.RESET_WARP, {});
       this.mapper.reset();
@@ -437,6 +403,30 @@ export class ProjectionMapperGUI {
       this.settings.masksExpanded = masksFolder.expanded;
       this.saveSettings();
     });
+
+    masksFolder
+      .addBinding(this.settings, 'maskEnabled', { label: 'Edge Mask' })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        const enabled = e.value as boolean;
+        this.mapper.setImageSettings({ maskEnabled: enabled });
+        edgeFeatherBinding.disabled = !enabled;
+        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
+        this.saveSettings();
+      });
+
+    const edgeFeatherBinding = masksFolder
+      .addBinding(this.settings, 'feather', {
+        label: 'Feather',
+        min: 0.0,
+        max: 0.5,
+        step: 0.01,
+        disabled: !this.settings.maskEnabled,
+      })
+      .on('change', (e: TpChangeEvent<unknown>) => {
+        this.mapper.setImageSettings({ feather: e.value as number });
+        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
+        this.saveSettings();
+      });
 
     const polygonMaskState = {
       enabled: true,
