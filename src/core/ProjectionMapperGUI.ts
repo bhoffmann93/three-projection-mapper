@@ -18,11 +18,12 @@ import { WindowManager } from '../windows/WindowManager';
 import { ProjectionEventType } from '../ipc/EventTypes';
 import type { ProjectionEventPayloads } from '../ipc/EventPayloads';
 import { POLYGON_MASK_STORAGE_KEY } from '../mask/PolygonMask';
-import { createElement, Eye, EyeOff, Feather, IconNode } from 'lucide';
+import { createElement, Eye, EyeOff, Feather, Projector, IconNode } from 'lucide';
 import {
   RESET_BUTTON_COLOR,
   WARP_BUTTON_EYE_ICON,
   MASK_TOGGLE_BUTTON,
+  OPEN_PROJECTOR_BUTTON_ICON,
   TOGGLE_ENABLED_OPACITY,
   TOGGLE_DISABLED_OPACITY,
 } from './gui.config';
@@ -142,7 +143,11 @@ export class ProjectionMapperGUI {
   private initPane(): void {
     // Conditional: Add projector window button in multi-window mode
     if (this.config.windowManager) {
-      this.pane.addButton({ title: 'Open Projector' }).on('click', () => {
+      const openProjectorBtn = this.pane.addButton({ title: 'Open Projector' });
+      const btnEl = openProjectorBtn.element.querySelector('button') as HTMLButtonElement;
+      const projectorIcon = createElement(Projector, { width: OPEN_PROJECTOR_BUTTON_ICON.sizePx, height: OPEN_PROJECTOR_BUTTON_ICON.sizePx, 'stroke-width': OPEN_PROJECTOR_BUTTON_ICON.strokeWidth, style: `position: relative; top: ${OPEN_PROJECTOR_BUTTON_ICON.verticalShiftPx}px` });
+      btnEl.replaceChildren(projectorIcon, document.createTextNode(' Open Projector'));
+      openProjectorBtn.on('click', () => {
         this.config.windowManager!.openProjectorWindow();
       });
     }
