@@ -26,6 +26,7 @@ import {
   OPEN_PROJECTOR_BUTTON_ICON,
   TOGGLE_ENABLED_OPACITY,
   TOGGLE_DISABLED_OPACITY,
+  TWEAKPANE_TRANSPARENCY,
 } from './gui.config';
 import { createTweakpaneButton, replaceLabelWithButton } from './tweakpaneUtils';
 
@@ -110,6 +111,7 @@ export class ProjectionMapperGUI {
     this.applySettings();
 
     this.pane = new Pane({ title });
+    this.pane.element.style.opacity = TWEAKPANE_TRANSPARENCY;
     this.pane.registerPlugin(EssentialsPlugin);
 
     const wrapper = this.pane.element.closest('.tp-dfwv') as HTMLElement;
@@ -145,7 +147,12 @@ export class ProjectionMapperGUI {
     if (this.config.windowManager) {
       const openProjectorBtn = this.pane.addButton({ title: 'Open Projector' });
       const btnEl = openProjectorBtn.element.querySelector('button') as HTMLButtonElement;
-      const projectorIcon = createElement(Projector, { width: OPEN_PROJECTOR_BUTTON_ICON.sizePx, height: OPEN_PROJECTOR_BUTTON_ICON.sizePx, 'stroke-width': OPEN_PROJECTOR_BUTTON_ICON.strokeWidth, style: `position: relative; top: ${OPEN_PROJECTOR_BUTTON_ICON.verticalShiftPx}px` });
+      const projectorIcon = createElement(Projector, {
+        width: OPEN_PROJECTOR_BUTTON_ICON.sizePx,
+        height: OPEN_PROJECTOR_BUTTON_ICON.sizePx,
+        'stroke-width': OPEN_PROJECTOR_BUTTON_ICON.strokeWidth,
+        style: `position: relative; top: ${OPEN_PROJECTOR_BUTTON_ICON.verticalShiftPx}px`,
+      });
       btnEl.replaceChildren(projectorIcon, document.createTextNode(' Open Projector'));
       openProjectorBtn.on('click', () => {
         this.config.windowManager!.openProjectorWindow();

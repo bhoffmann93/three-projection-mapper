@@ -1,3 +1,4 @@
+export const TWEAKPANE_TRANSPARENCY = '0.9';
 export const RESET_BUTTON_COLOR = 'oklch(60% 0.05 30)';
 
 export const TOGGLE_ENABLED_OPACITY = '1';
