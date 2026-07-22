@@ -1,6 +1,6 @@
 export const GUI_STORAGE_KEY = 'projection-mapper-gui-settings';
 export const SHOW_ACES_TOGGLE = false;
-export const STORAGE_VERSION = 7; //when making breaking changes just increment so old data gets wiped
+export const STORAGE_VERSION = 8; //when making breaking changes just increment so old data gets wiped
 
 //Default initialized values if nothing from local storage is loaded
 export const DEFAULTS = {
@@ -130,6 +130,18 @@ export const SURFACES_STORAGE_KEY = 'projection-mapper-surfaces';
  */
 export const scopedStorageKey = (base: string, ...parts: (string | undefined)[]): string =>
   [base, ...parts.filter((part): part is string => !!part)].join(':');
+
+/**
+ * Storage scope for one surface: the app it belongs to, then the surface itself.
+ * Lives here rather than on WarpSurface so it can be used and tested without
+ * pulling in three.js. The default surface of an app with no id keeps the
+ * original un-namespaced keys.
+ */
+export const surfaceStorageNamespace = (id: string, appId?: string): string | undefined => {
+  const surfacePart = id === DEFAULT_SURFACE_ID ? undefined : `surface-${id}`;
+  const parts = [appId, surfacePart].filter((part): part is string => !!part);
+  return parts.length ? parts.join(':') : undefined;
+};
 
 export const DEFAULT_POLYGON_FEATHER = 0.0;
 export const MAX_POLYGON_POINTS = 16;

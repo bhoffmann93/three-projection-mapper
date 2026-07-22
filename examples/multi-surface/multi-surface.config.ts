@@ -17,6 +17,12 @@ export const MULTI_SURFACE_CONFIG = {
    * constructor before any example code can give it one of its own.
    */
   cubeSurfaceResolution: { width: 1920, height: 1080 },
+  /**
+   * Ids rather than list positions. The list is the overlap order and reordering
+   * rewrites it, so an index is only correct until someone presses Front.
+   */
+  cubeSurfaceId: '0', // the surface the mapper creates for us
+  shaderSurfaceId: 'shader',
   /** The surface that ignores the atlas and samples this image instead */
   imageSurfaceId: 'image',
   imagePath: '/static/uv-grid.jpg',

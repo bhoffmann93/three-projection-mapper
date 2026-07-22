@@ -16,10 +16,10 @@ import type { OutlineState } from './MeshWarper';
 import { MaskPlane } from '../mask/MaskPlane';
 import { PolygonMask, type UVPoint } from '../mask/PolygonMask';
 import {
-  DEFAULT_SURFACE_ID,
   DEFAULT_UV_RECT,
   DEFAULT_EDGE_MASK,
   DEFAULT_POLYGON_MASK_SETTINGS,
+  surfaceStorageNamespace,
 } from '../core/defaults';
 import type { UvRect, EdgeMaskSettings, PolygonMaskSettings, ImageSettings, Resolution } from '../core/defaults';
 
@@ -80,9 +80,7 @@ export class WarpSurface {
    * of an app with no id keeps the legacy un-namespaced keys.
    */
   static storageNamespace(id: string, appId?: string): string | undefined {
-    const surfacePart = id === DEFAULT_SURFACE_ID ? undefined : `surface-${id}`;
-    const parts = [appId, surfacePart].filter((part): part is string => !!part);
-    return parts.length ? parts.join(':') : undefined;
+    return surfaceStorageNamespace(id, appId);
   }
 
   constructor(config: WarpSurfaceConfig) {

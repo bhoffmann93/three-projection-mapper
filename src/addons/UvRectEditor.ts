@@ -43,6 +43,9 @@ const STYLE = {
   captionBackground: 'rgba(0, 0, 0, 0.55)',
   captionHeight: 18,
   labelFont: '11px monospace',
+  panelBackground: 'rgba(20, 20, 24, 0.82)',
+  panelBorder: 'rgba(255, 255, 255, 0.12)',
+  panelText: 'rgba(255, 255, 255, 0.7)',
 } as const;
 
 export class UvRectEditor {
@@ -93,11 +96,11 @@ export class UvRectEditor {
       'right:8px',
       'bottom:8px',
       'padding:6px',
-      'background:rgba(20,20,24,0.82)',
-      'border:1px solid rgba(255,255,255,0.12)',
+      `background:${STYLE.panelBackground}`,
+      `border:1px solid ${STYLE.panelBorder}`,
       'border-radius:4px',
       'font:11px monospace',
-      'color:rgba(255,255,255,0.7)',
+      `color:${STYLE.panelText}`,
       'z-index:100',
     ].join(';');
 

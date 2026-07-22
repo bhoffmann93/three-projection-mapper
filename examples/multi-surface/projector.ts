@@ -46,8 +46,9 @@ const clock = new THREE.Clock();
 function animate() {
   requestAnimationFrame(animate);
 
-  // Same correction as the controller, from the surface state synced here
-  const shaderSurface = mapper.getSurfaces()[1];
+  // Same correction as the controller, from the surface state synced here. By id,
+  // since the list order is the overlap order and the controller can change it.
+  const shaderSurface = mapper.getSurface(MULTI_SURFACE_CONFIG.shaderSurfaceId);
   if (shaderSurface) atlas.setSurfaceAspect(shaderSurface.getWarpedAspect());
 
   atlas.animate(clock.getElapsedTime());

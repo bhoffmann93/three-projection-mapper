@@ -158,12 +158,12 @@ ProjectionMapper
   (buffer)           → the source texture, entirely the app's business
 ```
 
-| | is | multi-surface example |
-| --- | --- | --- |
-| **`resolution`** | the output canvas — what the projector frames | 1920×1080 |
-| **`surfaceResolution`** | default shape of a surface | 1080×1080 |
-| **buffer** | pixel size of the source texture, set by your render target | 2160×1080 |
-| **`uvRect`** | which slice of the buffer a surface samples | `0.5, 0 → 0.5, 1` |
+|                         | is                                                          | multi-surface example |
+| ----------------------- | ----------------------------------------------------------- | --------------------- |
+| **`resolution`**        | the output canvas — what the projector frames               | 1920×1080             |
+| **`surfaceResolution`** | default shape of a surface                                  | 1080×1080             |
+| **buffer**              | pixel size of the source texture, set by your render target | 2160×1080             |
+| **`uvRect`**            | which slice of the buffer a surface samples                 | `0.5, 0 → 0.5, 1`     |
 
 The library never creates the buffer — you do, at whatever size your pipeline
 needs, and it is unrelated to either resolution above.
@@ -192,12 +192,12 @@ Dragging the corners does placement and perspective in one gesture, which is wha
 calibration wants. These cover what dragging cannot express — exact sizes, equal
 sizes, programmatic layout:
 
-| Method | Warp | Use |
-| --- | --- | --- |
-| `translate(dx, dy)` / `setPosition(x, y)` | kept | move the quad |
-| `scale(factorX, factorY?)` | **kept** | resize about the centroid |
-| `setWarpedSize(width, height)` | **kept** | resize to an exact world size |
-| `setBounds(x, y, width, height)` | **discarded** | lay out as a rectangle, before calibrating |
+| Method                                    | Warp          | Use                                        |
+| ----------------------------------------- | ------------- | ------------------------------------------ |
+| `translate(dx, dy)` / `setPosition(x, y)` | kept          | move the quad                              |
+| `scale(factorX, factorY?)`                | **kept**      | resize about the centroid                  |
+| `setWarpedSize(width, height)`            | **kept**      | resize to an exact world size              |
+| `setBounds(x, y, width, height)`          | **discarded** | lay out as a rectangle, before calibrating |
 
 `scale` and `setWarpedSize` multiply each corner's offset from the centre, so a
 calibrated perspective survives being resized. `setBounds` replaces the quad
@@ -480,40 +480,40 @@ interface ProjectionMapperConfig {
 
 **Methods:**
 
-| Method                            | Description                      |
-| --------------------------------- | -------------------------------- |
-| `render()`                        | Render the warped output         |
+| Method                            | Description                                          |
+| --------------------------------- | ---------------------------------------------------- |
+| `render()`                        | Render the warped output                             |
 | `setTexture(texture, surfaceId?)` | Swap the shared buffer, or one surface's own texture |
-| `getTexture(surfaceId?)`          | The shared buffer, or one surface's texture |
-| `setShowTestCard(show)`           | Toggle testcard                  |
-| `setShowControlLines(show)`       | Show/hide control line overlay   |
-| `resize(width, height)`           | Handle window resize             |
-| `setControlsVisible(visible)`     | Show/hide all control points     |
-| `setGridPointsVisible(visible)`   | Show/hide grid points            |
-| `setCornerPointsVisible(visible)` | Show/hide corner points          |
-| `setOutlineVisible(visible)`      | Show/hide outline                |
-| `setGridSize(x, y)`               | Change grid density (2–10)       |
-| `setZoom(scale)`                  | Set fill factor (0–1)            |
-| `setShouldWarp(enabled)`          | Bypass warping (no GUI button; for host apps) |
-| `setCameraOffset(x, y)`           | Offset the orthographic camera   |
-| `getCameraOffset()`               | Get current camera offset        |
-| `reset(surfaceId?)`               | Reset one surface's warp, or all |
-| `getWarper()`                     | The active surface's `MeshWarper` |
-| `dispose()`                       | Clean up GPU resources           |
+| `getTexture(surfaceId?)`          | The shared buffer, or one surface's texture          |
+| `setShowTestCard(show)`           | Toggle testcard                                      |
+| `setShowControlLines(show)`       | Show/hide control line overlay                       |
+| `resize(width, height)`           | Handle window resize                                 |
+| `setControlsVisible(visible)`     | Show/hide all control points                         |
+| `setGridPointsVisible(visible)`   | Show/hide grid points                                |
+| `setCornerPointsVisible(visible)` | Show/hide corner points                              |
+| `setOutlineVisible(visible)`      | Show/hide outline                                    |
+| `setGridSize(x, y)`               | Change grid density (2–10)                           |
+| `setZoom(scale)`                  | Set fill factor (0–1)                                |
+| `setShouldWarp(enabled)`          | Bypass warping (no GUI button; for host apps)        |
+| `setCameraOffset(x, y)`           | Offset the orthographic camera                       |
+| `getCameraOffset()`               | Get current camera offset                            |
+| `reset(surfaceId?)`               | Reset one surface's warp, or all                     |
+| `getWarper()`                     | The active surface's `MeshWarper`                    |
+| `dispose()`                       | Clean up GPU resources                               |
 
 **Surfaces:**
 
-| Method                                       | Description                                   |
-| -------------------------------------------- | --------------------------------------------- |
-| `addSurface({ id?, resolution?, uvRect? })`   | Add a surface; returns it                     |
-| `removeSurface(id)`                           | Remove a surface and its saved calibration    |
-| `getSurfaces()` / `getSurface(id)`            | The surface list, or one by id                |
-| `getActiveSurface()` / `setActiveSurface(id)` | The selected surface                          |
-| `isMultiSurface()`                            | Whether more than one surface is allowed      |
-| `setUvRect(ox, oy, sx, sy, surfaceId?)`       | Which slice of the buffer a surface samples   |
-| `setImageSettings(settings, surfaceId?)`      | Image adjustments for one surface             |
-| `setEdgeMask(enabled, feather?, surfaceId?)`  | Edge feather for one surface                  |
-| `onSurfacesChanged` / `onActiveSurfaceChanged` | Callbacks for host-app UI                    |
+| Method                                         | Description                                 |
+| ---------------------------------------------- | ------------------------------------------- |
+| `addSurface({ id?, resolution?, uvRect? })`    | Add a surface; returns it                   |
+| `removeSurface(id)`                            | Remove a surface and its saved calibration  |
+| `getSurfaces()` / `getSurface(id)`             | The surface list, or one by id              |
+| `getActiveSurface()` / `setActiveSurface(id)`  | The selected surface                        |
+| `isMultiSurface()`                             | Whether more than one surface is allowed    |
+| `setUvRect(ox, oy, sx, sy, surfaceId?)`        | Which slice of the buffer a surface samples |
+| `setImageSettings(settings, surfaceId?)`       | Image adjustments for one surface           |
+| `setEdgeMask(enabled, feather?, surfaceId?)`   | Edge feather for one surface                |
+| `onSurfacesChanged` / `onActiveSurfaceChanged` | Callbacks for host-app UI                   |
 
 ---
 
@@ -543,7 +543,6 @@ and four 0–1 sliders express it poorly. The mechanism stays on the mapper
 visual one — or build your own.
 
 ```typescript
-
 gui.toggle(); // show/hide the GUI panel
 gui.show();
 gui.hide();
@@ -676,9 +675,10 @@ npm test           # Run tests with Vitest
 
 ## Roadmap
 
-- [ ] `surface.setResolution()` — change a surface's aspect at runtime (needs plane, control points and masks rebuilt)
-- [ ] Fit helper — derive a `uvRect` that shows media undistorted (contain / cover)
+- [ ] Change a surface's aspect ratio after it exists
+- [ ] Fit media to a surface — contain / cover, without hand-computing a crop
 - [ ] Bezier mask — SDF-based interactive Bezier mask in fragment shader
+- [ ] Scale UI utility
 - [ ] Mask Shapes
 - [ ] Surface Shapes
 - [ ] Save and Load Warp Settings (JSON Export Import)

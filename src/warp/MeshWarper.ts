@@ -24,16 +24,10 @@ import { isQuadConcave, isPointInQuad, scaleQuadAboutCenter } from './geometry';
 import { clamp } from '../utils/math';
 import meshWarpVertexShader from '../shaders/warp.vert';
 import { RenderOrder } from '../core/RenderOrder';
-import {
-  DEFAULT_UV_RECT,
-  DEFAULT_IMAGE_SETTINGS,
-  MESH_WARP_GRID_SIZE,
-  WARP_HANDLE_STYLE,
-  STORAGE_VERSION,
-} from '../core/defaults';
+import { DEFAULT_UV_RECT, DEFAULT_IMAGE_SETTINGS, MESH_WARP_GRID_SIZE, WARP_HANDLE_STYLE } from '../core/defaults';
+import { WarpPointStore, toNormalized, fromNormalized } from './WarpPointStore';
+import type { NormalizedPosition, PlaneSize } from './WarpPointStore';
 import type { UvRect, ImageSettings, Resolution } from '../core/defaults';
-
-const STORAGE_KEY = 'warp-grid-control-points';
 
 export enum WARP_MODE {
   bilinear = 0,
@@ -62,21 +56,6 @@ export interface MeshWarperConfig {
   imageSettings?: ImageSettings;
   /** Suffixes the localStorage key so multiple warpers persist independently */
   storageNamespace?: string;
-}
-
-interface StoredControlPoints {
-  version?: number;
-  /** Grid dimensions at time of save, used for validation on load */
-  gridSize?: { x: number; y: number };
-  /**
-   * Plane the points were normalised against. Points are fractions of the plane,
-   * so without this a surface whose shape later changed would denormalise onto a
-   * different plane and silently distort the calibration.
-   */
-  planeSize?: { width: number; height: number };
-  corners: { x: number; y: number; z: number }[];
-  grid: { x: number; y: number; z: number }[];
-  referenceGrid: { x: number; y: number; z: number }[];
 }
 
 export class MeshWarper {
@@ -108,30 +87,20 @@ export class MeshWarper {
   private xControlPointAmount: number;
   private yControlPointAmount: number;
 
-  private storageKey: string;
+  private store: WarpPointStore;
 
   static storageKeyFor(storageNamespace?: string): string {
-    return storageNamespace ? `${STORAGE_KEY}:${storageNamespace}` : STORAGE_KEY;
+    return WarpPointStore.keyFor(storageNamespace);
   }
 
   /** Grid size persisted with a warper's control points, if any */
   static getStoredGridSize(storageNamespace?: string): { x: number; y: number } | null {
-    try {
-      const stored = localStorage.getItem(MeshWarper.storageKeyFor(storageNamespace));
-      if (!stored) return null;
-      const data: StoredControlPoints = JSON.parse(stored);
-      if (data.gridSize?.x && data.gridSize?.y) {
-        return { x: data.gridSize.x, y: data.gridSize.y };
-      }
-    } catch {
-      // ignore parse errors
-    }
-    return null;
+    return WarpPointStore.readGridSize(storageNamespace);
   }
 
   constructor(config: MeshWarperConfig) {
     this.config = config;
-    this.storageKey = MeshWarper.storageKeyFor(config.storageNamespace);
+    this.store = new WarpPointStore(config.storageNamespace);
     this.xControlPointAmount = config.gridControlPoints.x;
     this.yControlPointAmount = config.gridControlPoints.y;
 
@@ -565,12 +534,12 @@ export class MeshWarper {
   }
 
   /** Control point position as a 0-1 fraction of the plane, for storage and sync */
-  public toNormalizedPoint(point: THREE.Vector3): { x: number; y: number; z: number } {
-    return this.toNormalized(point);
+  public toNormalizedPoint(point: THREE.Vector3): NormalizedPosition {
+    return toNormalized(point, this.plane());
   }
 
-  public fromNormalizedPoint(normalized: { x: number; y: number; z: number }): THREE.Vector3 {
-    const position = this.fromNormalized(normalized);
+  public fromNormalizedPoint(normalized: NormalizedPosition): THREE.Vector3 {
+    const position = fromNormalized(normalized, this.plane());
     return new THREE.Vector3(position.x, position.y, position.z);
   }
 
@@ -812,98 +781,64 @@ export class MeshWarper {
     console.log(`Grid resized to ${x}x${y}`);
   }
 
-  // Positions stored normalized (0-1) so calibration survives resolution changes
-
-  private toNormalized(p: THREE.Vector3): { x: number; y: number; z: number } {
-    return {
-      x: (p.x + this.config.width / 2) / this.config.width,
-      y: (p.y + this.config.height / 2) / this.config.height,
-      z: p.z,
-    };
-  }
-
-  /**
-   * Denormalise against the plane the points were saved on, not today's. A surface
-   * that changed shape keeps its corners where they were in world space — you
-   * calibrated that quad onto a physical object, and swapping the source's aspect
-   * should not move it.
-   */
-  private fromNormalized(
-    n: { x: number; y: number; z: number },
-    plane: { width: number; height: number } = this.config,
-  ): { x: number; y: number; z: number } {
-    return {
-      x: n.x * plane.width - plane.width / 2,
-      y: n.y * plane.height - plane.height / 2,
-      z: n.z,
-    };
+  /** The plane this warper's points are fractions of */
+  private plane(): PlaneSize {
+    return { width: this.config.width, height: this.config.height };
   }
 
   private saveToStorage(): void {
-    const data: StoredControlPoints = {
-      version: STORAGE_VERSION,
+    const plane = this.plane();
+    this.store.write({
       gridSize: { x: this.xControlPointAmount, y: this.yControlPointAmount },
-      planeSize: { width: this.config.width, height: this.config.height },
-      corners: this.dragCornerControlPoints.map((p) => this.toNormalized(p)),
-      grid: this.dragGridControlPoints.map((p) => this.toNormalized(p)),
-      referenceGrid: this.referenceGridControlPoints.map((p) => this.toNormalized(p)),
-    };
-    try {
-      localStorage.setItem(this.storageKey, JSON.stringify(data));
-    } catch (e) {
-      console.warn('Failed to save control points to localStorage:', e);
-    }
+      planeSize: plane,
+      corners: this.dragCornerControlPoints.map((p) => toNormalized(p, plane)),
+      grid: this.dragGridControlPoints.map((p) => toNormalized(p, plane)),
+      referenceGrid: this.referenceGridControlPoints.map((p) => toNormalized(p, plane)),
+    });
   }
 
   private loadFromStorage(): void {
-    try {
-      const stored = localStorage.getItem(this.storageKey);
-      if (!stored) return;
+    const data = this.store.read();
+    if (!data) return;
 
-      const data: StoredControlPoints = JSON.parse(stored);
-      if (data.version !== STORAGE_VERSION) {
-        localStorage.removeItem(this.storageKey);
-        return;
-      }
+    // Denormalise against the plane the points were measured on, not today's, so
+    // a surface that changed shape keeps its corners where they were in world space
+    const savedPlane = data.planeSize ?? this.plane();
+    const restore = (position: NormalizedPosition) => fromNormalized(position, savedPlane);
 
-      const savedPlane = data.planeSize ?? this.config;
-
-      // Always load corners if valid (always 4)
-      if (data.corners && data.corners.length === 4) {
-        data.corners.forEach((nPos, i) => {
-          const pos = this.fromNormalized(nPos, savedPlane);
-          this.dragCornerControlPoints[i].set(pos.x, pos.y, pos.z);
-          this.cornerObjects[i].position.set(pos.x, pos.y, pos.z);
-          this.cornerObjects[i].userData.lastValidPosition = this.cornerObjects[i].position.clone();
-        });
-      }
-
-      // Validate grid dimensions using stored gridSize metadata
-      const expectedCount = this.xControlPointAmount * this.yControlPointAmount;
-      const gridSizeMatches =
-        data.gridSize?.x === this.xControlPointAmount && data.gridSize?.y === this.yControlPointAmount;
-
-      if (gridSizeMatches && data.grid.length === expectedCount && data.referenceGrid?.length === expectedCount) {
-        data.grid.forEach((nPos, i) => {
-          const pos = this.fromNormalized(nPos, savedPlane);
-          this.dragGridControlPoints[i].set(pos.x, pos.y, pos.z);
-        });
-        data.referenceGrid.forEach((nPos, i) => {
-          const pos = this.fromNormalized(nPos, savedPlane);
-          this.referenceGridControlPoints[i].set(pos.x, pos.y, pos.z);
-        });
-      } else {
-        // Grid size changed: recompute grid positions from loaded corners
-        const corners = this.dragCornerControlPoints.flatMap((p) => [p.x, p.y]);
-        this.perspectiveTransformControlPoints(corners, new THREE.Vector3(), 'corner');
-      }
-
-      this.updateLine();
-      this.averageDimensions = this.getAverageDimensions();
-      this.material.uniforms.uWarpPlaneSize.value.set(this.averageDimensions.width, this.averageDimensions.height);
-    } catch (e) {
-      console.warn('Failed to load control points from localStorage:', e);
+    // Always load corners if valid (always 4)
+    if (data.corners && data.corners.length === 4) {
+      data.corners.forEach((normalized, i) => {
+        const position = restore(normalized);
+        this.dragCornerControlPoints[i].set(position.x, position.y, position.z);
+        this.cornerObjects[i].position.set(position.x, position.y, position.z);
+        this.cornerObjects[i].userData.lastValidPosition = this.cornerObjects[i].position.clone();
+      });
     }
+
+    // Validate grid dimensions using stored gridSize metadata
+    const expectedCount = this.xControlPointAmount * this.yControlPointAmount;
+    const gridSizeMatches =
+      data.gridSize?.x === this.xControlPointAmount && data.gridSize?.y === this.yControlPointAmount;
+
+    if (gridSizeMatches && data.grid.length === expectedCount && data.referenceGrid?.length === expectedCount) {
+      data.grid.forEach((normalized, i) => {
+        const position = restore(normalized);
+        this.dragGridControlPoints[i].set(position.x, position.y, position.z);
+      });
+      data.referenceGrid.forEach((normalized, i) => {
+        const position = restore(normalized);
+        this.referenceGridControlPoints[i].set(position.x, position.y, position.z);
+      });
+    } else {
+      // Grid size changed: recompute grid positions from loaded corners
+      const corners = this.dragCornerControlPoints.flatMap((p) => [p.x, p.y]);
+      this.perspectiveTransformControlPoints(corners, new THREE.Vector3(), 'corner');
+    }
+
+    this.updateLine();
+    this.averageDimensions = this.getAverageDimensions();
+    this.material.uniforms.uWarpPlaneSize.value.set(this.averageDimensions.width, this.averageDimensions.height);
   }
 
   /**
@@ -952,12 +887,12 @@ export class MeshWarper {
     if (keepPosition && (center.x !== 0 || center.y !== 0)) {
       this.translate(center.x, center.y); // also saves to storage
     } else {
-      localStorage.removeItem(this.storageKey);
+      this.store.clear();
     }
   }
 
   public clearStorage(): void {
-    localStorage.removeItem(this.storageKey);
+    this.store.clear();
   }
 
   /** Centroid of the 4 corner points in world space */

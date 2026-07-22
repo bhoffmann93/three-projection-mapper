@@ -68,13 +68,23 @@ const SURFACE_HEIGHT = 4;
 const SURFACE_GAP = 0.7;
 
 // The cube surface is 16:9 while its atlas region is square, so it samples a 16:9
-// slice of that region rather than all of it. Straight from the invariant in the
-// README: uvRect.scaleX / scaleY = surfaceAspect / bufferAspect, which for a 16:9
-// surface on a 2:1 buffer gives 0.889 — with scaleX 0.5 for the left half, that
-// is scaleY 0.5625, centred vertically. Sample the whole square instead and the
-// cube would simply stretch.
-const CUBE_UV_RECT = { offsetX: 0, offsetY: 0.21875, scaleX: 0.5, scaleY: 0.5625 };
-const CUBE_WIDTH = SURFACE_HEIGHT * (16 / 9);
+// slice of that region rather than all of it. Derived from the invariant in the
+// README rather than written down, so changing any of the resolutions keeps the
+// crop correct: uvRect.scaleX / scaleY = surfaceAspect / bufferAspect. Sample the
+// whole square instead and the cube would simply stretch.
+const aspectOf = (resolution: { width: number; height: number }) => resolution.width / resolution.height;
+
+const CUBE_ASPECT = aspectOf(MULTI_SURFACE_CONFIG.cubeSurfaceResolution);
+const BUFFER_ASPECT = aspectOf(MULTI_SURFACE_CONFIG.bufferResolution);
+const CUBE_UV_SCALE_X = 0.5; // the atlas region it samples is the left half
+const CUBE_UV_SCALE_Y = CUBE_UV_SCALE_X / (CUBE_ASPECT / BUFFER_ASPECT);
+const CUBE_UV_RECT = {
+  offsetX: 0,
+  offsetY: (1 - CUBE_UV_SCALE_Y) / 2, // centred in its region
+  scaleX: CUBE_UV_SCALE_X,
+  scaleY: CUBE_UV_SCALE_Y,
+};
+const CUBE_WIDTH = SURFACE_HEIGHT * CUBE_ASPECT;
 
 const ROW_WIDTH = CUBE_WIDTH + SURFACE_GAP + SURFACE_HEIGHT + SURFACE_GAP + SURFACE_HEIGHT;
 const ROW_LEFT = -ROW_WIDTH / 2;
@@ -82,14 +92,16 @@ const CUBE_CENTER_X = ROW_LEFT + CUBE_WIDTH / 2;
 const SHADER_CENTER_X = ROW_LEFT + CUBE_WIDTH + SURFACE_GAP + SURFACE_HEIGHT / 2;
 const IMAGE_CENTER_X = ROW_LEFT + CUBE_WIDTH + SURFACE_GAP + SURFACE_HEIGHT + SURFACE_GAP + SURFACE_HEIGHT / 2;
 
+const cubeSurface = mapper.getSurface(MULTI_SURFACE_CONFIG.cubeSurfaceId) ?? mapper.getSurfaces()[0];
+const shaderSurface =
+  mapper.getSurface(MULTI_SURFACE_CONFIG.shaderSurfaceId) ??
+  mapper.addSurface({
+    id: MULTI_SURFACE_CONFIG.shaderSurfaceId,
+    uvRect: { offsetX: 0.5, offsetY: 0, scaleX: 0.5, scaleY: 1 },
+    resolution: MULTI_SURFACE_CONFIG.regionResolution,
+  });
+
 if (!localStorage.getItem(LAYOUT_KEY)) {
-  const cubeSurface = mapper.getSurfaces()[0];
-  const shaderSurface =
-    mapper.getSurfaces()[1] ??
-    mapper.addSurface({
-      uvRect: { offsetX: 0.5, offsetY: 0, scaleX: 0.5, scaleY: 1 },
-      resolution: MULTI_SURFACE_CONFIG.regionResolution,
-    });
   mapper.setUvRect(
     CUBE_UV_RECT.offsetX,
     CUBE_UV_RECT.offsetY,
@@ -167,8 +179,7 @@ function animate() {
   // Feed the shader surface's live size back into the atlas, so scaling the
   // surface reproportions the content instead of stretching it. Read per frame
   // because dragging a corner changes it without any callback firing.
-  const shaderSurface = mapper.getSurfaces()[1];
-  if (shaderSurface) atlas.setSurfaceAspect(shaderSurface.getWarpedAspect());
+  atlas.setSurfaceAspect(shaderSurface.getWarpedAspect());
 
   atlas.animate(clock.getElapsedTime());
   atlas.render(renderer);

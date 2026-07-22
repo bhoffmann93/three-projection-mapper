@@ -1,12 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { scopedStorageKey, planeSizeFor, WORLD_PLANE_HEIGHT, DEFAULT_SURFACE_ID } from '../core/defaults';
-
-// WarpSurface pulls in three.js, so mirror only the static key composition here
-const storageNamespace = (id: string, appId?: string): string | undefined => {
-  const surfacePart = id === DEFAULT_SURFACE_ID ? undefined : `surface-${id}`;
-  const parts = [appId, surfacePart].filter((part): part is string => !!part);
-  return parts.length ? parts.join(':') : undefined;
-};
+import {
+  scopedStorageKey,
+  surfaceStorageNamespace as storageNamespace,
+  planeSizeFor,
+  WORLD_PLANE_HEIGHT,
+  DEFAULT_SURFACE_ID,
+} from '../core/defaults';
 
 const warpKey = (namespace?: string) =>
   namespace ? `warp-grid-control-points:${namespace}` : 'warp-grid-control-points';

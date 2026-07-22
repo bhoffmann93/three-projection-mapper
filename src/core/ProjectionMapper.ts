@@ -9,6 +9,8 @@ import { calculateGridPoints } from '../warp/geometry';
 import { SurfacePicker } from './SurfacePicker';
 import { OutputFrame } from './OutputFrame';
 import { RenderOrder } from './RenderOrder';
+import { SurfaceStore } from './SurfaceStore';
+import type { StoredSurface } from './SurfaceStore';
 import { ListenerSet } from '../utils/ListenerSet';
 import { clamp } from '../utils/math';
 import {
@@ -19,7 +21,6 @@ import {
   DEFAULTS,
   DEFAULT_SURFACE_ID,
   DEFAULT_UV_RECT,
-  SURFACES_STORAGE_KEY,
   STORAGE_VERSION,
   ZOOM_RANGE,
   WHEEL_ZOOM,
@@ -38,23 +39,6 @@ import { PolygonMask, type UVPoint } from '../mask/PolygonMask';
 
 export { GUI_STORAGE_KEY, DEFAULT_IMAGE_SETTINGS };
 export type { ImageSettings };
-
-/** Edge feather and polygon settings ride along with the surface list */
-interface StoredSurface {
-  id: string;
-  uvRect: UvRect;
-  /** Absent means inherit the mapper's resolution, which is what every surface did before */
-  resolution?: Resolution;
-  edgeMask?: EdgeMaskSettings;
-  polygonMask?: PolygonMaskSettings;
-  imageSettings?: ImageSettings;
-}
-
-interface StoredSurfaces {
-  version: number;
-  activeId: string;
-  surfaces: StoredSurface[];
-}
 
 export interface ProjectionMapperConfig {
   /**
@@ -124,6 +108,7 @@ export class ProjectionMapper {
   private composer: EffectComposer;
   private clock: THREE.Clock;
   private picker: SurfacePicker | null = null;
+  private surfaceStore: SurfaceStore;
   private outputFrame: OutputFrame | null = null;
   private onWheel: ((event: WheelEvent) => void) | null = null;
 
@@ -237,7 +222,8 @@ export class ProjectionMapper {
       uShowControlLines: { value: true },
     };
 
-    const stored = this.loadStoredSurfaces();
+    this.surfaceStore = new SurfaceStore(this.config.appId);
+    const stored = this.surfaceStore.read();
     const initialSurfaces: StoredSurface[] = stored?.surfaces?.length
       ? stored.surfaces
       : [{ id: DEFAULT_SURFACE_ID, uvRect: { ...DEFAULT_UV_RECT } }];
@@ -558,49 +544,23 @@ export class ProjectionMapper {
     return String(numericIds.length ? Math.max(...numericIds) + 1 : 0);
   }
 
-  private surfacesStorageKey(): string {
-    return scopedStorageKey(SURFACES_STORAGE_KEY, this.config.appId);
-  }
-
   /** Storage scope for this mapper, so the GUI can namespace its own settings */
   getAppId(): string | undefined {
     return this.config.appId;
   }
 
-  private loadStoredSurfaces(): StoredSurfaces | null {
-    try {
-      const stored = localStorage.getItem(this.surfacesStorageKey());
-      if (!stored) return null;
-      const parsed = JSON.parse(stored) as StoredSurfaces;
-      if (!Array.isArray(parsed.surfaces)) return null;
-      if (parsed.version !== STORAGE_VERSION) {
-        localStorage.removeItem(this.surfacesStorageKey());
-        return null;
-      }
-      return parsed;
-    } catch {
-      return null;
-    }
-  }
-
   private saveSurfaces(): void {
-    const data: StoredSurfaces = {
-      version: STORAGE_VERSION,
-      activeId: this.activeSurfaceId,
-      surfaces: this.surfaces.map((s) => ({
-        id: s.id,
-        uvRect: s.getUvRect(),
-        resolution: s.getResolution(),
-        edgeMask: s.getEdgeMask(),
-        polygonMask: s.getPolygonSettings(),
-        imageSettings: s.getImageSettings(),
+    this.surfaceStore.write(
+      this.activeSurfaceId,
+      this.surfaces.map((surface) => ({
+        id: surface.id,
+        uvRect: surface.getUvRect(),
+        resolution: surface.getResolution(),
+        edgeMask: surface.getEdgeMask(),
+        polygonMask: surface.getPolygonSettings(),
+        imageSettings: surface.getImageSettings(),
       })),
-    };
-    try {
-      localStorage.setItem(this.surfacesStorageKey(), JSON.stringify(data));
-    } catch (e) {
-      console.warn('Failed to save surfaces to localStorage:', e);
-    }
+    );
   }
 
   render(): void {
