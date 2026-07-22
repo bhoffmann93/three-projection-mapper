@@ -24,10 +24,6 @@ export interface ImageSurfaceOptions {
 
 export function loadImageSurface(mapper: ProjectionMapper, options: ImageSurfaceOptions = {}): void {
   new THREE.TextureLoader().load(MULTI_SURFACE_CONFIG.imagePath, (imageTexture) => {
-    // Left at the loader's default NoColorSpace on purpose. projection.frag does no
-    // output conversion, so the whole path passes raw values through; marking this
-    // sRGB would have the GPU decode it to linear with nothing to re-encode it,
-    // and the image would render dark next to the atlas surfaces.
     const bind = (): WarpSurface | null => {
       const surface = mapper.getSurface(MULTI_SURFACE_CONFIG.imageSurfaceId);
       if (!surface) return null;
@@ -36,13 +32,13 @@ export function loadImageSurface(mapper: ProjectionMapper, options: ImageSurface
     };
 
     if (options.rebindOnSurfacesChanged) {
-      mapper.onSurfacesChanged = () => bind();
+      mapper.onSurfacesChanged(() => bind());
     }
 
     if (bind()) return;
 
-    // The surface is created from the loaded image's real dimensions, so its plane
-    // is 4:3 while the atlas surfaces stay square
+    // The surface takes its shape from the loaded image's real dimensions, not from
+    // the buffer's — swap in a non-square image and the plane follows it
     const created = mapper.addSurface({
       id: MULTI_SURFACE_CONFIG.imageSurfaceId,
       resolution: { width: imageTexture.image.width, height: imageTexture.image.height },

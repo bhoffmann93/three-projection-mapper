@@ -128,31 +128,63 @@ Click a surface on the canvas to select it; drag its body to move it. Only the
 active surface shows drag handles, the others stay as dimmed outlines.
 
 ```typescript
-const mapper = new ProjectionMapper(renderer, texture, { appId: 'my-app' });
+const mapper = new ProjectionMapper(renderer, texture, {
+  appId: 'my-app',
+  resolution: { width: 1920, height: 1080 }, // the output canvas
+  surfaceResolution: { width: 1080, height: 1080 }, // default surface shape
+});
 
-// A second surface with its own shape
-mapper.addSurface({ resolution: { width: 1080, height: 1080 } });
+// A surface that overrides the default shape
+mapper.addSurface({ resolution: { width: 1080, height: 1920 } });
+
+// Change the canvas later — surfaces keep their own shapes and warps
+mapper.setOutputResolution(1080, 1920);
 ```
 
-### Buffer, crop and surface resolution
+The controller draws the canvas as a dashed boundary so you can see what is
+actually projected. It previews at `zoom < 1`, deliberately showing more than the
+output; anything outside the dashed frame is not projected.
 
-Three different things, and keeping them apart is what makes mixed layouts work:
+### The three resolutions
 
-| | is | example |
+These are separate on purpose, and mixing them up is the main way multi-surface
+layouts go wrong:
+
+```
+ProjectionMapper
+  resolution         → the output canvas: the dashed frame on the controller,
+                       and the size the projector window opens at
+  surfaceResolution  → the shape given to surfaces that do not declare their own
+  (buffer)           → the source texture, entirely the app's business
+```
+
+| | is | multi-surface example |
 | --- | --- | --- |
-| **buffer resolution** | pixel size of the source texture | 2160×1080 atlas |
-| **`uvRect`** | which slice of it a surface samples | `0.5, 0 → 0.5, 1` |
-| **surface resolution** | the shape that slice is drawn into | 1080×1080 |
+| **`resolution`** | the output canvas — what the projector frames | 1920×1080 |
+| **`surfaceResolution`** | default shape of a surface | 1080×1080 |
+| **buffer** | pixel size of the source texture, set by your render target | 2160×1080 |
+| **`uvRect`** | which slice of the buffer a surface samples | `0.5, 0 → 0.5, 1` |
 
-They coincide only when one surface samples the whole buffer, which is the
-single-surface case. A surface shows undistorted content when its resolution
-matches the region it samples — that is, when
+The library never creates the buffer — you do, at whatever size your pipeline
+needs, and it is unrelated to either resolution above.
+
+**`resolution` is really an aspect declaration.** Only the ratio is used: a plane
+is `WORLD_PLANE_HEIGHT` tall with an aspect-correct width, so `1920×1080` and
+`3840×2160` behave identically. The absolute numbers matter in exactly one place,
+the size the projector window first opens at. Resizing that window scales the
+output; giving it a different aspect letterboxes rather than distorting, because
+the camera contains the canvas on whichever axis is tighter.
+
+**A surface shows undistorted content** when its resolution matches the region it
+samples:
 
 ```
 uvRect.scaleX / uvRect.scaleY  =  surfaceAspect / bufferAspect
 ```
 
-Surfaces that do not declare a resolution inherit the mapper's.
+Set `resolution` alone and surfaces inherit it, which is right when a surface
+fills the output. Set `surfaceResolution` too when they should not — an atlas
+layout wants the region's shape, not the canvas's.
 
 ### Atlas or per-surface media
 
@@ -169,8 +201,9 @@ mapper.setTexture(myImageTexture, squareSurface.id);
 ```
 
 [`/examples/multi-surface`](./examples/multi-surface/) does both at once: two
-square surfaces slicing one atlas, and a third sampling its own image with that
-image's aspect.
+surfaces slicing one atlas, and a third sampling its own image and taking that
+image's shape. It also ships a projector window, showing that only calibration
+crosses the channel — both windows build their own textures.
 
 ### Single-surface mode
 
@@ -203,8 +236,36 @@ State syncs automatically between them via the browser's `BroadcastChannel` API 
 │ • Tweakpane GUI         │  warp points,      │ • No GUI                │
 │ • Drag controls         │  settings, etc.    │ • Drag disabled         │
 │ • Testcard toggle       │                    │ • Fullscreen output     │
+│ • previews at zoom < 1, │                    │ • frames the canvas     │
+│   canvas drawn dashed   │                    │   exactly, at zoom 1    │
 └─────────────────────────┘                    └─────────────────────────┘
 ```
+
+**Only calibration crosses the channel — never pixels.** A `THREE.Texture` cannot
+be sent over a `BroadcastChannel`, so both windows build their own: they run the
+same scene class, and an app showing media loads its own copy in each window and
+binds it to the agreed surface id.
+
+**Give both windows the same resolutions and the same `appId`.** They share
+`localStorage`, so the projector restores calibration on boot; if the two
+disagree about the output canvas or the default surface shape, their planes
+differ and the projector's output will not match the controller's preview. Put
+them in one config module both import:
+
+```typescript
+// projection.config.ts — imported by controller and projector
+export const PROJECTION_CONFIG = {
+  appId: 'my-installation',
+  resolution: { width: 1920, height: 1080 }, // output canvas
+  surfaceResolution: { width: 1080, height: 1080 }, // default surface shape
+} as const;
+```
+
+The projector window opens at the output `resolution`'s aspect, scaled to fit the
+screen — so a 9:16 output opens a portrait window rather than a landscape one.
+
+See [`/examples/multi-surface`](./examples/multi-surface/) for this with several
+surfaces, including one that samples its own image instead of the shared buffer.
 
 **Step 1 — Shared scene class** (used in both windows):
 

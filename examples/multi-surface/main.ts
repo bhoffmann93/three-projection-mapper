@@ -8,8 +8,9 @@ Two square surfaces sample one shared input buffer (Resolume-style slices). That
 buffer is an atlas rendered with scissor/viewport regions: left half = a 3D scene
 (rotating cube), right half = a GLSL shader.
 
-The third surface ignores the atlas and samples its own image instead, taking
-that image's 4:3 aspect while the atlas surfaces stay square. Each surface owns
+The third surface ignores the atlas and samples its own image instead — a uv grid,
+so any stretch from a wrong surface resolution is immediately visible. Its shape
+comes from the image's own dimensions rather than the buffer's. Each surface owns
 its own texture uniform, so both kinds coexist without a mode switch.
 
 Press O to open the projector window, which renders the same atlas and receives
@@ -38,13 +39,15 @@ document.body.appendChild(renderer.domElement);
 
 const atlas = new AtlasScene();
 
-// The mapper's resolution is the output canvas: what the projector frames and
-// what surfaces are arranged inside. Each surface declares its own resolution
-// separately, so the two square atlas slices stay square inside a 16:9 output.
-// The controller previews at zoom 0.4 to leave room around the canvas, whose
-// dashed boundary shows what is actually projected.
+// Two resolutions, deliberately different: the output canvas is what the projector
+// frames and what surfaces are arranged inside, while surfaceResolution is the
+// shape surfaces get when they do not declare one — here an atlas region, so the
+// square slices stay square inside a 16:9 output. Conflating the two is what made
+// the first surface reset to 16:9. The controller previews at zoom 0.4 to leave
+// room around the canvas, whose dashed boundary shows what is actually projected.
 const mapper = new ProjectionMapper(renderer, atlas.getTexture(), {
   resolution: MULTI_SURFACE_CONFIG.outputResolution,
+  surfaceResolution: MULTI_SURFACE_CONFIG.regionResolution,
   zoom: 0.4,
   appId: MULTI_SURFACE_CONFIG.appId,
 });
@@ -59,8 +62,9 @@ const LAYOUT_KEY = 'multi-surface-example-layout-v3';
 // The output canvas is 16:9, so 10 world units tall and about 17.8 wide. Surfaces
 // default to the full canvas height, so they are sized down here to sit side by
 // side inside it — otherwise they would overflow what the projector frames.
+// All three happen to be square: the atlas regions are, and so is the uv grid.
 const SURFACE_HEIGHT = 5;
-const IMAGE_SURFACE_BOUNDS = { centerX: 5.4, width: SURFACE_HEIGHT * (2436 / 1854) };
+const SURFACE_SPACING = 6;
 
 if (!localStorage.getItem(LAYOUT_KEY)) {
   const cubeSurface = mapper.getSurfaces()[0];
@@ -72,8 +76,8 @@ if (!localStorage.getItem(LAYOUT_KEY)) {
     });
   mapper.setUvRect(0, 0, 0.5, 1, cubeSurface.id);
   mapper.setUvRect(0.5, 0, 0.5, 1, shaderSurface.id);
-  cubeSurface.setBounds(-6.4, 0, SURFACE_HEIGHT, SURFACE_HEIGHT);
-  shaderSurface.setBounds(-0.4, 0, SURFACE_HEIGHT, SURFACE_HEIGHT);
+  cubeSurface.setBounds(-SURFACE_SPACING, 0, SURFACE_HEIGHT, SURFACE_HEIGHT);
+  shaderSurface.setBounds(0, 0, SURFACE_HEIGHT, SURFACE_HEIGHT);
   localStorage.setItem(LAYOUT_KEY, '1');
 }
 
@@ -87,7 +91,7 @@ loadImageSurface(mapper, {
       uvRect: surface.getUvRect(),
       resolution: surface.getResolution(),
     });
-    surface.setBounds(IMAGE_SURFACE_BOUNDS.centerX, 0, IMAGE_SURFACE_BOUNDS.width, SURFACE_HEIGHT);
+    surface.setBounds(SURFACE_SPACING, 0, SURFACE_HEIGHT, SURFACE_HEIGHT);
   },
 });
 

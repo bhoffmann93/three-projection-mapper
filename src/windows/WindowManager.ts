@@ -1,23 +1,36 @@
 /**
  * Manages projector window lifecycle
  */
+/** Fallback only — the projector should be opened at the output's own aspect */
+const FALLBACK_PROJECTOR_SIZE = { width: 1280, height: 800 };
+
 export class WindowManager {
   private projectorWindow: Window | null = null;
+  private sizeSource: () => { width: number; height: number } = () => FALLBACK_PROJECTOR_SIZE;
   private checkInterval: number | null = null;
   private onCloseCallback?: () => void;
 
   /**
-   * Open the projector window at 1280x800
+   * Where the projector window's size comes from. WindowSync points this at the
+   * mapper's output resolution, so a 9:16 output opens a 9:16 window instead of
+   * the landscape default it used to hardcode. Read on open rather than stored,
+   * so a resolution changed at runtime is picked up.
    */
-  openProjectorWindow(): void {
+  setSizeSource(sizeSource: () => { width: number; height: number }): void {
+    this.sizeSource = sizeSource;
+  }
+
+  /** Open the projector at the output's aspect, centered and fitted to the screen */
+  openProjectorWindow(size = this.sizeSource()): void {
     if (this.projectorWindow && !this.projectorWindow.closed) {
       this.projectorWindow.focus();
       return;
     }
 
-    // Open at 1280x800, centered on screen
-    const width = 1280;
-    const height = 800;
+    // Never larger than the screen, keeping the output's aspect
+    const fit = Math.min(1, window.screen.width / size.width, window.screen.height / size.height);
+    const width = Math.round(size.width * fit);
+    const height = Math.round(size.height * fit);
     const left = (window.screen.width - width) / 2;
     const top = (window.screen.height - height) / 2;
 

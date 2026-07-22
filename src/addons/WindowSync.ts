@@ -61,6 +61,8 @@ export class WindowSync {
     this.mode = mode;
     this.eventChannel = new EventChannel(channelName, mode);
     this.windowManager = new WindowManager();
+    // Open the projector at the output's aspect, whatever it currently is
+    this.windowManager.setSizeSource(() => this.mapper.getResolution());
 
     if (mode === WINDOW_SYNC_MODE.CONTROLLER) {
       this.setupControllerSync();
@@ -79,7 +81,7 @@ export class WindowSync {
 
     // Moving a surface's body changes its geometry without touching a handle,
     // so DragControls never reports it — the mapper does instead
-    this.mapper.onSurfaceTransformed = (surfaceId) => this.broadcastSurfaceGeometry(surfaceId);
+    this.mapper.onSurfaceTransformed((surfaceId) => this.broadcastSurfaceGeometry(surfaceId));
 
     // Auto-reattach drag listener when grid size changes
     // (that surface's DragControls is recreated)

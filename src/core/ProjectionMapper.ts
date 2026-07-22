@@ -8,6 +8,7 @@ import projectionFragmentShader from '../shaders/projection.frag';
 import { calculateGridPoints } from '../warp/geometry';
 import { SurfacePicker } from './SurfacePicker';
 import { OutputFrame } from './OutputFrame';
+import { ListenerSet } from '../utils/ListenerSet';
 import {
   GUI_STORAGE_KEY,
   DEFAULT_IMAGE_SETTINGS,
@@ -52,8 +53,19 @@ interface StoredSurfaces {
 }
 
 export interface ProjectionMapperConfig {
-  /** Projection resolution in pixels (default: { width: 1920, height: 1080 }) */
+  /**
+   * The output canvas in pixels: the region the projector frames and surfaces are
+   * arranged inside. Defaults to the input texture's size, so a single-surface app
+   * never has to set it. Its aspect drives the camera and the boundary the
+   * controller draws — a 9:16 projector passes a 9:16 resolution here.
+   */
   resolution?: { width: number; height: number };
+  /**
+   * Shape given to surfaces that do not declare their own, including the first
+   * one. Defaults to `resolution`, which is right when a surface fills the output
+   * — but an atlas layout wants the region's shape here, not the canvas's.
+   */
+  surfaceResolution?: Resolution;
   /** Number of mesh segments for smooth warping (default: 50) */
   segments?: number;
   /** Grid control points for fine warping (default: 5x5) */
@@ -114,21 +126,40 @@ export class ProjectionMapper {
   private shouldWarp = true;
   private polygonHandlesEnabled = true;
 
-  /** Called whenever a surface is added or removed */
-  public onSurfacesChanged: () => void = () => {};
-
-  /** Called whenever the selected surface changes, including via canvas clicks */
-  public onActiveSurfaceChanged: (surfaceId: string) => void = () => {};
-
-  /** Called whenever any surface's polygon mask nodes change (drag, insert, delete, reset). */
-  public onPolygonNodesChanged: (surfaceId: string) => void = () => {};
+  private surfacesChanged = new ListenerSet<[]>();
+  private activeSurfaceChanged = new ListenerSet<[surfaceId: string]>();
+  private polygonNodesChanged = new ListenerSet<[surfaceId: string]>();
+  private surfaceTransformed = new ListenerSet<[surfaceId: string]>();
 
   /**
-   * Called when a surface is moved as a whole, by a body drag or setPosition.
-   * Handle drags are reported by their own DragControls; this covers everything
-   * else that changes a surface's geometry.
+   * Notifications take listeners rather than a single assigned handler: the GUI
+   * subscribes to several of these, and a host app must be able to listen
+   * alongside it. Each returns a function that unsubscribes.
    */
-  public onSurfaceTransformed: (surfaceId: string) => void = () => {};
+
+  /** A surface was added or removed */
+  onSurfacesChanged(listener: () => void): () => void {
+    return this.surfacesChanged.add(listener);
+  }
+
+  /** The selected surface changed, including via canvas clicks */
+  onActiveSurfaceChanged(listener: (surfaceId: string) => void): () => void {
+    return this.activeSurfaceChanged.add(listener);
+  }
+
+  /** A surface's polygon mask nodes changed (drag, insert, delete, reset) */
+  onPolygonNodesChanged(listener: (surfaceId: string) => void): () => void {
+    return this.polygonNodesChanged.add(listener);
+  }
+
+  /**
+   * A surface was moved as a whole, by a body drag or setPosition. Handle drags
+   * are reported by their own DragControls; this covers everything else that
+   * changes a surface's geometry.
+   */
+  onSurfaceTransformed(listener: (surfaceId: string) => void): () => void {
+    return this.surfaceTransformed.add(listener);
+  }
 
   /** Genuinely output-wide uniforms, shared by reference across every surface material */
   private uniforms: {
@@ -169,6 +200,7 @@ export class ProjectionMapper {
       gridControlPoints,
       antialias: config.antialias ?? DEFAULTS.antialias,
       zoom: config.zoom ?? DEFAULTS.zoom,
+      surfaceResolution: config.surfaceResolution ?? this.resolution,
       multiSurface: config.multiSurface ?? true,
       canvasSelection: config.canvasSelection ?? true,
       appId: config.appId,
@@ -263,9 +295,7 @@ export class ProjectionMapper {
     const { id, uvRect, edgeMask, polygonMask, imageSettings } = record;
     const storedGridSize = MeshWarper.getStoredGridSize(WarpSurface.storageNamespace(id, this.config.appId));
 
-    // A surface without its own resolution takes the mapper's, which is what
-    // every surface did before per-surface resolutions existed
-    const resolution = record.resolution ?? this.resolution;
+    const resolution = record.resolution ?? this.config.surfaceResolution;
     const plane = planeSizeFor(resolution);
 
     const gridControlPoints =
@@ -306,8 +336,8 @@ export class ProjectionMapper {
       },
     });
 
-    surface.onPolygonNodesChanged = () => this.onPolygonNodesChanged(surface.id);
-    surface.onTransformed = () => this.onSurfaceTransformed(surface.id);
+    surface.onPolygonNodesChanged = () => this.polygonNodesChanged.emit(surface.id);
+    surface.onTransformed = () => this.surfaceTransformed.emit(surface.id);
     surface.setShouldWarp(this.shouldWarp);
     return surface;
   }
@@ -372,8 +402,8 @@ export class ProjectionMapper {
     this.activeSurfaceId = id;
     this.applyActiveSurface();
     this.saveSurfaces();
-    this.onSurfacesChanged();
-    this.onActiveSurfaceChanged(id);
+    this.surfacesChanged.emit();
+    this.activeSurfaceChanged.emit(id);
     return surface;
   }
 
@@ -392,8 +422,8 @@ export class ProjectionMapper {
     }
     this.applyActiveSurface();
     this.saveSurfaces();
-    this.onSurfacesChanged();
-    if (selectionChanged) this.onActiveSurfaceChanged(this.activeSurfaceId);
+    this.surfacesChanged.emit();
+    if (selectionChanged) this.activeSurfaceChanged.emit(this.activeSurfaceId);
   }
 
   getSurfaces(): WarpSurface[] {
@@ -414,7 +444,7 @@ export class ProjectionMapper {
     this.applyActiveSurface();
     this.saveSurfaces();
     // Selection is not a list change — onSurfacesChanged means membership changed
-    this.onActiveSurfaceChanged(id);
+    this.activeSurfaceChanged.emit(id);
   }
 
   /** Surface the id names, or the active one when no id is given */

@@ -24,7 +24,13 @@ import { isQuadConcave, isPointInQuad } from './geometry';
 import { clamp } from '../utils/math';
 import meshWarpVertexShader from '../shaders/warp.vert';
 import { RenderOrder } from '../core/RenderOrder';
-import { DEFAULT_UV_RECT, DEFAULT_IMAGE_SETTINGS, MESH_WARP_GRID_SIZE, WARP_HANDLE_STYLE } from '../core/defaults';
+import {
+  DEFAULT_UV_RECT,
+  DEFAULT_IMAGE_SETTINGS,
+  MESH_WARP_GRID_SIZE,
+  WARP_HANDLE_STYLE,
+  STORAGE_VERSION,
+} from '../core/defaults';
 import type { UvRect, ImageSettings, Resolution } from '../core/defaults';
 
 const STORAGE_KEY = 'warp-grid-control-points';
@@ -59,8 +65,15 @@ export interface MeshWarperConfig {
 }
 
 interface StoredControlPoints {
+  version?: number;
   /** Grid dimensions at time of save, used for validation on load */
   gridSize?: { x: number; y: number };
+  /**
+   * Plane the points were normalised against. Points are fractions of the plane,
+   * so without this a surface whose shape later changed would denormalise onto a
+   * different plane and silently distort the calibration.
+   */
+  planeSize?: { width: number; height: number };
   corners: { x: number; y: number; z: number }[];
   grid: { x: number; y: number; z: number }[];
   referenceGrid: { x: number; y: number; z: number }[];
@@ -809,17 +822,28 @@ export class MeshWarper {
     };
   }
 
-  private fromNormalized(n: { x: number; y: number; z: number }): { x: number; y: number; z: number } {
+  /**
+   * Denormalise against the plane the points were saved on, not today's. A surface
+   * that changed shape keeps its corners where they were in world space — you
+   * calibrated that quad onto a physical object, and swapping the source's aspect
+   * should not move it.
+   */
+  private fromNormalized(
+    n: { x: number; y: number; z: number },
+    plane: { width: number; height: number } = this.config,
+  ): { x: number; y: number; z: number } {
     return {
-      x: n.x * this.config.width - this.config.width / 2,
-      y: n.y * this.config.height - this.config.height / 2,
+      x: n.x * plane.width - plane.width / 2,
+      y: n.y * plane.height - plane.height / 2,
       z: n.z,
     };
   }
 
   private saveToStorage(): void {
     const data: StoredControlPoints = {
+      version: STORAGE_VERSION,
       gridSize: { x: this.xControlPointAmount, y: this.yControlPointAmount },
+      planeSize: { width: this.config.width, height: this.config.height },
       corners: this.dragCornerControlPoints.map((p) => this.toNormalized(p)),
       grid: this.dragGridControlPoints.map((p) => this.toNormalized(p)),
       referenceGrid: this.referenceGridControlPoints.map((p) => this.toNormalized(p)),
@@ -837,11 +861,17 @@ export class MeshWarper {
       if (!stored) return;
 
       const data: StoredControlPoints = JSON.parse(stored);
+      if (data.version !== STORAGE_VERSION) {
+        localStorage.removeItem(this.storageKey);
+        return;
+      }
+
+      const savedPlane = data.planeSize ?? this.config;
 
       // Always load corners if valid (always 4)
       if (data.corners && data.corners.length === 4) {
         data.corners.forEach((nPos, i) => {
-          const pos = this.fromNormalized(nPos);
+          const pos = this.fromNormalized(nPos, savedPlane);
           this.dragCornerControlPoints[i].set(pos.x, pos.y, pos.z);
           this.cornerObjects[i].position.set(pos.x, pos.y, pos.z);
           this.cornerObjects[i].userData.lastValidPosition = this.cornerObjects[i].position.clone();
@@ -855,11 +885,11 @@ export class MeshWarper {
 
       if (gridSizeMatches && data.grid.length === expectedCount && data.referenceGrid?.length === expectedCount) {
         data.grid.forEach((nPos, i) => {
-          const pos = this.fromNormalized(nPos);
+          const pos = this.fromNormalized(nPos, savedPlane);
           this.dragGridControlPoints[i].set(pos.x, pos.y, pos.z);
         });
         data.referenceGrid.forEach((nPos, i) => {
-          const pos = this.fromNormalized(nPos);
+          const pos = this.fromNormalized(nPos, savedPlane);
           this.referenceGridControlPoints[i].set(pos.x, pos.y, pos.z);
         });
       } else {

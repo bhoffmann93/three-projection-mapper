@@ -138,11 +138,11 @@ export class ProjectionMapperGUI {
 
     // Canvas clicks are the primary way to select a surface; the pane follows.
     // Surfaces added by the host app rather than by this pane must show up too.
-    mapper.onActiveSurfaceChanged = () => this.syncFromActiveSurface();
-    mapper.onSurfacesChanged = () => {
+    mapper.onActiveSurfaceChanged(() => this.syncFromActiveSurface());
+    mapper.onSurfacesChanged(() => {
       this.rebuildSurfaceList();
       this.syncFromActiveSurface();
-    };
+    });
 
     this.pane = new Pane({ title });
     this.pane.element.style.opacity = TWEAKPANE_TRANSPARENCY;
@@ -594,7 +594,7 @@ export class ProjectionMapperGUI {
     let polygonSubFolder: FolderApi | null = null;
 
     // Node changes on any surface go out tagged with that surface's id
-    this.mapper.onPolygonNodesChanged = (surfaceId: string) => {
+    const broadcastPolygonNodes = (surfaceId: string) => {
       const nodes = this.mapper.getPolygonMask(surfaceId)?.nodes;
       if (!nodes) return;
       this.broadcast(ProjectionEventType.POLYGON_MASK_NODES_CHANGED, {
@@ -602,6 +602,7 @@ export class ProjectionMapperGUI {
         surfaceId,
       });
     };
+    this.mapper.onPolygonNodesChanged(broadcastPolygonNodes);
 
     const broadcastPolySettings = () => {
       this.broadcast(ProjectionEventType.POLYGON_MASK_SETTINGS_CHANGED, {
@@ -700,7 +701,7 @@ export class ProjectionMapperGUI {
       showPolygonSubFolder();
       addBtn.hidden = true;
       broadcastPolySettings();
-      this.mapper.onPolygonNodesChanged(this.activeSurfaceId());
+      broadcastPolygonNodes(this.activeSurfaceId());
     });
 
     // The polygon sub-folder exists only while the *active* surface has a mask,

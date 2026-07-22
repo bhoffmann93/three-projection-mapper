@@ -133,6 +133,7 @@ export class AtlasScene {
       }
 
       sumColor = acesApprox(sumColor);
+      sumColor = vec3(step(0.5,length(uv-0.5)));
 
       gl_FragColor = vec4(sumColor, 1.0);
     }

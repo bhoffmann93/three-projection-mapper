@@ -12,7 +12,7 @@ export const MULTI_SURFACE_CONFIG = {
   outputResolution: { width: 1920, height: 1080 },
   /** The surface that ignores the atlas and samples this image instead */
   imageSurfaceId: 'image',
-  imagePath: '/static/screenshot-warp.png',
+  imagePath: '/static/uv-grid.jpg',
 } as const;
 
 export default MULTI_SURFACE_CONFIG;
