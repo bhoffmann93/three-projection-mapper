@@ -186,6 +186,30 @@ Set `resolution` alone and surfaces inherit it, which is right when a surface
 fills the output. Set `surfaceResolution` too when they should not — an atlas
 layout wants the region's shape, not the canvas's.
 
+### Size-independent content
+
+A surface can be scaled to any shape, which stretches whatever it samples. When
+the content is generated — a shader drawing into your buffer — it can compensate
+instead, if it knows the shape it will land on:
+
+```typescript
+// each frame, before rendering your buffer
+material.uniforms.uSurfaceAspect.value = surface.getWarpedAspect();
+```
+
+```glsl
+// a circle that stays round however the surface is scaled
+vec2 p = (uv - 0.5) * vec2(uSurfaceAspect, 1.0);
+float circle = step(length(p), 0.4);
+```
+
+`getWarpedSize()` returns the same measurement in world units. Both describe the
+surface **as drawn** — scaling and warping included — averaged over opposite
+edges of the quad, unlike `getResolution()`, which is its undeformed shape.
+
+Read it per frame rather than on a callback: dragging a corner changes the size
+continuously, and no notification fires for it.
+
 ### Atlas or per-surface media
 
 Each surface owns its own texture uniform, so these are the same model rather

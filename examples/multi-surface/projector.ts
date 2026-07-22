@@ -45,6 +45,11 @@ const clock = new THREE.Clock();
 
 function animate() {
   requestAnimationFrame(animate);
+
+  // Same correction as the controller, from the surface state synced here
+  const shaderSurface = mapper.getSurfaces()[1];
+  if (shaderSurface) atlas.setSurfaceAspect(shaderSurface.getWarpedAspect());
+
   atlas.animate(clock.getElapsedTime());
   atlas.render(renderer);
   mapper.render();

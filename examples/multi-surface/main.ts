@@ -141,6 +141,13 @@ const clock = new THREE.Clock();
 
 function animate() {
   requestAnimationFrame(animate);
+
+  // Feed the shader surface's live size back into the atlas, so scaling the
+  // surface reproportions the content instead of stretching it. Read per frame
+  // because dragging a corner changes it without any callback firing.
+  const shaderSurface = mapper.getSurfaces()[1];
+  if (shaderSurface) atlas.setSurfaceAspect(shaderSurface.getWarpedAspect());
+
   atlas.animate(clock.getElapsedTime());
   atlas.render(renderer);
   mapper.render();

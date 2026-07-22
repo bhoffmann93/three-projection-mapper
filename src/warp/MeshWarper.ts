@@ -1027,6 +1027,17 @@ export class MeshWarper {
     this.material.uniforms.uUvRectScale.value.set(scaleX, scaleY);
   }
 
+  /**
+   * The quad's current size in world units, averaged over opposite edges.
+   *
+   * This is the surface as drawn, after scaling and warping — unlike the plane
+   * size, which is the undeformed shape. Feed its aspect into a content shader to
+   * keep circles round when the surface is scaled non-uniformly.
+   */
+  public getWarpedSize(): { width: number; height: number } {
+    return { ...this.averageDimensions };
+  }
+
   /** This surface's own pixel resolution, the source of its plane aspect */
   public getResolution(): Resolution {
     const value = this.material.uniforms.uSurfaceResolution.value as THREE.Vector2;

@@ -53,6 +53,9 @@ export class AtlasScene {
         // gl_FragCoord is in atlas pixels, so the shader needs its region's placement
         uRegionOffset: { value: new THREE.Vector2(regionRes.width, 0) },
         uRegionSize: { value: new THREE.Vector2(regionRes.width, regionRes.height) },
+        // Width over height of the surface this region ends up on, so the waves
+        // keep their proportions when that surface is scaled non-uniformly
+        uSurfaceAspect: { value: 1 },
       },
       vertexShader: /* glsl */ `
         void main() {
@@ -65,6 +68,7 @@ export class AtlasScene {
     uniform float uTime;
     uniform vec2 uRegionOffset;
     uniform vec2 uRegionSize;
+    uniform float uSurfaceAspect;
 
     #define PI 3.14159265358979
 
@@ -92,6 +96,11 @@ export class AtlasScene {
       // gl_FragCoord is in atlas pixels, so subtract this region's placement
       vec2 uv = (gl_FragCoord.xy - uRegionOffset) / uRegionSize;
 
+      // The region is square but the surface it lands on need not be. Working in
+      // aspect-corrected space keeps a wavelength a wavelength — the same
+      // correction that keeps a circle round: vec2 p = (uv - 0.5) * vec2(uSurfaceAspect, 1.0)
+      float aspectCorrection = max(uSurfaceAspect, 0.0001);
+
       float time = uTime * 0.075;
 
       float amount = 10.0;
@@ -106,7 +115,7 @@ export class AtlasScene {
           edgeYrange *= smoothstep(0.0, 0.75, uv.x); // rising from left
           float edgeY = mix(0.5 - edgeYrange, 0.5 + edgeYrange, sin(time * PI - i) * 0.5 + 0.5);
 
-          float freq = 2.0 * mix(0.5, 1.0, n);
+          float freq = 2.0 * mix(0.5, 1.0, n) * aspectCorrection;
           float amp = 0.15;
 
           float phaseOffset = 1.5 * i;
@@ -133,7 +142,12 @@ export class AtlasScene {
       }
 
       sumColor = acesApprox(sumColor);
-      sumColor = vec3(step(0.5,length(uv-0.5)));
+
+      // Round on the projector, not in the buffer: scaling x by the surface's
+      // aspect squeezes the disc in this square region by exactly as much as the
+      // surface will stretch it back out.
+      vec2 discUv = (uv - 0.5) * vec2(aspectCorrection, 1.0);
+      sumColor *= 1.0 - step(0.5, length(discUv));
 
       gl_FragColor = vec4(sumColor, 1.0);
     }
@@ -147,6 +161,11 @@ export class AtlasScene {
 
   getTexture(): THREE.Texture {
     return this.renderTarget.texture;
+  }
+
+  /** The aspect of the surface this shader region is drawn on */
+  setSurfaceAspect(aspect: number): void {
+    this.shaderMaterial.uniforms.uSurfaceAspect.value = aspect;
   }
 
   animate(elapsedTime: number): void {

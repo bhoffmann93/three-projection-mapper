@@ -128,6 +128,22 @@ export class WarpSurface {
     return this.warper.getBufferTexture();
   }
 
+  /**
+   * The surface's current size in world units, as drawn — scaling and warping
+   * included. Its aspect is what a content shader needs to stay size independent:
+   * a circle drawn in a square uv space stretches when the surface does, unless
+   * the shader divides by this.
+   */
+  getWarpedSize(): { width: number; height: number } {
+    return this.warper.getWarpedSize();
+  }
+
+  /** Width over height of the surface as drawn */
+  getWarpedAspect(): number {
+    const size = this.warper.getWarpedSize();
+    return size.height === 0 ? 1 : size.width / size.height;
+  }
+
   /** This surface's own pixel resolution — independent of the input buffer's */
   getResolution(): Resolution {
     return this.warper.getResolution();
