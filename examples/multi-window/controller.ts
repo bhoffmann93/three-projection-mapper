@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { ProjectionMapper, ProjectionMapperGUI } from '../../src/lib';
-import { WindowSync, WINDOW_SYNC_MODE, UvRectEditor, ProjectionEventType } from '../../src/addons';
+import { WindowSync, WINDOW_SYNC_MODE } from '../../src/addons';
 import { ProjectionScene } from './ProjectionScene';
 import MUTLI_WINDOW_CONFIG from './multi-window.config';
 
@@ -17,7 +17,7 @@ const bufferResolution = {
   height: MUTLI_WINDOW_CONFIG.projectionResolution.height * MUTLI_WINDOW_CONFIG.bufferResOversampling,
 };
 const projectionScene = new ProjectionScene({ width: bufferResolution.width, height: bufferResolution.height });
-const mapper = new ProjectionMapper(renderer, projectionScene.getTexture(), { appId: MUTLI_WINDOW_CONFIG.appId });
+const mapper = new ProjectionMapper(renderer, projectionScene.getTexture(), { appId: MUTLI_WINDOW_CONFIG.appId, multiSurface: false });
 const sync = new WindowSync(mapper, { mode: WINDOW_SYNC_MODE.CONTROLLER });
 
 const gui = new ProjectionMapperGUI(mapper, {
@@ -27,18 +27,9 @@ const gui = new ProjectionMapperGUI(mapper, {
   windowManager: sync.getWindowManager(),
 });
 
-// The pane no longer edits uv rects, so the crop tool is the app's job — and so
-// is telling the projector about it. Without this the projector only picks up
-// crops on connect, via the full state sync.
-const uvRectEditor = new UvRectEditor(mapper, {
-  onUvRectChanged: (surfaceId, uvRect) => {
-    sync.broadcast(ProjectionEventType.UV_RECT_CHANGED, { uvRect, surfaceId });
-  },
-});
-
 const hint = document.createElement('div');
 hint.style.cssText = 'position:fixed;bottom:36px;left:16px;color:rgba(255,255,255,0.5);font:12px/1.6 monospace;pointer-events:none;transition:opacity 0.3s';
-hint.innerHTML = '<span>G</span> toggle UI<br><span>T</span> test card<br><span>W</span> warp controls<br><span>I</span> input view<br><span>O</span> open projector';
+hint.innerHTML = '<span>G</span> toggle UI<br><span>T</span> test card<br><span>W</span> warp controls<br><span>O</span> open projector';
 document.body.appendChild(hint);
 
 let uiVisible = true;
@@ -46,7 +37,6 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'g' || e.key === 'p') { gui.toggle(); uiVisible = !uiVisible; hint.style.opacity = uiVisible ? '1' : '0'; }
   if (e.key === 't') gui.toggleTestCard();
   if (e.key === 'w') gui.toggleWarpUI();
-  if (e.key === 'i') uvRectEditor.toggle();
   if (e.key === 'o') sync.openProjectorWindow();
 });
 
@@ -64,7 +54,6 @@ function animate() {
   projectionScene.render(renderer);
   renderer.setRenderTarget(null);
   mapper.render();
-  uvRectEditor.update(renderer);
 }
 
 animate();

@@ -10,6 +10,20 @@ export const DEFAULTS = {
   minGridWarpPoints: 4, // default other axis gets calculated from aspect ratio
 } as const;
 
+/** How far the preview can pull back from the output canvas */
+export const ZOOM_RANGE = {
+  minimum: 0.1,
+  maximum: 1.0,
+} as const;
+
+/**
+ * Wheel and trackpad zoom. Applied multiplicatively so a notch feels the same
+ * whether pulled back or close in, and deltaY varies enormously between devices.
+ */
+export const WHEEL_ZOOM = {
+  sensitivity: 0.0015,
+} as const;
+
 //just a clamp
 export const MESH_WARP_GRID_SIZE = {
   minimum: 2,

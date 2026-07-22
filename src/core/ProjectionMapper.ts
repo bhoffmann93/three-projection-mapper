@@ -9,6 +9,7 @@ import { calculateGridPoints } from '../warp/geometry';
 import { SurfacePicker } from './SurfacePicker';
 import { OutputFrame } from './OutputFrame';
 import { ListenerSet } from '../utils/ListenerSet';
+import { clamp } from '../utils/math';
 import {
   GUI_STORAGE_KEY,
   DEFAULT_IMAGE_SETTINGS,
@@ -19,6 +20,8 @@ import {
   DEFAULT_UV_RECT,
   SURFACES_STORAGE_KEY,
   STORAGE_VERSION,
+  ZOOM_RANGE,
+  WHEEL_ZOOM,
   scopedStorageKey,
   planeSizeFor,
   textureResolution,
@@ -85,6 +88,8 @@ export interface ProjectionMapperConfig {
   multiSurface?: boolean;
   /** Click a surface to select it, drag its body to move it (default: true) */
   canvasSelection?: boolean;
+  /** Zoom the preview with the wheel or a trackpad pinch (default: true) */
+  wheelZoom?: boolean;
   /**
    * Scopes all persisted calibration to this app. Required whenever more than
    * one app is served from the same origin — they share localStorage, so
@@ -119,6 +124,7 @@ export class ProjectionMapper {
   private clock: THREE.Clock;
   private picker: SurfacePicker | null = null;
   private outputFrame: OutputFrame | null = null;
+  private onWheel: ((event: WheelEvent) => void) | null = null;
 
   /** Handle visibility applied to whichever surface is active */
   private controlsVisibility = { grid: true, corners: true, outline: true };
@@ -130,6 +136,7 @@ export class ProjectionMapper {
   private activeSurfaceChanged = new ListenerSet<[surfaceId: string]>();
   private polygonNodesChanged = new ListenerSet<[surfaceId: string]>();
   private surfaceTransformed = new ListenerSet<[surfaceId: string]>();
+  private zoomChanged = new ListenerSet<[zoom: number]>();
 
   /**
    * Notifications take listeners rather than a single assigned handler: the GUI
@@ -159,6 +166,11 @@ export class ProjectionMapper {
    */
   onSurfaceTransformed(listener: (surfaceId: string) => void): () => void {
     return this.surfaceTransformed.add(listener);
+  }
+
+  /** The preview zoom changed, including by wheel — so a pane can follow it */
+  onZoomChanged(listener: (zoom: number) => void): () => void {
+    return this.zoomChanged.add(listener);
   }
 
   /** Genuinely output-wide uniforms, shared by reference across every surface material */
@@ -203,6 +215,7 @@ export class ProjectionMapper {
       surfaceResolution: config.surfaceResolution ?? this.resolution,
       multiSurface: config.multiSurface ?? true,
       canvasSelection: config.canvasSelection ?? true,
+      wheelZoom: config.wheelZoom ?? true,
       appId: config.appId,
     };
 
@@ -260,12 +273,29 @@ export class ProjectionMapper {
       this.outputFrame.setVisible(this.controlsVisibility.outline);
     }
 
+    if (this.config.wheelZoom) this.attachWheelZoom();
+
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
 
     if (this.config.antialias) {
       this.composer.addPass(new SMAAPass());
     }
+  }
+
+  /**
+   * Wheel and trackpad pinch zoom the preview. Multiplicative so a notch feels the
+   * same at any zoom, and the view stays centred — there is no canvas panning to
+   * keep a point under the cursor, so anchoring the zoom would drift the canvas
+   * off screen with nothing to bring it back.
+   */
+  private attachWheelZoom(): void {
+    this.onWheel = (event: WheelEvent) => {
+      if (!this.dragEnabled) return; // receive-only windows do not zoom
+      event.preventDefault();
+      this.setZoom(this.config.zoom * Math.exp(-event.deltaY * WHEEL_ZOOM.sensitivity));
+    };
+    this.renderer.domElement.addEventListener('wheel', this.onWheel, { passive: false });
   }
 
   // Use saved grid size from GUI settings if available, so MeshWarper
@@ -707,8 +737,11 @@ export class ProjectionMapper {
   }
 
   setZoom(scale: number): void {
-    this.config.zoom = scale;
+    const clamped = clamp(scale, ZOOM_RANGE.minimum, ZOOM_RANGE.maximum);
+    if (clamped === this.config.zoom) return;
+    this.config.zoom = clamped;
     this.updateCameraFrustum();
+    this.zoomChanged.emit(clamped);
   }
 
   getZoom(): number {
@@ -823,6 +856,7 @@ export class ProjectionMapper {
   }
 
   dispose(): void {
+    if (this.onWheel) this.renderer.domElement.removeEventListener('wheel', this.onWheel);
     this.picker?.dispose();
     this.outputFrame?.dispose();
     this.surfaces.forEach((surface) => surface.dispose());

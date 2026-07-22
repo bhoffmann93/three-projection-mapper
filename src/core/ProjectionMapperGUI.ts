@@ -10,6 +10,7 @@ import {
   MESH_WARP_GRID_SIZE,
   STORAGE_VERSION,
   SHOW_ACES_TOGGLE,
+  ZOOM_RANGE,
   scopedStorageKey,
 } from './defaults';
 import type { ImageSettings } from './defaults';
@@ -139,6 +140,13 @@ export class ProjectionMapperGUI {
     // Canvas clicks are the primary way to select a surface; the pane follows.
     // Surfaces added by the host app rather than by this pane must show up too.
     mapper.onActiveSurfaceChanged(() => this.syncFromActiveSurface());
+
+    // The wheel drives zoom too, so the slider follows rather than fights it
+    mapper.onZoomChanged((zoom) => {
+      this.settings.zoom = zoom;
+      this.pane.refresh();
+      this.saveSettings();
+    });
     mapper.onSurfacesChanged(() => {
       this.rebuildSurfaceList();
       this.syncFromActiveSurface();
@@ -257,7 +265,12 @@ export class ProjectionMapperGUI {
     });
 
     page
-      .addBinding(this.settings, 'zoom', { label: 'Zoom', min: 0.125, max: 1.0, step: 0.01 })
+      .addBinding(this.settings, 'zoom', {
+        label: 'Zoom',
+        min: ZOOM_RANGE.minimum,
+        max: ZOOM_RANGE.maximum,
+        step: 0.01,
+      })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setZoom(e.value as number);
         this.saveSettings();

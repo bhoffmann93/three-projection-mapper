@@ -16,6 +16,7 @@ pixels, blit into a 2D canvas) — a preview, not a live monitor.
 import * as THREE from 'three';
 import { ProjectionMapper } from '../core/ProjectionMapper';
 import type { UvRect } from '../core/defaults';
+import type { WarpSurface } from '../warp/WarpSurface';
 
 export interface UvRectEditorConfig {
   /** Where to mount the overlay (default: document.body) */
@@ -26,6 +27,8 @@ export interface UvRectEditorConfig {
   previewFps?: number;
   /** Corner grab area in CSS pixels (default: 10) */
   handleSize?: number;
+  /** Panel heading (default: 'Input Atlas Buffer') */
+  title?: string;
   /** Called after a rect changes, for broadcasting UV_RECT_CHANGED */
   onUvRectChanged?: (surfaceId: string, uvRect: UvRect) => void;
 }
@@ -36,6 +39,9 @@ const STYLE = {
   inactiveStroke: 'rgba(255, 255, 255, 0.45)',
   activeStroke: 'rgb(255, 165, 0)',
   activeFill: 'rgba(255, 165, 0, 0.12)',
+  border: 'rgba(255, 255, 255, 0.15)',
+  captionBackground: 'rgba(0, 0, 0, 0.55)',
+  captionHeight: 18,
   labelFont: '11px monospace',
 } as const;
 
@@ -70,11 +76,14 @@ export class UvRectEditor {
       width: config.width ?? 260,
       previewFps: config.previewFps ?? 5,
       handleSize: config.handleSize ?? 10,
+      title: config.title ?? 'Input Atlas Buffer',
       onUvRectChanged: config.onUvRectChanged,
     };
 
-    const resolution = mapper.getResolution();
-    const aspect = resolution.width / resolution.height;
+    // The buffer's aspect, not the output canvas's — this panel shows the buffer,
+    // and in an atlas the two differ (a 2:1 atlas feeding a 16:9 output)
+    const buffer = mapper.getBufferResolution();
+    const aspect = buffer.height > 0 ? buffer.width / buffer.height : 1;
     const width = this.config.width;
     const height = Math.round(width / aspect);
 
@@ -93,7 +102,7 @@ export class UvRectEditor {
     ].join(';');
 
     const title = document.createElement('div');
-    title.textContent = 'Input';
+    title.textContent = this.config.title;
     title.style.cssText = 'margin-bottom:4px;letter-spacing:0.08em;text-transform:uppercase;opacity:0.6';
     this.root.appendChild(title);
 
@@ -177,6 +186,18 @@ export class UvRectEditor {
     }
   }
 
+  /**
+   * Surfaces that actually sample this buffer.
+   *
+   * A surface given its own media samples nothing here, so its uv rect describes
+   * a crop of a different texture — drawing it over the atlas would claim it
+   * covers the whole buffer, which is exactly backwards.
+   */
+  private atlasSurfaces(): WarpSurface[] {
+    const buffer = this.mapper.getTexture();
+    return this.mapper.getSurfaces().filter((surface) => surface.getTexture() === buffer);
+  }
+
   /** UV rect → canvas pixels. UV v=0 is the bottom of the texture, canvas y=0 the top. */
   private toPixels(rect: UvRect): { x: number; y: number; w: number; h: number } {
     const { width, height } = this.canvas;
@@ -193,7 +214,9 @@ export class UvRectEditor {
     this.ctx.putImageData(this.imageData, 0, 0);
 
     const activeId = this.mapper.getActiveSurface().id;
-    for (const surface of this.mapper.getSurfaces()) {
+    const surfaces = this.atlasSurfaces();
+
+    for (const surface of surfaces) {
       const isActive = surface.id === activeId;
       const { x, y, w, h } = this.toPixels(surface.getUvRect());
 
@@ -216,7 +239,16 @@ export class UvRectEditor {
       }
     }
 
-    this.ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    // Say so rather than looking unresponsive when the selection is not in here
+    if (!surfaces.some((surface) => surface.id === activeId)) {
+      this.ctx.fillStyle = STYLE.captionBackground;
+      this.ctx.fillRect(0, height - STYLE.captionHeight, width, STYLE.captionHeight);
+      this.ctx.fillStyle = STYLE.inactiveStroke;
+      this.ctx.font = STYLE.labelFont;
+      this.ctx.fillText(`Surface ${activeId} has its own media`, 5, height - 5);
+    }
+
+    this.ctx.strokeStyle = STYLE.border;
     this.ctx.lineWidth = 1;
     this.ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
   }
@@ -231,7 +263,7 @@ export class UvRectEditor {
 
   /** Topmost rect under the point — later surfaces win, matching the canvas picker */
   private pickSurfaceId(x: number, y: number): string | null {
-    const surfaces = this.mapper.getSurfaces();
+    const surfaces = this.atlasSurfaces();
     for (let i = surfaces.length - 1; i >= 0; i--) {
       const r = this.toPixels(surfaces[i].getUvRect());
       if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return surfaces[i].id;
@@ -240,7 +272,9 @@ export class UvRectEditor {
   }
 
   private isOnGrip(surfaceId: string, x: number, y: number): boolean {
-    const r = this.toPixels(this.mapper.getUvRect(surfaceId));
+    const surface = this.mapper.getSurface(surfaceId);
+    if (!surface || surface.getTexture() !== this.mapper.getTexture()) return false;
+    const r = this.toPixels(surface.getUvRect());
     const grip = this.config.handleSize;
     return x >= r.x + r.w - grip && x <= r.x + r.w && y >= r.y + r.h - grip && y <= r.y + r.h;
   }
