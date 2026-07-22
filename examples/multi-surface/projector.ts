@@ -25,14 +25,15 @@ document.body.appendChild(renderer.domElement);
 
 const atlas = new AtlasScene();
 const mapper = new ProjectionMapper(renderer, atlas.getTexture(), {
-  resolution: MULTI_SURFACE_CONFIG.regionResolution,
+  resolution: MULTI_SURFACE_CONFIG.outputResolution,
   appId: MULTI_SURFACE_CONFIG.appId,
 });
 new WindowSync(mapper, { mode: WINDOW_SYNC_MODE.PROJECTOR });
 
-// The controller sends the surface, but not its pixels — bind them here too.
-// Runs whether the surface already arrived or shows up with the next state sync.
-loadImageSurface(mapper, () => {});
+// The controller sends the surface, but not its pixels — bind them here too, and
+// again whenever the surface list changes, since a surface removed and re-added
+// on the controller is rebuilt here with the shared buffer as its texture.
+loadImageSurface(mapper, { rebindOnSurfacesChanged: true });
 
 window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);

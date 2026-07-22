@@ -38,12 +38,13 @@ document.body.appendChild(renderer.domElement);
 
 const atlas = new AtlasScene();
 
-// The mapper's resolution is the view aspect and the default for surfaces that
-// do not declare their own. Each surface below sets its own region resolution, so
-// its plane matches the square half of the atlas it samples rather than the 2:1
-// shape of the whole buffer.
+// The mapper's resolution is the output canvas: what the projector frames and
+// what surfaces are arranged inside. Each surface declares its own resolution
+// separately, so the two square atlas slices stay square inside a 16:9 output.
+// The controller previews at zoom 0.4 to leave room around the canvas, whose
+// dashed boundary shows what is actually projected.
 const mapper = new ProjectionMapper(renderer, atlas.getTexture(), {
-  resolution: MULTI_SURFACE_CONFIG.regionResolution,
+  resolution: MULTI_SURFACE_CONFIG.outputResolution,
   zoom: 0.4,
   appId: MULTI_SURFACE_CONFIG.appId,
 });
@@ -53,7 +54,13 @@ const sync = new WindowSync(mapper, { mode: WINDOW_SYNC_MODE.CONTROLLER });
 // (square), the image surface is wider because it takes the image's 4:3 aspect.
 // The marker key survives reloads, so calibration afterwards restores from
 // localStorage. Bump the marker version to force a fresh layout.
-const LAYOUT_KEY = 'multi-surface-example-layout-v2';
+const LAYOUT_KEY = 'multi-surface-example-layout-v3';
+
+// The output canvas is 16:9, so 10 world units tall and about 17.8 wide. Surfaces
+// default to the full canvas height, so they are sized down here to sit side by
+// side inside it — otherwise they would overflow what the projector frames.
+const SURFACE_HEIGHT = 5;
+const IMAGE_SURFACE_BOUNDS = { centerX: 5.4, width: SURFACE_HEIGHT * (2436 / 1854) };
 
 if (!localStorage.getItem(LAYOUT_KEY)) {
   const cubeSurface = mapper.getSurfaces()[0];
@@ -65,24 +72,23 @@ if (!localStorage.getItem(LAYOUT_KEY)) {
     });
   mapper.setUvRect(0, 0, 0.5, 1, cubeSurface.id);
   mapper.setUvRect(0.5, 0, 0.5, 1, shaderSurface.id);
-  mapper.reset(); // clear any stored warp before placing
-  cubeSurface.setPosition(-13, 0);
-  shaderSurface.setPosition(0, 0);
+  cubeSurface.setBounds(-6.4, 0, SURFACE_HEIGHT, SURFACE_HEIGHT);
+  shaderSurface.setBounds(-0.4, 0, SURFACE_HEIGHT, SURFACE_HEIGHT);
   localStorage.setItem(LAYOUT_KEY, '1');
 }
 
-loadImageSurface(mapper, (surface, isNew) => {
-  if (!isNew) return;
-
-  // Announce before positioning: the projector has to own the surface before the
-  // move that follows can be applied to it, and the image arrives whenever it
-  // arrives — possibly with the projector already connected.
-  sync.broadcast(ProjectionEventType.SURFACE_ADDED, {
-    surfaceId: surface.id,
-    uvRect: surface.getUvRect(),
-    resolution: surface.getResolution(),
-  });
-  surface.setPosition(13, 0);
+loadImageSurface(mapper, {
+  onCreated: (surface) => {
+    // Announce before positioning: the projector has to own the surface before the
+    // move that follows can be applied to it, and the image arrives whenever it
+    // arrives — possibly with the projector already connected.
+    sync.broadcast(ProjectionEventType.SURFACE_ADDED, {
+      surfaceId: surface.id,
+      uvRect: surface.getUvRect(),
+      resolution: surface.getResolution(),
+    });
+    surface.setBounds(IMAGE_SURFACE_BOUNDS.centerX, 0, IMAGE_SURFACE_BOUNDS.width, SURFACE_HEIGHT);
+  },
 });
 
 const gui = new ProjectionMapperGUI(mapper, {

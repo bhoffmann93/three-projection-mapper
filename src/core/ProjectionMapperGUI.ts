@@ -90,6 +90,9 @@ export class ProjectionMapperGUI {
   private syncWarpButtons: () => void = () => {};
   private onControlsVisibilityChange: (visible: boolean) => void = () => {};
 
+  /** Edited freely, then applied on Set — resizing the canvas re-frames everything */
+  private outputResolutionState = { width: 0, height: 0 };
+
   /** These mirror the active surface — image and masks are per surface, not global */
   private imageState = { ...DEFAULT_IMAGE_SETTINGS };
   private edgeMaskState = { ...DEFAULT_EDGE_MASK };
@@ -214,13 +217,16 @@ export class ProjectionMapperGUI {
       });
     }
 
+    const bufferResolution = this.mapper.getBufferResolution();
     page.addBlade({
       view: 'text',
       label: 'Buffer',
-      value: `${this.mapper.getBufferResolution().width}x${this.mapper.getBufferResolution().height}`,
+      value: `${bufferResolution.width}x${bufferResolution.height}`,
       parse: (v: unknown) => v,
       disabled: true,
     });
+
+    if (this.mapper.isMultiSurface()) this.initOutputResolution(page);
 
     const hasWhiteOut = !!this.config.enableWhiteOut;
     const { blade: settingsBtnGrid, buttons: settingsButtons } = addButtonGrid(
@@ -264,6 +270,28 @@ export class ProjectionMapperGUI {
    * whether there is one surface or several — a control that moves as surfaces
    * are added is harder to find than one that is simply quiet.
    */
+  /**
+   * The output canvas: the region the projector frames and surfaces are arranged
+   * within. Only meaningful with several surfaces — a lone surface is the output.
+   *
+   * Applied on a button rather than on change, because resizing the canvas
+   * re-frames every surface at once and is a set-once decision.
+   */
+  private initOutputResolution(page: PaneContainer): void {
+    const folder = page.addFolder({ title: 'Output', expanded: false });
+    Object.assign(this.outputResolutionState, this.mapper.getResolution());
+
+    folder.addBinding(this.outputResolutionState, 'width', { label: 'Width', min: 1, step: 1 });
+    folder.addBinding(this.outputResolutionState, 'height', { label: 'Height', min: 1, step: 1 });
+
+    folder.addButton({ title: 'Set Output Resolution' }).on('click', () => {
+      this.mapper.setOutputResolution(
+        Math.round(this.outputResolutionState.width),
+        Math.round(this.outputResolutionState.height),
+      );
+    });
+  }
+
   private initSurfacesFolder(page: PaneContainer): void {
     this.surfacesFolder = page.addFolder({ title: SURFACE_FOLDER_TITLE.singular, expanded: true });
 
