@@ -22,19 +22,16 @@ import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import PerspT from '../utils/perspective';
 import { isQuadConcave, isPointInQuad, scaleQuadAboutCenter } from './geometry';
 import { clamp } from '../utils/math';
-import meshWarpVertexShader from '../shaders/warp.vert';
 import { RenderOrder } from '../core/RenderOrder';
-import { DEFAULT_UV_RECT, DEFAULT_IMAGE_SETTINGS, MESH_WARP_GRID_SIZE, WARP_HANDLE_STYLE } from '../core/defaults';
+import { MESH_WARP_GRID_SIZE, WARP_HANDLE_STYLE } from '../core/defaults';
+import { WarpMaterial, WARP_MODE } from './WarpMaterial';
 import { WarpPointStore, toNormalized, fromNormalized } from './WarpPointStore';
 import type { NormalizedPosition, PlaneSize } from './WarpPointStore';
 import type { UvRect, ImageSettings, Resolution } from '../core/defaults';
 
-export enum WARP_MODE {
-  bilinear = 0,
-  bicubic = 1,
-}
-
 /** How a surface's outline is drawn: selected, under the cursor, or neither */
+export { WARP_MODE };
+
 export type OutlineState = 'active' | 'inactive' | 'hover';
 
 export interface MeshWarperConfig {
@@ -62,7 +59,7 @@ export class MeshWarper {
   private config: MeshWarperConfig;
 
   public mesh: THREE.Mesh;
-  public material: THREE.ShaderMaterial;
+  private warpMaterial!: WarpMaterial;
   public averageDimensions: { width: number; height: number };
   private planeGeometry: THREE.PlaneGeometry;
   private quadOutlineLine: Line2;
@@ -109,7 +106,7 @@ export class MeshWarper {
 
     this.initializeQuadData();
     this.initializeControlPoints();
-    this.material = this.createShaderMaterial();
+    this.warpMaterial = this.createMaterial();
     this.mesh = new THREE.Mesh(this.planeGeometry, this.material);
 
     this.quadOutlineLine = this.createOutline();
@@ -123,103 +120,24 @@ export class MeshWarper {
     this.averageDimensions = this.getAverageDimensions();
   }
 
-  private createShaderMaterial(): THREE.ShaderMaterial {
-    const totalControlPoints = this.xControlPointAmount * this.yControlPointAmount;
-
-    const warpUniforms = {
-      uCorners: {
-        value: this.dragCornerControlPoints,
-      },
-      uControlPoint: {
-        value: null,
-      },
-      uControlPoints: {
-        value: this.dragGridControlPoints,
-      },
-      uGridSizeX: {
-        value: this.xControlPointAmount,
-      },
-      uGridSizeY: {
-        value: this.yControlPointAmount,
-      },
-      uBuffer: {
-        value: this.config.bufferTexture,
-      },
-      uWarpMode: { value: WARP_MODE.bicubic },
-      uShouldWarp: { value: true },
-      uWarpPlaneSize: {
-        value: new THREE.Vector2(this.config.width, this.config.height),
-      },
-      uSurfaceResolution: {
-        value: new THREE.Vector2(this.config.resolution.width, this.config.resolution.height),
-      },
-      uUvRectOffset: {
-        value: new THREE.Vector2(DEFAULT_UV_RECT.offsetX, DEFAULT_UV_RECT.offsetY),
-      },
-      uUvRectScale: {
-        value: new THREE.Vector2(DEFAULT_UV_RECT.scaleX, DEFAULT_UV_RECT.scaleY),
-      },
-      ...this.createImageUniforms(),
-    };
-
-    const material = new THREE.ShaderMaterial({
+  private createMaterial(): WarpMaterial {
+    return new WarpMaterial({
+      planeSize: this.plane(),
+      resolution: this.config.resolution,
+      gridControlPoints: this.config.gridControlPoints,
+      cornerPoints: this.dragCornerControlPoints,
+      gridPoints: this.dragGridControlPoints,
       fragmentShader: this.config.fragmentShader,
-      vertexShader: meshWarpVertexShader,
-      defines: {
-        CONTROL_POINT_AMOUNT: totalControlPoints,
-        ...this.config.globalDefines,
-      },
-      uniforms: {
-        ...this.config.globalUniforms,
-        ...warpUniforms,
-      },
+      globalUniforms: this.config.globalUniforms,
+      globalDefines: this.config.globalDefines,
+      bufferTexture: this.config.bufferTexture,
+      imageSettings: this.config.imageSettings,
     });
-
-    material.side = THREE.FrontSide;
-
-    return material;
   }
 
-  /**
-   * Image adjustments live in this material rather than in ProjectionMapper's
-   * shared uniform bag: two surfaces lit by different projectors need different
-   * gamma and black/white points to match.
-   */
-  private createImageUniforms() {
-    const settings = { ...DEFAULT_IMAGE_SETTINGS, ...this.config.imageSettings };
-    return {
-      uTonemap: { value: settings.tonemap },
-      uShadows: { value: settings.shadows },
-      uHighlights: { value: settings.highlights },
-      uGamma: { value: settings.gamma },
-      uContrast: { value: settings.contrast },
-      uSaturation: { value: settings.saturation },
-      uHue: { value: settings.hue },
-    };
-  }
-
-  public setImageSettings(settings: Partial<ImageSettings>): void {
-    const uniforms = this.material.uniforms;
-    if (settings.tonemap !== undefined) uniforms.uTonemap.value = settings.tonemap;
-    if (settings.shadows !== undefined) uniforms.uShadows.value = settings.shadows;
-    if (settings.highlights !== undefined) uniforms.uHighlights.value = settings.highlights;
-    if (settings.gamma !== undefined) uniforms.uGamma.value = settings.gamma;
-    if (settings.contrast !== undefined) uniforms.uContrast.value = settings.contrast;
-    if (settings.saturation !== undefined) uniforms.uSaturation.value = settings.saturation;
-    if (settings.hue !== undefined) uniforms.uHue.value = settings.hue;
-  }
-
-  public getImageSettings(): ImageSettings {
-    const uniforms = this.material.uniforms;
-    return {
-      tonemap: uniforms.uTonemap.value as boolean,
-      shadows: uniforms.uShadows.value as number,
-      highlights: uniforms.uHighlights.value as number,
-      gamma: uniforms.uGamma.value as number,
-      contrast: uniforms.uContrast.value as number,
-      saturation: uniforms.uSaturation.value as number,
-      hue: uniforms.uHue.value as number,
-    };
+  /** The material this surface draws with, for callers that need the raw object */
+  public get material(): THREE.ShaderMaterial {
+    return this.warpMaterial.material;
   }
 
   private createPlaneGeometry(): THREE.PlaneGeometry {
@@ -394,9 +312,7 @@ export class MeshWarper {
     this.updateLine();
 
     this.averageDimensions = this.getAverageDimensions();
-    if (this.material.uniforms.uWarpPlaneSize) {
-      this.material.uniforms.uWarpPlaneSize.value.set(this.averageDimensions.width, this.averageDimensions.height);
-    }
+    this.warpMaterial.setWarpPlaneSize(this.averageDimensions.width, this.averageDimensions.height);
   }
 
   /**
@@ -624,6 +540,7 @@ export class MeshWarper {
 
   public dispose(): void {
     this.planeGeometry.dispose();
+    this.warpMaterial.dispose(); // never happened before the material had an owner
     this.dragControls.dispose();
     this.config.scene.remove(this.mesh);
     this.config.scene.remove(this.quadOutlineLine);
@@ -633,30 +550,27 @@ export class MeshWarper {
   }
 
   public getBufferTexture(): THREE.Texture {
-    return this.material.uniforms.uBuffer.value as THREE.Texture;
+    return this.warpMaterial.getBufferTexture();
   }
 
   public setBufferTexture(texture: THREE.Texture): void {
-    if (this.material.uniforms.uBuffer) {
-      this.material.uniforms.uBuffer.value = texture;
-    }
+    this.warpMaterial.setBufferTexture(texture);
   }
 
   public setWarpMode(mode: WARP_MODE): void {
-    this.material.uniforms.uWarpMode.value = mode;
-    this.material.needsUpdate = true;
+    this.warpMaterial.setWarpMode(mode);
   }
 
   public getWarpMode(): WARP_MODE {
-    return this.material.uniforms.uWarpMode.value;
+    return this.warpMaterial.getWarpMode();
   }
 
   public setShouldWarp(enabled: boolean): void {
-    this.material.uniforms.uShouldWarp.value = enabled;
+    this.warpMaterial.setShouldWarp(enabled);
   }
 
   public getShouldWarp(): boolean {
-    return this.material.uniforms.uShouldWarp.value;
+    return this.warpMaterial.getShouldWarp();
   }
 
   public getMaterial(): THREE.ShaderMaterial {
@@ -836,12 +750,7 @@ export class MeshWarper {
 
     this.initializeDragControls();
 
-    const totalControlPoints = x * y;
-    this.material.defines.CONTROL_POINT_AMOUNT = totalControlPoints;
-    this.material.uniforms.uControlPoints.value = this.dragGridControlPoints;
-    this.material.uniforms.uGridSizeX.value = x;
-    this.material.uniforms.uGridSizeY.value = y;
-    this.material.needsUpdate = true;
+    this.warpMaterial.setGrid(this.dragGridControlPoints, x, y);
 
     this.saveToStorage();
 
@@ -905,7 +814,7 @@ export class MeshWarper {
 
     this.updateLine();
     this.averageDimensions = this.getAverageDimensions();
-    this.material.uniforms.uWarpPlaneSize.value.set(this.averageDimensions.width, this.averageDimensions.height);
+    this.warpMaterial.setWarpPlaneSize(this.averageDimensions.width, this.averageDimensions.height);
   }
 
   /**
@@ -947,9 +856,7 @@ export class MeshWarper {
 
     this.updateLine();
     this.averageDimensions = this.getAverageDimensions();
-    if (this.material.uniforms.uWarpPlaneSize) {
-      this.material.uniforms.uWarpPlaneSize.value.set(this.averageDimensions.width, this.averageDimensions.height);
-    }
+    this.warpMaterial.setWarpPlaneSize(this.averageDimensions.width, this.averageDimensions.height);
 
     if (keepPosition && (center.x !== 0 || center.y !== 0)) {
       this.translate(center.x, center.y); // also saves to storage
@@ -996,7 +903,7 @@ export class MeshWarper {
 
     this.updateLine();
     this.averageDimensions = this.getAverageDimensions();
-    this.material.uniforms.uWarpPlaneSize.value.set(this.averageDimensions.width, this.averageDimensions.height);
+    this.warpMaterial.setWarpPlaneSize(this.averageDimensions.width, this.averageDimensions.height);
     this.saveToStorage();
   }
 
@@ -1031,7 +938,7 @@ export class MeshWarper {
 
     this.updateLine();
     this.averageDimensions = this.getAverageDimensions();
-    this.material.uniforms.uWarpPlaneSize.value.set(this.averageDimensions.width, this.averageDimensions.height);
+    this.warpMaterial.setWarpPlaneSize(this.averageDimensions.width, this.averageDimensions.height);
     if (persist) this.saveToStorage();
   }
 
@@ -1049,13 +956,12 @@ export class MeshWarper {
 
     this.updateLine();
     this.averageDimensions = this.getAverageDimensions();
-    this.material.uniforms.uWarpPlaneSize.value.set(this.averageDimensions.width, this.averageDimensions.height);
+    this.warpMaterial.setWarpPlaneSize(this.averageDimensions.width, this.averageDimensions.height);
     this.saveToStorage();
   }
 
   public setUvRect(offsetX: number, offsetY: number, scaleX: number, scaleY: number): void {
-    this.material.uniforms.uUvRectOffset.value.set(offsetX, offsetY);
-    this.material.uniforms.uUvRectScale.value.set(scaleX, scaleY);
+    this.warpMaterial.setUvRect(offsetX, offsetY, scaleX, scaleY);
   }
 
   /**
@@ -1076,14 +982,19 @@ export class MeshWarper {
 
   /** This surface's own pixel resolution, the source of its plane aspect */
   public getResolution(): Resolution {
-    const value = this.material.uniforms.uSurfaceResolution.value as THREE.Vector2;
-    return { width: value.x, height: value.y };
+    return this.warpMaterial.getResolution();
   }
 
   public getUvRect(): UvRect {
-    const offset = this.material.uniforms.uUvRectOffset.value as THREE.Vector2;
-    const scale = this.material.uniforms.uUvRectScale.value as THREE.Vector2;
-    return { offsetX: offset.x, offsetY: offset.y, scaleX: scale.x, scaleY: scale.y };
+    return this.warpMaterial.getUvRect();
+  }
+
+  public setImageSettings(settings: Partial<ImageSettings>): void {
+    this.warpMaterial.setImageSettings(settings);
+  }
+
+  public getImageSettings(): ImageSettings {
+    return this.warpMaterial.getImageSettings();
   }
 
   public getDragControls(): DragControls {
@@ -1092,6 +1003,6 @@ export class MeshWarper {
 
   /** Shared with MaskPlane so the mask follows the warped quad's dimensions */
   public getWarpPlaneSizeUniform(): { value: THREE.Vector2 } {
-    return this.material.uniforms.uWarpPlaneSize as { value: THREE.Vector2 };
+    return this.warpMaterial.getWarpPlaneSizeUniform();
   }
 }

@@ -10,6 +10,7 @@ import { SurfacePicker } from './SurfacePicker';
 import { OutputFrame } from './OutputFrame';
 import { RenderOrder } from './RenderOrder';
 import { SurfaceStore } from './SurfaceStore';
+import { ProjectorView } from './ProjectorView';
 import type { StoredSurface } from './SurfaceStore';
 import { ListenerSet } from '../utils/ListenerSet';
 import { clamp } from '../utils/math';
@@ -22,8 +23,6 @@ import {
   DEFAULT_SURFACE_ID,
   DEFAULT_UV_RECT,
   STORAGE_VERSION,
-  ZOOM_RANGE,
-  WHEEL_ZOOM,
   scopedStorageKey,
   planeSizeFor,
   textureResolution,
@@ -102,7 +101,7 @@ export interface ProjectionMapperConfig {
 export class ProjectionMapper {
   private renderer: THREE.WebGLRenderer;
   private scene: THREE.Scene;
-  private camera: THREE.OrthographicCamera;
+  private view: ProjectorView;
   private surfaces: WarpSurface[] = [];
   private activeSurfaceId: string = DEFAULT_SURFACE_ID;
   private composer: EffectComposer;
@@ -110,7 +109,6 @@ export class ProjectionMapper {
   private picker: SurfacePicker | null = null;
   private surfaceStore: SurfaceStore;
   private outputFrame: OutputFrame | null = null;
-  private onWheel: ((event: WheelEvent) => void) | null = null;
 
   /** Handle visibility applied to whichever surface is active */
   private controlsVisibility = { grid: true, corners: true, outline: true };
@@ -122,7 +120,6 @@ export class ProjectionMapper {
   private activeSurfaceChanged = new ListenerSet<[surfaceId: string]>();
   private polygonNodesChanged = new ListenerSet<[surfaceId: string]>();
   private surfaceTransformed = new ListenerSet<[surfaceId: string]>();
-  private zoomChanged = new ListenerSet<[zoom: number]>();
 
   /**
    * Notifications take listeners rather than a single assigned handler: the GUI
@@ -156,7 +153,7 @@ export class ProjectionMapper {
 
   /** The preview zoom changed, including by wheel — so a pane can follow it */
   onZoomChanged(listener: (zoom: number) => void): () => void {
-    return this.zoomChanged.add(listener);
+    return this.view.onZoomChanged(listener);
   }
 
   /** Genuinely output-wide uniforms, shared by reference across every surface material */
@@ -177,6 +174,10 @@ export class ProjectionMapper {
   private worldHeight: number;
 
   private config: Required<Omit<ProjectionMapperConfig, 'resolution' | 'appId'>> & { appId?: string };
+
+  private get camera(): THREE.OrthographicCamera {
+    return this.view.camera;
+  }
 
   constructor(renderer: THREE.WebGLRenderer, inputTexture: THREE.Texture, config: ProjectionMapperConfig = {}) {
     this.renderer = renderer;
@@ -207,10 +208,12 @@ export class ProjectionMapper {
 
     this.scene = new THREE.Scene();
 
-    this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
-    this.camera.position.set(0, 0, 20);
-    this.camera.lookAt(0, 0, 0);
-    this.updateCameraFrustum();
+    this.view = new ProjectorView({
+      domElement: this.renderer.domElement,
+      planeSize: { width: this.worldWidth, height: this.worldHeight },
+      zoom: this.config.zoom,
+      wheelZoom: this.config.wheelZoom,
+    });
 
     this.uniforms = {
       uBuffer: { value: inputTexture },
@@ -261,29 +264,12 @@ export class ProjectionMapper {
       this.outputFrame.setVisible(this.controlsVisibility.outline);
     }
 
-    if (this.config.wheelZoom) this.attachWheelZoom();
-
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
 
     if (this.config.antialias) {
       this.composer.addPass(new SMAAPass());
     }
-  }
-
-  /**
-   * Wheel and trackpad pinch zoom the preview. Multiplicative so a notch feels the
-   * same at any zoom, and the view stays centred — there is no canvas panning to
-   * keep a point under the cursor, so anchoring the zoom would drift the canvas
-   * off screen with nothing to bring it back.
-   */
-  private attachWheelZoom(): void {
-    this.onWheel = (event: WheelEvent) => {
-      if (!this.dragEnabled) return; // receive-only windows do not zoom
-      event.preventDefault();
-      this.setZoom(this.config.zoom * Math.exp(-event.deltaY * WHEEL_ZOOM.sensitivity));
-    };
-    this.renderer.domElement.addEventListener('wheel', this.onWheel, { passive: false });
   }
 
   // Use saved grid size from GUI settings if available, so MeshWarper
@@ -682,31 +668,9 @@ export class ProjectionMapper {
     return this.resolveSurface(surfaceId).getEdgeMask();
   }
 
-  private updateCameraFrustum(): void {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
-    const windowAspect = width / height;
-    const planeAspect = this.worldWidth / this.worldHeight;
-    const scale = 1 / this.config.zoom;
-
-    if (windowAspect > planeAspect) {
-      this.camera.top = (this.worldHeight / 2) * scale;
-      this.camera.bottom = (-this.worldHeight / 2) * scale;
-      this.camera.left = ((-this.worldHeight * windowAspect) / 2) * scale;
-      this.camera.right = ((this.worldHeight * windowAspect) / 2) * scale;
-    } else {
-      this.camera.left = (-this.worldWidth / 2) * scale;
-      this.camera.right = (this.worldWidth / 2) * scale;
-      this.camera.top = (this.worldWidth / windowAspect / 2) * scale;
-      this.camera.bottom = (-this.worldWidth / windowAspect / 2) * scale;
-    }
-
-    this.camera.updateProjectionMatrix();
-  }
-
   resize(width: number, height: number): void {
     this.composer.setSize(width, height);
-    this.updateCameraFrustum();
+    this.view.updateFrustum();
   }
 
   /** Active surface's warper — the single-surface facade */
@@ -741,6 +705,7 @@ export class ProjectionMapper {
 
   setDragEnabled(enabled: boolean): void {
     this.dragEnabled = enabled;
+    this.view.setInteractive(enabled); // a receive-only window does not zoom either
     this.applyActiveSurface();
   }
 
@@ -759,24 +724,19 @@ export class ProjectionMapper {
   }
 
   setZoom(scale: number): void {
-    const clamped = clamp(scale, ZOOM_RANGE.minimum, ZOOM_RANGE.maximum);
-    if (clamped === this.config.zoom) return;
-    this.config.zoom = clamped;
-    this.updateCameraFrustum();
-    this.zoomChanged.emit(clamped);
+    this.view.setZoom(scale);
   }
 
   getZoom(): number {
-    return this.config.zoom;
+    return this.view.getZoom();
   }
 
   setCameraOffset(x: number, y: number): void {
-    this.camera.position.x = x;
-    this.camera.position.y = y;
+    this.view.setOffset(x, y);
   }
 
   getCameraOffset(): { x: number; y: number } {
-    return { x: this.camera.position.x, y: this.camera.position.y };
+    return this.view.getOffset();
   }
 
   /**
@@ -808,7 +768,7 @@ export class ProjectionMapper {
     this.worldHeight = plane.height;
 
     this.outputFrame?.setSize(this.worldWidth, this.worldHeight);
-    this.updateCameraFrustum();
+    this.view.setPlaneSize(this.worldWidth, this.worldHeight);
   }
 
   /** Reset one surface's warp, or all surfaces when no id is given */
@@ -878,7 +838,7 @@ export class ProjectionMapper {
   }
 
   dispose(): void {
-    if (this.onWheel) this.renderer.domElement.removeEventListener('wheel', this.onWheel);
+    this.view.dispose();
     this.picker?.dispose();
     this.outputFrame?.dispose();
     this.surfaces.forEach((surface) => surface.dispose());
