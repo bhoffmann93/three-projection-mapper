@@ -112,9 +112,8 @@ const shaderMaterial = new THREE.ShaderMaterial({
           edgeYrange *= smoothstep(0.0, 0.75, uv.x); // rising from left
           float edgeY = mix(0.5 - edgeYrange, 0.5 + edgeYrange, sin(time * PI - i) * 0.5 + 0.5);
 
-          float freq = 5.0 * mix(0.5, 1.0, n);
+          float freq = 2.0 * mix(0.5, 1.0, n);
           float amp = 0.15;
-          amp *= smoothstep(0.0, 0.25, uv.x); // rising from left
 
           float phaseOffset = 1.5 * i;
 
