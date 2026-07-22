@@ -67,6 +67,18 @@ export const DEFAULT_UV_RECT: Readonly<UvRect> = {
 export const DEFAULT_SURFACE_ID = '0';
 export const SURFACES_STORAGE_KEY = 'projection-mapper-surfaces';
 
+/**
+ * Suffix a storage key with the parts that scope it.
+ *
+ * Every app served from one origin shares localStorage, so without an `appId`
+ * they share one calibration — and since the surface *list* is persisted, a
+ * second app that created two surfaces makes a single-surface app build two.
+ * Empty parts are dropped, so an app with no id and the default surface still
+ * reads and writes the original un-namespaced keys.
+ */
+export const scopedStorageKey = (base: string, ...parts: (string | undefined)[]): string =>
+  [base, ...parts.filter((part): part is string => !!part)].join(':');
+
 export const DEFAULT_POLYGON_FEATHER = 0.0;
 export const MAX_POLYGON_POINTS = 16;
 

@@ -18,6 +18,7 @@ import {
   SURFACES_STORAGE_KEY,
   STORAGE_VERSION,
   DEFAULT_SURFACE_DRAG_MODE,
+  scopedStorageKey,
 } from './defaults';
 import type {
   ImageSettings,
@@ -61,6 +62,12 @@ export interface ProjectionMapperConfig {
   canvasSelection?: boolean;
   /** When a body drag moves a surface (default: 'multi-only') */
   surfaceDragging?: SurfaceDragMode;
+  /**
+   * Scopes all persisted calibration to this app. Required whenever more than
+   * one app is served from the same origin — they share localStorage, so
+   * without it they overwrite each other's surfaces and warp points.
+   */
+  appId?: string;
 }
 
 /**
@@ -121,7 +128,7 @@ export class ProjectionMapper {
   private worldWidth: number;
   private worldHeight: number;
 
-  private config: Required<Omit<ProjectionMapperConfig, 'resolution'>>;
+  private config: Required<Omit<ProjectionMapperConfig, 'resolution' | 'appId'>> & { appId?: string };
 
   constructor(renderer: THREE.WebGLRenderer, inputTexture: THREE.Texture, config: ProjectionMapperConfig = {}) {
     this.renderer = renderer;
@@ -148,6 +155,7 @@ export class ProjectionMapper {
       antialias: config.antialias ?? DEFAULTS.antialias,
       zoom: config.zoom ?? DEFAULTS.zoom,
       canvasSelection: config.canvasSelection ?? true,
+      appId: config.appId,
       surfaceDragging: config.surfaceDragging ?? DEFAULT_SURFACE_DRAG_MODE,
     };
 
@@ -210,7 +218,7 @@ export class ProjectionMapper {
     let gridControlPoints = config.gridControlPoints;
     if (!gridControlPoints) {
       try {
-        const savedGui = localStorage.getItem(GUI_STORAGE_KEY);
+        const savedGui = localStorage.getItem(scopedStorageKey(GUI_STORAGE_KEY, config.appId));
         if (savedGui) {
           const parsed = JSON.parse(savedGui);
           if (parsed.gridSize?.x && parsed.gridSize?.y) {
@@ -229,7 +237,7 @@ export class ProjectionMapper {
   // the mapper config value only seeds the default surface
   private createSurface(record: StoredSurface): WarpSurface {
     const { id, uvRect, edgeMask, polygonMask, imageSettings } = record;
-    const storedGridSize = MeshWarper.getStoredGridSize(WarpSurface.storageNamespace(id));
+    const storedGridSize = MeshWarper.getStoredGridSize(WarpSurface.storageNamespace(id, this.config.appId));
     const gridControlPoints =
       storedGridSize ??
       (id === DEFAULT_SURFACE_ID
@@ -238,6 +246,7 @@ export class ProjectionMapper {
 
     const surface = new WarpSurface({
       id,
+      appId: this.config.appId,
       uvRect,
       edgeMask,
       polygonMask,
@@ -380,14 +389,23 @@ export class ProjectionMapper {
     return String(numericIds.length ? Math.max(...numericIds) + 1 : 0);
   }
 
+  private surfacesStorageKey(): string {
+    return scopedStorageKey(SURFACES_STORAGE_KEY, this.config.appId);
+  }
+
+  /** Storage scope for this mapper, so the GUI can namespace its own settings */
+  getAppId(): string | undefined {
+    return this.config.appId;
+  }
+
   private loadStoredSurfaces(): StoredSurfaces | null {
     try {
-      const stored = localStorage.getItem(SURFACES_STORAGE_KEY);
+      const stored = localStorage.getItem(this.surfacesStorageKey());
       if (!stored) return null;
       const parsed = JSON.parse(stored) as StoredSurfaces;
       if (!Array.isArray(parsed.surfaces)) return null;
       if (parsed.version !== STORAGE_VERSION) {
-        localStorage.removeItem(SURFACES_STORAGE_KEY);
+        localStorage.removeItem(this.surfacesStorageKey());
         return null;
       }
       return parsed;
@@ -409,7 +427,7 @@ export class ProjectionMapper {
       })),
     };
     try {
-      localStorage.setItem(SURFACES_STORAGE_KEY, JSON.stringify(data));
+      localStorage.setItem(this.surfacesStorageKey(), JSON.stringify(data));
     } catch (e) {
       console.warn('Failed to save surfaces to localStorage:', e);
     }

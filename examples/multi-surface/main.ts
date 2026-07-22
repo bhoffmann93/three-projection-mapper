@@ -161,6 +161,7 @@ const renderTarget = new THREE.WebGLRenderTarget(bufferRes.width, bufferRes.heig
 const mapper = new ProjectionMapper(renderer, renderTarget.texture, {
   resolution: regionRes,
   zoom: 0.4,
+  appId: 'multi-surface',
 });
 
 // Apply the example layout once: one surface per atlas region, side by side

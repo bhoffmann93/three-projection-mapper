@@ -34,6 +34,8 @@ export interface WarpSurfaceMaskConfig {
 
 export interface WarpSurfaceConfig {
   id: string;
+  /** Scopes this surface's storage to one app — see WarpSurface.storageNamespace */
+  appId?: string;
   uvRect?: UvRect;
   edgeMask?: EdgeMaskSettings;
   polygonMask?: PolygonMaskSettings;
@@ -44,6 +46,7 @@ export interface WarpSurfaceConfig {
 
 export class WarpSurface {
   readonly id: string;
+  private appId?: string;
 
   private warper: MeshWarper;
   private maskPlane: MaskPlane;
@@ -61,13 +64,20 @@ export class WarpSurface {
   /** Called whenever this surface's polygon nodes change (drag, insert, delete) */
   public onPolygonNodesChanged: () => void = () => {};
 
-  /** The default surface keeps the legacy un-namespaced keys so existing calibrations survive */
-  static storageNamespace(id: string): string | undefined {
-    return id === DEFAULT_SURFACE_ID ? undefined : `surface-${id}`;
+  /**
+   * Scopes this surface's warp points and polygon mask. The app id keeps
+   * separate apps on one origin from sharing a calibration; the default surface
+   * of an app with no id keeps the legacy un-namespaced keys.
+   */
+  static storageNamespace(id: string, appId?: string): string | undefined {
+    const surfacePart = id === DEFAULT_SURFACE_ID ? undefined : `surface-${id}`;
+    const parts = [appId, surfacePart].filter((part): part is string => !!part);
+    return parts.length ? parts.join(':') : undefined;
   }
 
   constructor(config: WarpSurfaceConfig) {
     this.id = config.id;
+    this.appId = config.appId;
     this.maskConfig = config.mask;
     this.uvRect = { ...DEFAULT_UV_RECT, ...config.uvRect };
     this.edgeMask = { ...DEFAULT_EDGE_MASK, ...config.edgeMask };
@@ -76,7 +86,7 @@ export class WarpSurface {
     this.warper = new MeshWarper({
       ...config.warper,
       imageSettings: config.imageSettings,
-      storageNamespace: WarpSurface.storageNamespace(config.id),
+      storageNamespace: WarpSurface.storageNamespace(config.id, config.appId),
     });
     this.warper.setUvRect(this.uvRect.offsetX, this.uvRect.offsetY, this.uvRect.scaleX, this.uvRect.scaleY);
 
@@ -99,7 +109,7 @@ export class WarpSurface {
   }
 
   private namespace(): string | undefined {
-    return WarpSurface.storageNamespace(this.id);
+    return WarpSurface.storageNamespace(this.id, this.appId);
   }
 
   // --- input crop -----------------------------------------------------------

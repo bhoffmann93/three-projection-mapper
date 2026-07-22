@@ -101,7 +101,7 @@ const sketch = (s: p5) => {
     (cnv.elt as HTMLCanvasElement).style.display = 'none';
 
     canvasTexture = new THREE.CanvasTexture(cnv.elt as HTMLCanvasElement);
-    mapper = new ProjectionMapper(renderer, canvasTexture, { resolution: projectionResolution });
+    mapper = new ProjectionMapper(renderer, canvasTexture, { resolution: projectionResolution, appId: 'p5-canvas' });
     gui = new ProjectionMapperGUI(mapper, {
       title: 'Projection Mapper',
       anchor: 'left',

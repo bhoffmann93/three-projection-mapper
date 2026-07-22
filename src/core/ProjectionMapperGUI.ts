@@ -11,6 +11,7 @@ import {
   MESH_WARP_GRID_SIZE,
   STORAGE_VERSION,
   SHOW_ACES_TOGGLE,
+  scopedStorageKey,
 } from './defaults';
 import type { ImageSettings } from './defaults';
 import { WARP_MODE } from '../warp/MeshWarper';
@@ -94,11 +95,13 @@ export class ProjectionMapperGUI {
   private syncMasksFolder: () => void = () => {};
   private syncPolyButtons: () => void = () => {};
 
-  private readonly STORAGE_KEY = GUI_STORAGE_KEY;
+  /** Scoped to the mapper's app so apps on one origin keep separate pane state */
+  private readonly STORAGE_KEY: string;
 
   constructor(mapper: ProjectionMapper, config: ProjectionMapperGUIConfig = {}) {
     this.mapper = mapper;
     this.config = config;
+    this.STORAGE_KEY = scopedStorageKey(GUI_STORAGE_KEY, mapper.getAppId());
 
     const title = config.title || 'Projection Mapper';
     const anchor = config.anchor || 'left';

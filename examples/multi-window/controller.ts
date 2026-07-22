@@ -17,7 +17,7 @@ const bufferResolution = {
   height: MUTLI_WINDOW_CONFIG.projectionResolution.height * MUTLI_WINDOW_CONFIG.bufferResOversampling,
 };
 const projectionScene = new ProjectionScene({ width: bufferResolution.width, height: bufferResolution.height });
-const mapper = new ProjectionMapper(renderer, projectionScene.getTexture());
+const mapper = new ProjectionMapper(renderer, projectionScene.getTexture(), { appId: MUTLI_WINDOW_CONFIG.appId });
 const sync = new WindowSync(mapper, { mode: WINDOW_SYNC_MODE.CONTROLLER });
 
 const gui = new ProjectionMapperGUI(mapper, {
