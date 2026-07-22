@@ -11,8 +11,17 @@
  */
 
 export { ProjectionMapper, type ProjectionMapperConfig } from './core/ProjectionMapper';
-export { DEFAULT_IMAGE_SETTINGS, DEFAULT_UV_RECT, type ImageSettings, type UvRect } from './core/defaults';
+export {
+  DEFAULT_IMAGE_SETTINGS,
+  DEFAULT_EDGE_MASK,
+  DEFAULT_UV_RECT,
+  type ImageSettings,
+  type EdgeMaskSettings,
+  type PolygonMaskSettings,
+  type UvRect,
+} from './core/defaults';
 export { WarpSurface, type WarpSurfaceConfig } from './warp/WarpSurface';
+export { SurfacePicker, type SurfacePickerConfig } from './core/SurfacePicker';
 export {
   ProjectionMapperGUI,
   type GUIAnchor,

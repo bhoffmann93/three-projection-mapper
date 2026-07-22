@@ -7,12 +7,14 @@ regions: left half = a 3D scene (rotating cube), right half = a GLSL shader.
 Each region renders once, straight into the shared render target — no blits.
 The surfaces spawn side by side, not overlapping.
 
-Use the GUI's Surfaces folder to select, add or remove surfaces; only the
-active surface shows drag handles.
+Click a surface on the canvas to select it and drag its body to move it; only
+the active surface shows drag handles. The input view (bottom right) shows the
+shared buffer with one crop rect per surface — drag a rect to re-crop.
 */
 
 import * as THREE from 'three';
 import { ProjectionMapper, ProjectionMapperGUI } from '../../src/lib';
+import { UvRectEditor } from '../../src/addons';
 
 const renderer = new THREE.WebGLRenderer({
   powerPreference: 'high-performance',
@@ -128,20 +130,24 @@ const gui = new ProjectionMapperGUI(mapper, {
   anchor: 'left',
 });
 
+const uvRectEditor = new UvRectEditor(mapper);
+
 const hint = document.createElement('div');
 hint.style.cssText =
   'position:fixed;bottom:16px;left:16px;color:rgba(255,255,255,0.5);font:12px/1.6 monospace;pointer-events:none;transition:opacity 0.3s';
 hint.innerHTML =
-  '<span>G</span> toggle UI<br><span>T</span> test card<br><span>W</span> warp controls<br>Select a surface in the GUI to edit its warp';
+  '<span>G</span> toggle UI<br><span>T</span> test card<br><span>W</span> warp controls<br><span>I</span> input view<br>Click a surface to select it, drag its body to move it';
 document.body.appendChild(hint);
 
 let uiVisible = true;
 window.addEventListener('keydown', (e) => {
   if (e.key === 'g' || e.key === 'p') {
     gui.toggle();
+    uvRectEditor.toggle();
     uiVisible = !uiVisible;
     hint.style.opacity = uiVisible ? '1' : '0';
   }
+  if (e.key === 'i') uvRectEditor.toggle();
   if (e.key === 't') gui.toggleTestCard();
   if (e.key === 'w') gui.toggleWarpUI();
 });
@@ -180,6 +186,7 @@ function animate() {
   renderTarget.scissorTest = false;
   renderer.setRenderTarget(null);
   mapper.render();
+  uvRectEditor.update(renderer);
 }
 
 animate();
@@ -189,4 +196,6 @@ console.log('Controls:');
 console.log('  G/P - Toggle GUI');
 console.log('  T   - Toggle testcard');
 console.log('  W   - Toggle warp UI');
-console.log('  Surfaces folder: select / add / remove surfaces, set UV rect');
+console.log('  I   - Toggle input view (UV rect editor)');
+console.log('  Click a surface to select it, drag its body to move it');
+console.log('  Surfaces folder: add / remove surfaces; input view: crop them');

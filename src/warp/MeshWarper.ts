@@ -34,6 +34,9 @@ export enum WARP_MODE {
   bicubic = 1,
 }
 
+/** How a surface's outline is drawn: selected, under the cursor, or neither */
+export type OutlineState = 'active' | 'inactive' | 'hover';
+
 export interface MeshWarperConfig {
   width: number;
   height: number;
@@ -283,6 +286,7 @@ export class MeshWarper {
     const lineMaterial = new LineMaterial({
       color: WARP_HANDLE_STYLE.outlineColor,
       linewidth: WARP_HANDLE_STYLE.outlineLineWidth,
+      transparent: true,
     });
 
     const line = new Line2(outlineGeometry, lineMaterial);
@@ -570,6 +574,37 @@ export class MeshWarper {
 
   public setOutlineVisible(visible: boolean): void {
     this.quadOutlineLine.visible = visible;
+  }
+
+  /**
+   * Restyle the outline for the surface's selection state. Inactive surfaces
+   * stay visible but dimmed so they can still be clicked to select.
+   */
+  public setOutlineState(state: OutlineState): void {
+    const material = this.quadOutlineLine.material as {
+      color: THREE.Color;
+      opacity: number;
+      linewidth: number;
+    };
+
+    if (state === 'active') {
+      material.color.set(WARP_HANDLE_STYLE.outlineColor);
+      material.opacity = 1.0;
+      material.linewidth = WARP_HANDLE_STYLE.outlineLineWidth;
+    } else if (state === 'hover') {
+      material.color.set(WARP_HANDLE_STYLE.hoverOutlineColor);
+      material.opacity = WARP_HANDLE_STYLE.hoverOutlineOpacity;
+      material.linewidth = WARP_HANDLE_STYLE.outlineLineWidth;
+    } else {
+      material.color.set(WARP_HANDLE_STYLE.inactiveOutlineColor);
+      material.opacity = WARP_HANDLE_STYLE.inactiveOutlineOpacity;
+      material.linewidth = WARP_HANDLE_STYLE.inactiveOutlineLineWidth;
+    }
+  }
+
+  /** Visible drag handles — raycast these before the body so handles win */
+  public getHandleObjects(): THREE.Mesh[] {
+    return [...this.cornerObjects, ...this.gridObjects].filter((obj) => obj.visible);
   }
 
   public setAllControlsVisible(visible: boolean): void {

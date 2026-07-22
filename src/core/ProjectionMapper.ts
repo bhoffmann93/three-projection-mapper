@@ -6,25 +6,36 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import projectionFragmentShader from '../shaders/projection.frag';
 import { calculateGridPoints } from '../warp/geometry';
+import { SurfacePicker } from './SurfacePicker';
 import {
   GUI_STORAGE_KEY,
   DEFAULT_IMAGE_SETTINGS,
+  DEFAULT_EDGE_MASK,
+  DEFAULT_POLYGON_MASK_SETTINGS,
   DEFAULTS,
   DEFAULT_SURFACE_ID,
   DEFAULT_UV_RECT,
   SURFACES_STORAGE_KEY,
+  STORAGE_VERSION,
 } from './defaults';
-import type { ImageSettings, UvRect } from './defaults';
-import { PolygonMask, type UVPoint, POLYGON_MASK_STORAGE_KEY } from '../mask/PolygonMask';
-import { MaskPlane } from '../mask/MaskPlane';
+import type { ImageSettings, EdgeMaskSettings, PolygonMaskSettings, UvRect } from './defaults';
+import { PolygonMask, type UVPoint } from '../mask/PolygonMask';
 
 export { GUI_STORAGE_KEY, DEFAULT_IMAGE_SETTINGS };
 export type { ImageSettings };
 
+/** Edge feather and polygon settings ride along with the surface list */
+interface StoredSurface {
+  id: string;
+  uvRect: UvRect;
+  edgeMask?: EdgeMaskSettings;
+  polygonMask?: PolygonMaskSettings;
+}
+
 interface StoredSurfaces {
   version: number;
   activeId: string;
-  surfaces: { id: string; uvRect: UvRect }[];
+  surfaces: StoredSurface[];
 }
 
 export interface ProjectionMapperConfig {
@@ -38,6 +49,8 @@ export interface ProjectionMapperConfig {
   antialias?: boolean;
   /** Scale factor for how much of the window the plane fills (default: 0.9 = 90%) */
   zoom?: number;
+  /** Click a surface to select it, drag its body to move it (default: true) */
+  canvasSelection?: boolean;
 }
 
 /**
@@ -64,13 +77,22 @@ export class ProjectionMapper {
   private activeSurfaceId: string = DEFAULT_SURFACE_ID;
   private composer: EffectComposer;
   private clock: THREE.Clock;
+  private picker: SurfacePicker | null = null;
 
   /** Handle visibility applied to whichever surface is active */
   private controlsVisibility = { grid: true, corners: true, outline: true };
   private dragEnabled = true;
+  private shouldWarp = true;
+  private polygonHandlesEnabled = true;
 
-  /** Called whenever the surface list or active surface changes */
+  /** Called whenever the surface list changes */
   public onSurfacesChanged: () => void = () => {};
+
+  /** Called whenever the selected surface changes, including via canvas clicks */
+  public onActiveSurfaceChanged: (surfaceId: string) => void = () => {};
+
+  /** Called whenever any surface's polygon mask nodes change (drag, insert, delete, reset). */
+  public onPolygonNodesChanged: (surfaceId: string) => void = () => {};
 
   private uniforms: {
     uBuffer: { value: THREE.Texture };
@@ -88,11 +110,6 @@ export class ProjectionMapper {
   };
 
   private whiteOut = false;
-  private polygonMask: PolygonMask | null = null;
-
-  /** Called whenever polygon mask nodes change (drag, insert, delete, reset). */
-  public onPolygonNodesChanged: () => void = () => {};
-  private maskPlane!: MaskPlane;
   private imageSettings: ImageSettings;
 
   /** Resolution in pixels, passed through to shaders */
@@ -127,6 +144,7 @@ export class ProjectionMapper {
       gridControlPoints,
       antialias: config.antialias ?? DEFAULTS.antialias,
       zoom: config.zoom ?? DEFAULTS.zoom,
+      canvasSelection: config.canvasSelection ?? true,
     };
 
     this.scene = new THREE.Scene();
@@ -156,25 +174,31 @@ export class ProjectionMapper {
     this.imageSettings = { ...DEFAULT_IMAGE_SETTINGS };
 
     const stored = this.loadStoredSurfaces();
-    const initialSurfaces = stored?.surfaces?.length
+    const initialSurfaces: StoredSurface[] = stored?.surfaces?.length
       ? stored.surfaces
       : [{ id: DEFAULT_SURFACE_ID, uvRect: { ...DEFAULT_UV_RECT } }];
 
-    for (const { id, uvRect } of initialSurfaces) {
-      this.surfaces.push(this.createSurface(id, uvRect));
+    for (const record of initialSurfaces) {
+      const surface = this.createSurface(record);
+      // A polygon mask saved in a previous session comes back with its surface
+      surface.restorePolygonMask();
+      this.surfaces.push(surface);
     }
 
     this.activeSurfaceId =
       stored?.activeId && this.getSurface(stored.activeId) ? stored.activeId : this.surfaces[0].id;
     this.applyActiveSurface();
 
-    this.maskPlane = new MaskPlane({
-      worldWidth: this.worldWidth,
-      worldHeight: this.worldHeight,
-      segments: this.config.segments,
-      scene: this.scene,
-      warpPlaneSizeRef: this.surfaces[0].getWarper().getWarpPlaneSizeUniform(),
-    });
+    if (this.config.canvasSelection) {
+      this.picker = new SurfacePicker({
+        domElement: this.renderer.domElement,
+        camera: this.camera,
+        getSurfaces: () => this.surfaces,
+        setActiveSurface: (id) => this.setActiveSurface(id),
+        onSurfaceMoved: () => this.saveSurfaces(),
+      });
+      this.applyPickerEnabled();
+    }
 
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
@@ -207,7 +231,8 @@ export class ProjectionMapper {
 
   // A surface's own persisted grid size wins so calibration restores exactly;
   // the mapper config value only seeds the default surface
-  private createSurface(id: string, uvRect?: UvRect): WarpSurface {
+  private createSurface(record: StoredSurface): WarpSurface {
+    const { id, uvRect, edgeMask, polygonMask } = record;
     const storedGridSize = MeshWarper.getStoredGridSize(WarpSurface.storageNamespace(id));
     const gridControlPoints =
       storedGridSize ??
@@ -215,9 +240,11 @@ export class ProjectionMapper {
         ? { ...this.config.gridControlPoints }
         : calculateGridPoints(this.worldWidth / this.worldHeight, DEFAULTS.minGridWarpPoints));
 
-    return new WarpSurface({
+    const surface = new WarpSurface({
       id,
       uvRect,
+      edgeMask,
+      polygonMask,
       warper: {
         width: this.worldWidth,
         height: this.worldHeight,
@@ -232,23 +259,48 @@ export class ProjectionMapper {
         globalDefines: {},
         bufferTexture: this.uniforms.uBuffer.value,
       },
+      mask: {
+        worldWidth: this.worldWidth,
+        worldHeight: this.worldHeight,
+        segments: this.config.segments,
+        scene: this.scene,
+        camera: this.camera,
+        renderer: this.renderer,
+      },
     });
+
+    surface.onPolygonNodesChanged = () => this.onPolygonNodesChanged(surface.id);
+    surface.setShouldWarp(this.shouldWarp);
+    return surface;
   }
 
   /** Only the active surface shows handles and accepts drags */
   private applyActiveSurface(): void {
     for (const surface of this.surfaces) {
       const warper = surface.getWarper();
-      if (surface.id === this.activeSurfaceId) {
+      const isActive = surface.id === this.activeSurfaceId;
+
+      if (isActive) {
         warper.setGridPointsVisible(this.controlsVisibility.grid);
         warper.setCornerPointsVisible(this.controlsVisibility.corners);
-        warper.setOutlineVisible(this.controlsVisibility.outline);
         warper.setDragEnabled(this.dragEnabled);
       } else {
-        warper.setAllControlsVisible(false);
+        warper.setGridPointsVisible(false);
+        warper.setCornerPointsVisible(false);
         warper.setDragEnabled(false);
       }
+
+      // Inactive surfaces keep a dimmed outline so they stay clickable targets
+      warper.setOutlineVisible(this.controlsVisibility.outline);
+      surface.setActive(isActive);
+      surface.setHandlesVisible(this.polygonHandlesEnabled && this.shouldWarp);
     }
+    this.applyPickerEnabled();
+  }
+
+  /** Canvas selection is pointless once everything is hidden or drags are off */
+  private applyPickerEnabled(): void {
+    this.picker?.setEnabled(this.dragEnabled && this.controlsVisibility.outline);
   }
 
   addSurface(options: { id?: string; uvRect?: UvRect } = {}): WarpSurface {
@@ -256,12 +308,13 @@ export class ProjectionMapper {
     const existing = this.getSurface(id);
     if (existing) return existing;
 
-    const surface = this.createSurface(id, options.uvRect);
+    const surface = this.createSurface({ id, uvRect: { ...DEFAULT_UV_RECT, ...options.uvRect } });
     this.surfaces.push(surface);
     this.activeSurfaceId = id;
     this.applyActiveSurface();
     this.saveSurfaces();
     this.onSurfacesChanged();
+    this.onActiveSurfaceChanged(id);
     return surface;
   }
 
@@ -271,18 +324,17 @@ export class ProjectionMapper {
     if (index === -1) return;
 
     const [removed] = this.surfaces.splice(index, 1);
-    removed.getWarper().clearStorage();
+    removed.clearStorage();
     removed.dispose();
 
-    if (index === 0) {
-      this.maskPlane.setWarpPlaneSizeRef(this.surfaces[0].getWarper().getWarpPlaneSizeUniform());
-    }
-    if (this.activeSurfaceId === id) {
+    const selectionChanged = this.activeSurfaceId === id;
+    if (selectionChanged) {
       this.activeSurfaceId = this.surfaces[0].id;
     }
     this.applyActiveSurface();
     this.saveSurfaces();
     this.onSurfacesChanged();
+    if (selectionChanged) this.onActiveSurfaceChanged(this.activeSurfaceId);
   }
 
   getSurfaces(): WarpSurface[] {
@@ -302,19 +354,22 @@ export class ProjectionMapper {
     this.activeSurfaceId = id;
     this.applyActiveSurface();
     this.saveSurfaces();
+    this.onActiveSurfaceChanged(id);
     this.onSurfacesChanged();
   }
 
+  /** Surface the id names, or the active one when no id is given */
+  private resolveSurface(surfaceId?: string): WarpSurface {
+    return (surfaceId ? this.getSurface(surfaceId) : null) ?? this.getActiveSurface();
+  }
+
   setUvRect(offsetX: number, offsetY: number, scaleX: number, scaleY: number, surfaceId?: string): void {
-    const surface = surfaceId ? this.getSurface(surfaceId) : this.getActiveSurface();
-    if (!surface) return;
-    surface.setUvRect(offsetX, offsetY, scaleX, scaleY);
+    this.resolveSurface(surfaceId).setUvRect(offsetX, offsetY, scaleX, scaleY);
     this.saveSurfaces();
   }
 
   getUvRect(surfaceId?: string): UvRect {
-    const surface = surfaceId ? this.getSurface(surfaceId) : this.getActiveSurface();
-    return (surface ?? this.getActiveSurface()).getUvRect();
+    return this.resolveSurface(surfaceId).getUvRect();
   }
 
   private nextSurfaceId(): string {
@@ -328,6 +383,10 @@ export class ProjectionMapper {
       if (!stored) return null;
       const parsed = JSON.parse(stored) as StoredSurfaces;
       if (!Array.isArray(parsed.surfaces)) return null;
+      if (parsed.version !== STORAGE_VERSION) {
+        localStorage.removeItem(SURFACES_STORAGE_KEY);
+        return null;
+      }
       return parsed;
     } catch {
       return null;
@@ -336,9 +395,14 @@ export class ProjectionMapper {
 
   private saveSurfaces(): void {
     const data: StoredSurfaces = {
-      version: 1,
+      version: STORAGE_VERSION,
       activeId: this.activeSurfaceId,
-      surfaces: this.surfaces.map((s) => ({ id: s.id, uvRect: s.getUvRect() })),
+      surfaces: this.surfaces.map((s) => ({
+        id: s.id,
+        uvRect: s.getUvRect(),
+        edgeMask: s.getEdgeMask(),
+        polygonMask: s.getPolygonSettings(),
+      })),
     };
     try {
       localStorage.setItem(SURFACES_STORAGE_KEY, JSON.stringify(data));
@@ -365,19 +429,9 @@ export class ProjectionMapper {
     const frustumWidth = this.camera.right - this.camera.left;
     const viewportWidth = this.renderer.domElement.clientWidth;
     const pixelToWorld = frustumWidth / viewportWidth;
-    this.surfaces.forEach((surface) => surface.getWarper().updateControlPointsScale(pixelToWorld));
 
-    // Edge feather mask and polygon mask follow the first surface's perspective
-    const firstWarper = this.surfaces[0].getWarper();
-    this.maskPlane.syncPerspective(firstWarper.getPerspectiveCoeffs());
-
-    if (this.polygonMask) {
-      this.polygonMask.updateTransformedPositions(
-        (x, y) => firstWarper.applyPerspectiveTransform(x, y),
-        (x, y) => firstWarper.applyInversePerspectiveTransform(x, y),
-      );
-      this.polygonMask.updateControlPointsScale(pixelToWorld);
-    }
+    // Each surface's masks follow that surface's own perspective
+    this.surfaces.forEach((surface) => surface.syncMasks(pixelToWorld));
 
     if (this.config.antialias == false) {
       this.renderer.setRenderTarget(null);
@@ -390,6 +444,11 @@ export class ProjectionMapper {
   setTexture(texture: THREE.Texture): void {
     this.uniforms.uBuffer.value = texture;
     this.surfaces.forEach((surface) => surface.getWarper().setBufferTexture(texture));
+  }
+
+  /** The shared input texture every surface samples */
+  getTexture(): THREE.Texture {
+    return this.uniforms.uBuffer.value;
   }
 
   setShowTestCard(show: boolean): void {
@@ -416,14 +475,17 @@ export class ProjectionMapper {
     return this.uniforms.uShowControlLines.value;
   }
 
-  setImageSettings(settings: Partial<ImageSettings>): void {
-    if (settings.maskEnabled !== undefined) {
-      this.imageSettings.maskEnabled = settings.maskEnabled;
-      this.maskPlane.setFeatherMask(settings.maskEnabled, this.imageSettings.feather);
-    }
-    if (settings.feather !== undefined) {
-      this.imageSettings.feather = settings.feather;
-      this.maskPlane.setFeatherMask(this.imageSettings.maskEnabled, settings.feather);
+  /**
+   * Global image adjustments, shared by every surface.
+   *
+   * @deprecated `maskEnabled` and `feather` are per-surface since edge feather
+   * moved onto WarpSurface; passing them here routes to the active surface.
+   * Prefer {@link setEdgeMask}.
+   */
+  setImageSettings(settings: Partial<ImageSettings & EdgeMaskSettings>): void {
+    if (settings.maskEnabled !== undefined || settings.feather !== undefined) {
+      const current = this.getEdgeMask();
+      this.setEdgeMask(settings.maskEnabled ?? current.maskEnabled, settings.feather ?? current.feather);
     }
     if (settings.tonemap !== undefined) {
       this.imageSettings.tonemap = settings.tonemap;
@@ -457,6 +519,17 @@ export class ProjectionMapper {
 
   getImageSettings(): ImageSettings {
     return { ...this.imageSettings };
+  }
+
+  // --- per-surface edge feather ---------------------------------------------
+
+  setEdgeMask(enabled: boolean, feather?: number, surfaceId?: string): void {
+    this.resolveSurface(surfaceId).setEdgeFeather(enabled, feather);
+    this.saveSurfaces();
+  }
+
+  getEdgeMask(surfaceId?: string): EdgeMaskSettings {
+    return this.resolveSurface(surfaceId).getEdgeMask();
   }
 
   private updateCameraFrustum(): void {
@@ -507,9 +580,11 @@ export class ProjectionMapper {
     this.getWarper().setCornerPointsVisible(visible);
   }
 
+  /** Outlines are shared by all surfaces — they double as selection targets */
   setOutlineVisible(visible: boolean): void {
     this.controlsVisibility.outline = visible;
-    this.getWarper().setOutlineVisible(visible);
+    this.surfaces.forEach((surface) => surface.getWarper().setOutlineVisible(visible));
+    this.applyPickerEnabled();
   }
 
   setDragEnabled(enabled: boolean): void {
@@ -522,13 +597,13 @@ export class ProjectionMapper {
   }
 
   setShouldWarp(enabled: boolean): void {
-    this.surfaces.forEach((surface) => surface.getWarper().setShouldWarp(enabled));
-    this.maskPlane.setShouldWarp(enabled);
-    this.polygonMask?.setVisible(enabled);
+    this.shouldWarp = enabled;
+    this.surfaces.forEach((surface) => surface.setShouldWarp(enabled));
+    this.applyActiveSurface();
   }
 
   isWarpEnabled(): boolean {
-    return this.getWarper().getShouldWarp();
+    return this.shouldWarp;
   }
 
   setZoom(scale: number): void {
@@ -570,83 +645,63 @@ export class ProjectionMapper {
     return this.camera;
   }
 
-  addPolygonMask(nodes?: UVPoint[]): PolygonMask {
-    if (this.polygonMask) this.removePolygonMask();
-    this.polygonMask = new PolygonMask(
-      this.scene,
-      this.camera,
-      this.renderer,
-      this.worldWidth,
-      this.worldHeight,
-      nodes,
-    );
-    this.polygonMask.onChanged = () => this.syncPolygonMaskUniforms();
-    this.polygonMask.setVisible(this.getWarper().getShouldWarp());
-    this.maskPlane.setPolygonMaskEnabled(true);
-    this.syncPolygonMaskUniforms();
-    return this.polygonMask;
+  // --- per-surface polygon mask ---------------------------------------------
+  // All of these act on the active surface unless given an explicit id.
+
+  addPolygonMask(nodes?: UVPoint[], surfaceId?: string): PolygonMask {
+    const mask = this.resolveSurface(surfaceId).addPolygonMask(nodes);
+    this.saveSurfaces();
+    return mask;
   }
 
-  resetPolygonMask(): void {
-    if (!this.polygonMask) return;
-    this.polygonMask.clearStorage();
-    this.polygonMask.dispose();
-    this.polygonMask = new PolygonMask(this.scene, this.camera, this.renderer, this.worldWidth, this.worldHeight);
-    this.polygonMask.onChanged = () => this.syncPolygonMaskUniforms();
-    this.polygonMask.setVisible(this.getWarper().getShouldWarp());
-    this.syncPolygonMaskUniforms();
+  resetPolygonMask(surfaceId?: string): void {
+    this.resolveSurface(surfaceId).resetPolygonMask();
   }
 
-  removePolygonMask(): void {
-    if (!this.polygonMask) return;
-    this.polygonMask.dispose();
-    this.polygonMask.clearStorage();
-    this.polygonMask = null;
-    this.maskPlane.setPolygonMaskEnabled(false);
-    this.maskPlane.setPolygonNodes([]);
+  removePolygonMask(surfaceId?: string): void {
+    this.resolveSurface(surfaceId).removePolygonMask();
+    this.saveSurfaces();
   }
 
-  private syncPolygonMaskUniforms(): void {
-    if (!this.polygonMask) return;
-    this.maskPlane.setPolygonNodes(this.polygonMask.nodes);
-    this.onPolygonNodesChanged();
+  getPolygonMask(surfaceId?: string): PolygonMask | null {
+    return this.resolveSurface(surfaceId).getPolygonMask();
   }
 
-  getPolygonMaskFullState(): { nodes: UVPoint[]; enabled: boolean; inverted: boolean; feather: number } | null {
-    if (!this.polygonMask) return null;
-    return {
-      nodes: Array.from(this.polygonMask.nodes),
-      enabled: this.maskPlane.getPolygonMaskEnabled(),
-      inverted: this.maskPlane.getPolygonInvert(),
-      feather: this.maskPlane.getPolygonFeather(),
-    };
+  getPolygonMaskFullState(
+    surfaceId?: string,
+  ): { nodes: UVPoint[]; enabled: boolean; inverted: boolean; feather: number } | null {
+    return this.resolveSurface(surfaceId).getPolygonMaskState();
   }
 
-  getPolygonMask(): PolygonMask | null {
-    return this.polygonMask;
+  setPolygonMaskEnabled(enabled: boolean, surfaceId?: string): void {
+    this.resolveSurface(surfaceId).setPolygonMaskEnabled(enabled);
+    this.saveSurfaces();
   }
 
-  setPolygonMaskEnabled(enabled: boolean): void {
-    this.maskPlane.setPolygonMaskEnabled(enabled);
+  setPolygonFeather(feather: number, surfaceId?: string): void {
+    this.resolveSurface(surfaceId).setPolygonFeather(feather);
+    this.saveSurfaces();
   }
 
-  setPolygonFeather(feather: number): void {
-    this.maskPlane.setPolygonFeather(feather);
+  setPolygonInvert(invert: boolean, surfaceId?: string): void {
+    this.resolveSurface(surfaceId).setPolygonInvert(invert);
+    this.saveSurfaces();
   }
 
-  setPolygonInvert(invert: boolean): void {
-    this.maskPlane.setPolygonInvert(invert);
+  /** Toggle polygon anchor handles without changing the mask itself */
+  setPolygonHandlesVisible(visible: boolean): void {
+    this.polygonHandlesEnabled = visible;
+    this.applyActiveSurface();
   }
 
   setShowBorderLines(show: boolean): void {
-    this.maskPlane.setShowBorderLines(show);
+    this.surfaces.forEach((surface) => surface.setShowBorderLines(show));
   }
 
   dispose(): void {
+    this.picker?.dispose();
     this.surfaces.forEach((surface) => surface.dispose());
-    this.maskPlane.dispose();
     this.composer.dispose();
-    this.polygonMask?.dispose();
   }
 }
 

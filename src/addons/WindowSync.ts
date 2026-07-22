@@ -122,6 +122,7 @@ export class WindowSync {
     this.mapper.setShowBorderLines(false);
     this.mapper.setZoom(1.0);
     this.mapper.setDragEnabled(false);
+    this.mapper.setPolygonHandlesVisible(false);
 
     // Request full state from controller
     console.log('[WindowSync] Projector requesting full state from controller...');
@@ -172,7 +173,7 @@ export class WindowSync {
 
     this.eventChannel.on(ProjectionEventType.SHOULD_WARP_CHANGED, ({ shouldWarp }) => {
       this.mapper.setShouldWarp(shouldWarp);
-      this.mapper.getPolygonMask()?.setVisible(false);
+      this.mapper.setPolygonHandlesVisible(false); // projector is never interactive
     });
 
     this.eventChannel.on(ProjectionEventType.TESTCARD_TOGGLED, ({ show }) => {
@@ -197,40 +198,54 @@ export class WindowSync {
       this.mapper.reset(surfaceId);
     });
 
-    this.eventChannel.on(ProjectionEventType.POLYGON_MASK_NODES_CHANGED, ({ nodes }) => {
-      if (!this.mapper.getPolygonMask()) this.mapper.addPolygonMask(nodes);
-      else this.mapper.getPolygonMask()!.setNodes(nodes);
-      this.mapper.getPolygonMask()?.setVisible(false);
+    this.eventChannel.on(ProjectionEventType.EDGE_MASK_CHANGED, ({ enabled, feather, surfaceId }) => {
+      this.resolveSurface(surfaceId)?.setEdgeFeather(enabled, feather);
     });
 
-    this.eventChannel.on(ProjectionEventType.POLYGON_MASK_SETTINGS_CHANGED, ({ enabled, inverted, feather }) => {
-      this.mapper.setPolygonMaskEnabled(enabled);
-      this.mapper.setPolygonInvert(inverted);
-      this.mapper.setPolygonFeather(feather);
+    this.eventChannel.on(ProjectionEventType.POLYGON_MASK_NODES_CHANGED, ({ nodes, surfaceId }) => {
+      const surface = this.resolveSurface(surfaceId);
+      if (!surface) return;
+      if (!surface.getPolygonMask()) surface.addPolygonMask(nodes);
+      else surface.getPolygonMask()!.setNodes(nodes);
+      surface.getPolygonMask()?.setVisible(false);
     });
 
-    this.eventChannel.on(ProjectionEventType.POLYGON_MASK_REMOVED, () => {
-      this.mapper.removePolygonMask();
+    this.eventChannel.on(
+      ProjectionEventType.POLYGON_MASK_SETTINGS_CHANGED,
+      ({ enabled, inverted, feather, surfaceId }) => {
+        const surface = this.resolveSurface(surfaceId);
+        surface?.setPolygonMaskEnabled(enabled);
+        surface?.setPolygonInvert(inverted);
+        surface?.setPolygonFeather(feather);
+      },
+    );
+
+    this.eventChannel.on(ProjectionEventType.POLYGON_MASK_REMOVED, ({ surfaceId }) => {
+      this.resolveSurface(surfaceId)?.removePolygonMask();
     });
   }
 
-  private applyPolygonMaskState(state: PolygonMaskSyncState): void {
-    if (!this.mapper.getPolygonMask()) {
-      this.mapper.addPolygonMask(state.nodes);
+  private applyPolygonMaskState(surface: WarpSurface, state: PolygonMaskSyncState): void {
+    if (!surface.getPolygonMask()) {
+      surface.addPolygonMask(state.nodes);
     } else {
-      this.mapper.getPolygonMask()!.setNodes(state.nodes);
+      surface.getPolygonMask()!.setNodes(state.nodes);
     }
-    this.mapper.setPolygonMaskEnabled(state.enabled);
-    this.mapper.setPolygonInvert(state.inverted);
-    this.mapper.setPolygonFeather(state.feather);
+    surface.setPolygonMaskEnabled(state.enabled);
+    surface.setPolygonInvert(state.inverted);
+    surface.setPolygonFeather(state.feather);
     // Projector never shows mask handles
-    this.mapper.getPolygonMask()?.setVisible(false);
+    surface.getPolygonMask()?.setVisible(false);
   }
 
   /** First surface when no id is given (single-surface senders) */
+  private resolveSurface(surfaceId?: string): WarpSurface | null {
+    if (!surfaceId) return this.mapper.getSurfaces()[0] ?? null;
+    return this.mapper.getSurface(surfaceId);
+  }
+
   private resolveWarper(surfaceId?: string): MeshWarper | null {
-    if (!surfaceId) return this.mapper.getSurfaces()[0]?.getWarper() ?? null;
-    return this.mapper.getSurface(surfaceId)?.getWarper() ?? null;
+    return this.resolveSurface(surfaceId)?.getWarper() ?? null;
   }
 
   /** Get or create a surface on the projector, always non-interactive */
@@ -309,6 +324,8 @@ export class WindowSync {
         y: warper.getGridSizeY(),
       },
       warpMode: warper.getWarpMode(),
+      edgeMask: surface.getEdgeMask(),
+      polygonMask: surface.getPolygonMaskState() ?? undefined,
     };
   }
 
@@ -326,6 +343,14 @@ export class WindowSync {
     this.applyCornerPoints(state.cornerPoints, warper);
     this.applyGridPoints(state.gridPoints, state.referenceGridPoints, warper);
     warper.setWarpMode(state.warpMode);
+
+    // Masks belong to the surface (edgeMask is absent from pre-per-surface senders)
+    if (state.edgeMask) surface.setEdgeFeather(state.edgeMask.maskEnabled, state.edgeMask.feather);
+    if (state.polygonMask) {
+      this.applyPolygonMaskState(surface, state.polygonMask);
+    } else if (surface.getPolygonMask()) {
+      surface.removePolygonMask();
+    }
   }
 
   private getFullState(): FullProjectionState {
@@ -346,7 +371,7 @@ export class WindowSync {
       showControls: false, // Projector controls default to hidden
       cameraOffset: this.mapper.getCameraOffset(),
       imageSettings: this.mapper.getImageSettings(),
-      polygonMask: this.mapper.getPolygonMaskFullState() ?? undefined,
+      polygonMask: firstSurface.polygonMask,
       surfaces: surfaces.map((surface) => this.getSurfaceState(surface)),
     };
   }
@@ -374,6 +399,8 @@ export class WindowSync {
         referenceGridPoints: state.referenceGridPoints,
         gridSize: state.gridSize,
         warpMode: state.warpMode,
+        edgeMask: firstSurface.getEdgeMask(),
+        polygonMask: state.polygonMask,
       });
     }
 
@@ -392,14 +419,11 @@ export class WindowSync {
     // 5. Apply image settings
     this.mapper.setImageSettings(state.imageSettings);
 
-    // 6. Apply polygon mask (applyPolygonMaskState always hides handles on projector)
-    if (state.polygonMask) {
-      this.applyPolygonMaskState(state.polygonMask);
-    } else if (this.mapper.getPolygonMask()) {
-      this.mapper.removePolygonMask();
+    // 6. Masks were applied per surface in applySurfaceState; make sure no handles
+    // survived setShouldWarp re-enabling them
+    for (const surface of this.mapper.getSurfaces()) {
+      surface.getPolygonMask()?.setVisible(false);
     }
-    // Ensure mask handles are hidden even if setShouldWarp re-enabled them
-    this.mapper.getPolygonMask()?.setVisible(false);
 
     // Hide loading message (if it exists)
     const loadingEl = document.getElementById('loading');

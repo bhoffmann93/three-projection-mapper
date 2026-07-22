@@ -1,6 +1,6 @@
 export const GUI_STORAGE_KEY = 'projection-mapper-gui-settings';
 export const SHOW_ACES_TOGGLE = false;
-export const STORAGE_VERSION = 3; //when making breaking changes just increment so old data gets wiped
+export const STORAGE_VERSION = 4; //when making breaking changes just increment so old data gets wiped
 
 //Default initialized values if nothing from local storage is loaded
 export const DEFAULTS = {
@@ -16,9 +16,8 @@ export const MESH_WARP_GRID_SIZE = {
   maximum: 10,
 } as const;
 
+/** Global image adjustments — shared by every surface */
 export interface ImageSettings {
-  maskEnabled: boolean;
-  feather: number;
   tonemap: boolean;
   shadows: number;
   gamma: number;
@@ -28,9 +27,18 @@ export interface ImageSettings {
   hue: number;
 }
 
-export const DEFAULT_IMAGE_SETTINGS: Readonly<ImageSettings> = {
+/** Edge feather is per surface, not part of the global image adjustments */
+export interface EdgeMaskSettings {
+  maskEnabled: boolean;
+  feather: number;
+}
+
+export const DEFAULT_EDGE_MASK: Readonly<EdgeMaskSettings> = {
   maskEnabled: false,
   feather: 0.05,
+};
+
+export const DEFAULT_IMAGE_SETTINGS: Readonly<ImageSettings> = {
   tonemap: false,
   shadows: 0.0,
   gamma: 1.0,
@@ -62,7 +70,24 @@ export const SURFACES_STORAGE_KEY = 'projection-mapper-surfaces';
 export const DEFAULT_POLYGON_FEATHER = 0.0;
 export const MAX_POLYGON_POINTS = 16;
 
-/** Visual style of warp control handles. Sizes in screen pixels. */
+/** Polygon mask settings that live on a surface alongside its node list */
+export interface PolygonMaskSettings {
+  enabled: boolean;
+  inverted: boolean;
+  feather: number;
+}
+
+export const DEFAULT_POLYGON_MASK_SETTINGS: Readonly<PolygonMaskSettings> = {
+  enabled: true,
+  inverted: false,
+  feather: DEFAULT_POLYGON_FEATHER,
+};
+
+/**
+ * Visual style of warp control handles. Sizes in screen pixels.
+ * A surface's outline is drawn in one of three states: the selected surface
+ * (active), the one under the cursor (hover), or any other surface (inactive).
+ */
 export const WARP_HANDLE_STYLE = {
   cornerPointPixelRadius: 20,
   gridPointPixelRadius: 15,
@@ -70,6 +95,17 @@ export const WARP_HANDLE_STYLE = {
   cornerColor: 'hsl(23, 80%, 80%)',
   gridColor: 'orange',
   outlineColor: 'orange',
+  inactiveOutlineColor: 'hsl(30, 40%, 45%)',
+  inactiveOutlineOpacity: 0.55,
+  inactiveOutlineLineWidth: 2,
+  hoverOutlineColor: 'hsl(38, 100%, 72%)',
+  hoverOutlineOpacity: 1.0,
+} as const;
+
+/** Canvas interaction thresholds for selecting and moving surfaces */
+export const SURFACE_PICKER = {
+  /** Pointer travel (px) before a pointerdown counts as a body drag rather than a click */
+  dragThresholdPixels: 3,
 } as const;
 
 /** Visual style of polygon mask handles. Sizes in screen pixels. */

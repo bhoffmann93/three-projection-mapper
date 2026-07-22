@@ -1,5 +1,5 @@
 import { ProjectionEventType } from './EventTypes';
-import type { ImageSettings, UvRect } from '../core/defaults';
+import type { ImageSettings, EdgeMaskSettings, UvRect } from '../core/defaults';
 
 /**
  * Normalized point format (0-1 range) for resolution-independent serialization
@@ -47,6 +47,10 @@ export interface SurfaceSyncState {
   referenceGridPoints: NormalizedPoint[];
   gridSize: GridSize;
   warpMode: number;
+  /** Edge feather belongs to the surface, not to the global image settings */
+  edgeMask: EdgeMaskSettings;
+  /** Absent means this surface has no polygon mask */
+  polygonMask?: PolygonMaskSyncState;
 }
 
 /**
@@ -114,8 +118,14 @@ export interface ProjectionEventPayloads {
   [ProjectionEventType.REQUEST_FULL_STATE]: {};
   [ProjectionEventType.FULL_STATE_SYNC]: { state: FullProjectionState };
   [ProjectionEventType.IMAGE_SETTINGS_CHANGED]: { settings: ImageSettings };
-  [ProjectionEventType.POLYGON_MASK_NODES_CHANGED]: { nodes: { u: number; v: number }[] };
-  [ProjectionEventType.POLYGON_MASK_SETTINGS_CHANGED]: { enabled: boolean; inverted: boolean; feather: number };
-  [ProjectionEventType.POLYGON_MASK_REMOVED]: {};
+  [ProjectionEventType.EDGE_MASK_CHANGED]: { enabled: boolean; feather: number; surfaceId?: string };
+  [ProjectionEventType.POLYGON_MASK_NODES_CHANGED]: { nodes: { u: number; v: number }[]; surfaceId?: string };
+  [ProjectionEventType.POLYGON_MASK_SETTINGS_CHANGED]: {
+    enabled: boolean;
+    inverted: boolean;
+    feather: number;
+    surfaceId?: string;
+  };
+  [ProjectionEventType.POLYGON_MASK_REMOVED]: { surfaceId?: string };
   [ProjectionEventType.RESET_WARP]: { surfaceId?: string };
 }

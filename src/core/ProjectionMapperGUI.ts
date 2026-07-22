@@ -5,7 +5,8 @@ import { ProjectionMapper } from './ProjectionMapper';
 import {
   GUI_STORAGE_KEY,
   DEFAULT_IMAGE_SETTINGS,
-  DEFAULT_POLYGON_FEATHER,
+  DEFAULT_EDGE_MASK,
+  DEFAULT_POLYGON_MASK_SETTINGS,
   DEFAULTS,
   MESH_WARP_GRID_SIZE,
   STORAGE_VERSION,
@@ -17,7 +18,6 @@ import { EventChannel } from '../ipc/EventChannel';
 import { WindowManager } from '../windows/WindowManager';
 import { ProjectionEventType } from '../ipc/EventTypes';
 import type { ProjectionEventPayloads } from '../ipc/EventPayloads';
-import { POLYGON_MASK_STORAGE_KEY } from '../mask/PolygonMask';
 import { createElement, Eye, EyeOff, Feather, Projector, IconNode } from 'lucide';
 import {
   RESET_BUTTON_COLOR,
@@ -57,8 +57,6 @@ export interface ProjectionMapperGUISettings extends ImageSettings {
   showOutline: boolean;
   imageExpanded: boolean;
   masksExpanded: boolean;
-  polygonFeather: number;
-  polygonInvert: boolean;
 }
 
 export { GUI_STORAGE_KEY, DEFAULT_IMAGE_SETTINGS } from './defaults';
@@ -74,13 +72,19 @@ export class ProjectionMapperGUI {
   > | null = null;
   private warpFolder!: FolderApi;
   private surfacesFolder!: FolderApi;
-  private surfaceListBlade: { dispose(): void } | null = null;
+  private surfaceListBlade: { dispose(): void; value?: unknown } | null = null;
   private warpModeBlade!: { value: unknown };
   private uvRectState = { offset: { x: 0, y: 0 }, scale: { x: 1, y: 1 } };
   private config: ProjectionMapperGUIConfig;
   private syncSettingButtons: () => void = () => {};
   private syncWarpButtons: () => void = () => {};
   private onControlsVisibilityChange: (visible: boolean) => void = () => {};
+
+  /** Mask state mirrors the active surface — masks are per surface, not global */
+  private edgeMaskState = { ...DEFAULT_EDGE_MASK };
+  private polygonState = { ...DEFAULT_POLYGON_MASK_SETTINGS, showHandles: true };
+  private syncMasksFolder: () => void = () => {};
+  private syncPolyButtons: () => void = () => {};
 
   private readonly STORAGE_KEY = GUI_STORAGE_KEY;
 
@@ -106,13 +110,18 @@ export class ProjectionMapperGUI {
       showOutline: true,
       imageExpanded: true,
       masksExpanded: true,
-      polygonFeather: DEFAULT_POLYGON_FEATHER,
-      polygonInvert: false,
       ...DEFAULT_IMAGE_SETTINGS,
     };
 
     this.loadSettings();
     this.applySettings();
+
+    // Masks live on the surface, so the pane seeds from whichever one is active
+    Object.assign(this.edgeMaskState, mapper.getEdgeMask());
+    Object.assign(this.polygonState, mapper.getActiveSurface().getPolygonSettings());
+
+    // Canvas clicks are the primary way to select a surface; the pane follows
+    mapper.onActiveSurfaceChanged = () => this.syncFromActiveSurface();
 
     this.pane = new Pane({ title });
     this.pane.element.style.opacity = TWEAKPANE_TRANSPARENCY;
@@ -498,13 +507,14 @@ export class ProjectionMapperGUI {
     });
   }
 
-  /** Pull grid size, warp mode and uv rect of the newly active surface into the pane */
+  /** Pull grid size, warp mode, uv rect and masks of the newly active surface into the pane */
   private syncFromActiveSurface(): void {
     const warper = this.mapper.getWarper();
     this.settings.gridSize.x = warper.getGridSizeX();
     this.settings.gridSize.y = warper.getGridSizeY();
     this.settings.warpMode = warper.getWarpMode();
     if (this.warpModeBlade) this.warpModeBlade.value = this.settings.warpMode;
+    if (this.surfaceListBlade) this.surfaceListBlade.value = this.activeSurfaceId();
 
     const uvRect = this.mapper.getUvRect();
     this.uvRectState.offset.x = uvRect.offsetX;
@@ -512,10 +522,15 @@ export class ProjectionMapperGUI {
     this.uvRectState.scale.x = uvRect.scaleX;
     this.uvRectState.scale.y = uvRect.scaleY;
 
+    Object.assign(this.edgeMaskState, this.mapper.getEdgeMask());
+    Object.assign(this.polygonState, this.mapper.getActiveSurface().getPolygonSettings());
+    this.syncMasksFolder();
+
     this.pane.refresh();
     this.saveSettings();
   }
 
+  /** Masks belong to the active surface; every write here is scoped to it */
   private initMasksFolder(): void {
     const masksFolder = this.pane.addFolder({ title: 'Masks', expanded: this.settings.masksExpanded });
 
@@ -524,29 +539,37 @@ export class ProjectionMapperGUI {
       this.saveSettings();
     });
 
+    const broadcastEdgeMask = () => {
+      this.broadcast(ProjectionEventType.EDGE_MASK_CHANGED, {
+        enabled: this.edgeMaskState.maskEnabled,
+        feather: this.edgeMaskState.feather,
+        surfaceId: this.activeSurfaceId(),
+      });
+    };
+
     const edgeFeatherBinding = masksFolder
-      .addBinding(this.settings, 'feather', {
+      .addBinding(this.edgeMaskState, 'feather', {
         label: 'Edge Feather',
         min: 0.0,
         max: 0.5,
         step: 0.01,
-        disabled: !this.settings.maskEnabled,
+        disabled: !this.edgeMaskState.maskEnabled,
       })
       .on('change', (e: TpChangeEvent<unknown>) => {
-        this.mapper.setImageSettings({ feather: e.value as number });
-        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
-        this.saveSettings();
+        this.mapper.setEdgeMask(this.edgeMaskState.maskEnabled, e.value as number);
+        broadcastEdgeMask();
       });
 
     const maskToggleBtn = createTweakpaneButton(
       '',
       () => {
-        this.settings.maskEnabled = !this.settings.maskEnabled;
-        this.mapper.setImageSettings({ maskEnabled: this.settings.maskEnabled });
-        edgeFeatherBinding.disabled = !this.settings.maskEnabled;
-        maskToggleBtn.style.opacity = this.settings.maskEnabled ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
-        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
-        this.saveSettings();
+        this.edgeMaskState.maskEnabled = !this.edgeMaskState.maskEnabled;
+        this.mapper.setEdgeMask(this.edgeMaskState.maskEnabled, this.edgeMaskState.feather);
+        edgeFeatherBinding.disabled = !this.edgeMaskState.maskEnabled;
+        maskToggleBtn.style.opacity = this.edgeMaskState.maskEnabled
+          ? TOGGLE_ENABLED_OPACITY
+          : TOGGLE_DISABLED_OPACITY;
+        broadcastEdgeMask();
       },
       {
         width: MASK_TOGGLE_BUTTON.widthPx,
@@ -564,57 +587,37 @@ export class ProjectionMapperGUI {
         'stroke-width': MASK_TOGGLE_BUTTON.iconStrokeWidth,
       }),
     );
-    maskToggleBtn.style.opacity = this.settings.maskEnabled ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
+    maskToggleBtn.style.opacity = this.edgeMaskState.maskEnabled ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
     maskToggleBtn.style.pointerEvents = 'auto';
 
     replaceLabelWithButton(edgeFeatherBinding, maskToggleBtn);
 
-    const polygonMaskState = {
-      enabled: true,
-      inverted: this.settings.polygonInvert,
-      feather: this.settings.polygonFeather,
-      showHandles: true,
-    };
-
-    const resetPolygonMaskState = () => {
-      polygonMaskState.feather = DEFAULT_POLYGON_FEATHER;
-      polygonMaskState.inverted = false;
-      polygonMaskState.enabled = true;
-      polygonMaskState.showHandles = true;
-      this.settings.polygonFeather = DEFAULT_POLYGON_FEATHER;
-      this.settings.polygonInvert = false;
-      this.saveSettings();
-    };
+    const polygonMaskState = this.polygonState;
 
     let polygonSubFolder: FolderApi | null = null;
+
+    // Node changes on any surface go out tagged with that surface's id
+    this.mapper.onPolygonNodesChanged = (surfaceId: string) => {
+      const nodes = this.mapper.getPolygonMask(surfaceId)?.nodes;
+      if (!nodes) return;
+      this.broadcast(ProjectionEventType.POLYGON_MASK_NODES_CHANGED, {
+        nodes: Array.from(nodes).map((n) => ({ u: n.u, v: n.v })),
+        surfaceId,
+      });
+    };
+
+    const broadcastPolySettings = () => {
+      this.broadcast(ProjectionEventType.POLYGON_MASK_SETTINGS_CHANGED, {
+        enabled: polygonMaskState.enabled,
+        inverted: polygonMaskState.inverted,
+        feather: polygonMaskState.feather,
+        surfaceId: this.activeSurfaceId(),
+      });
+    };
 
     const showPolygonSubFolder = () => {
       if (polygonSubFolder) return;
       polygonSubFolder = masksFolder.addFolder({ title: 'Polygon Mask', expanded: true });
-
-      polygonMaskState.inverted = this.settings.polygonInvert;
-      this.mapper.setPolygonInvert(polygonMaskState.inverted);
-
-      // Broadcast node changes to projector window
-      this.mapper.onPolygonNodesChanged = () => {
-        const nodes = this.mapper.getPolygonMask()?.nodes;
-        if (!nodes) return;
-        this.broadcast(ProjectionEventType.POLYGON_MASK_NODES_CHANGED, {
-          nodes: Array.from(nodes).map((n) => ({ u: n.u, v: n.v })),
-        });
-      };
-
-      const broadcastPolySettings = () => {
-        this.broadcast(ProjectionEventType.POLYGON_MASK_SETTINGS_CHANGED, {
-          enabled: polygonMaskState.enabled,
-          inverted: polygonMaskState.inverted,
-          feather: polygonMaskState.feather,
-        });
-      };
-
-      // Broadcast initial state now that callbacks are wired up
-      this.mapper.onPolygonNodesChanged();
-      broadcastPolySettings();
 
       const polyBtnGrid = polygonSubFolder.addBlade({
         view: 'buttongrid',
@@ -642,9 +645,10 @@ export class ProjectionMapperGUI {
           savedPolyHandles = polygonMaskState.showHandles;
           polygonMaskState.showHandles = false;
         }
-        this.mapper.getPolygonMask()?.setVisible(polygonMaskState.showHandles);
+        this.mapper.setPolygonHandlesVisible(polygonMaskState.showHandles);
         syncPolyButtons();
       };
+      this.syncPolyButtons = syncPolyButtons;
 
       polyBtnGrid.on('click', (ev) => {
         if (ev.index[0] === 0) {
@@ -654,12 +658,10 @@ export class ProjectionMapperGUI {
         } else if (ev.index[0] === 1) {
           polygonMaskState.inverted = !polygonMaskState.inverted;
           this.mapper.setPolygonInvert(polygonMaskState.inverted);
-          this.settings.polygonInvert = polygonMaskState.inverted;
-          this.saveSettings();
           broadcastPolySettings();
         } else {
           polygonMaskState.showHandles = !polygonMaskState.showHandles;
-          this.mapper.getPolygonMask()?.setVisible(polygonMaskState.showHandles);
+          this.mapper.setPolygonHandlesVisible(polygonMaskState.showHandles);
         }
         syncPolyButtons();
       });
@@ -667,9 +669,7 @@ export class ProjectionMapperGUI {
       polygonSubFolder
         .addBinding(polygonMaskState, 'feather', { label: 'Feather', min: 0.0, max: 0.1, step: 0.001 })
         .on('change', (e: TpChangeEvent<unknown>) => {
-          this.settings.polygonFeather = e.value as number;
-          this.mapper.setPolygonFeather(this.settings.polygonFeather);
-          this.saveSettings();
+          this.mapper.setPolygonFeather(e.value as number);
           broadcastPolySettings();
         });
 
@@ -682,38 +682,53 @@ export class ProjectionMapperGUI {
       (polyActionGrid.element.querySelectorAll('button')[0] as HTMLButtonElement).style.background = RESET_BUTTON_COLOR;
 
       polyActionGrid.on('click', (ev) => {
+        const surfaceId = this.activeSurfaceId();
         if (ev.index[0] === 0) {
           this.mapper.resetPolygonMask();
         } else {
           this.mapper.removePolygonMask();
-          this.mapper.onPolygonNodesChanged = () => {};
-          this.broadcast(ProjectionEventType.POLYGON_MASK_REMOVED, {});
-          polygonSubFolder!.dispose();
-          polygonSubFolder = null;
-          this.onControlsVisibilityChange = () => {};
-          addBtn.hidden = false;
-          resetPolygonMaskState();
+          this.broadcast(ProjectionEventType.POLYGON_MASK_REMOVED, { surfaceId });
+          hidePolygonSubFolder();
         }
       });
     };
 
+    const hidePolygonSubFolder = () => {
+      polygonSubFolder?.dispose();
+      polygonSubFolder = null;
+      this.syncPolyButtons = () => {};
+      this.onControlsVisibilityChange = () => {};
+      addBtn.hidden = false;
+    };
+
     const addBtn = masksFolder.addButton({ title: 'Add Polygon Mask' });
     addBtn.on('click', () => {
-      if (!this.mapper.getPolygonMask()) {
-        localStorage.removeItem(POLYGON_MASK_STORAGE_KEY);
-        this.mapper.addPolygonMask();
-      }
+      if (!this.mapper.getPolygonMask()) this.mapper.addPolygonMask();
+      Object.assign(polygonMaskState, this.mapper.getActiveSurface().getPolygonSettings());
       showPolygonSubFolder();
       addBtn.hidden = true;
+      broadcastPolySettings();
+      this.mapper.onPolygonNodesChanged(this.activeSurfaceId());
     });
 
-    // Restore if mask was saved in previous session
-    if (localStorage.getItem(POLYGON_MASK_STORAGE_KEY)) {
-      this.mapper.addPolygonMask();
-      this.mapper.setPolygonFeather(this.settings.polygonFeather);
-      showPolygonSubFolder();
-      addBtn.hidden = true;
-    }
+    // The polygon sub-folder exists only while the *active* surface has a mask,
+    // so switching surfaces swaps it in and out
+    this.syncMasksFolder = () => {
+      edgeFeatherBinding.disabled = !this.edgeMaskState.maskEnabled;
+      maskToggleBtn.style.opacity = this.edgeMaskState.maskEnabled
+        ? TOGGLE_ENABLED_OPACITY
+        : TOGGLE_DISABLED_OPACITY;
+
+      if (this.mapper.getPolygonMask()) {
+        showPolygonSubFolder();
+        addBtn.hidden = true;
+        this.syncPolyButtons();
+      } else {
+        hidePolygonSubFolder();
+      }
+    };
+
+    this.syncMasksFolder();
   }
 
   private applyVisibility(): void {
@@ -779,8 +794,6 @@ export class ProjectionMapperGUI {
     this.mapper.setZoom(this.settings.zoom);
     this.applyVisibility();
     this.mapper.setImageSettings({
-      maskEnabled: this.settings.maskEnabled,
-      feather: this.settings.feather,
       shadows: this.settings.shadows,
       gamma: this.settings.gamma,
       highlights: this.settings.highlights,

@@ -1,7 +1,20 @@
 # Plan: Multi-Surface UX + Per-Surface Masks
 
-Status: planned, not started. Written 2026-07-22.
-Builds on `multiple-meshes-plan.md` (implemented on branch `multiple-meshes`).
+Status: implemented (Phases A–C) on branch `multiple-meshes`, 2026-07-22.
+Builds on `multiple-meshes-plan.md`.
+
+Deviations from the plan as written, decided during implementation:
+
+- `getImageSettings()` returns *pure* `ImageSettings` — the deprecated
+  `maskEnabled`/`feather` keys are accepted by `setImageSettings()` and routed
+  to the active surface, but are not read back there. Per-surface edge feather
+  is read via `mapper.getEdgeMask(surfaceId?)` / `surface.getEdgeMask()`.
+  This keeps `IMAGE_SETTINGS_CHANGED` free of mask fields without a strip step.
+- Polygon feather/invert moved out of GUI settings into the surface record
+  (`projection-mapper-surfaces`), as planned — so `ProjectionMapperGUISettings`
+  lost `polygonFeather`/`polygonInvert` rather than gaining surface scoping.
+- Empty-canvas clicks keep the current selection (the open question resolved in
+  favour of the plan's default, not MadMapper's deselect).
 
 Goal: make multi-surface *usable*. Today selection lives in a Tweakpane
 "Surfaces" folder, masks (edge feather + polygon) bind to the first surface

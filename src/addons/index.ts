@@ -5,3 +5,4 @@
  */
 
 export { WindowSync, WINDOW_SYNC_MODE, type WindowSyncConfig } from './WindowSync';
+export { UvRectEditor, type UvRectEditorConfig } from './UvRectEditor';
