@@ -48,7 +48,7 @@ keyLight.position.set(2, 3, 4);
 cubeScene.add(keyLight);
 cubeScene.add(new THREE.HemisphereLight(0x8899ff, 0x332211, 1.0));
 
-// --- Region 2: fullscreen shader ---
+// --- Region 2: wave shader ---
 
 const shaderCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 const shaderScene = new THREE.Scene();
@@ -65,27 +65,83 @@ const shaderMaterial = new THREE.ShaderMaterial({
       gl_Position = vec4(position, 1.0);
     }
   `,
+  // Same wave shader as the fullscreen-shader example, sampled over this
+  // region's rect instead of the whole buffer
   fragmentShader: /* glsl */ `
     uniform float uTime;
     uniform vec2 uRegionOffset;
     uniform vec2 uRegionSize;
 
-    #define TAU 6.28318530718
+    #define PI 3.14159265358979
 
-    //IQ palette
-    vec3 palette(float t) {
-      return 0.5 + 0.5 * cos(TAU * (t + vec3(0.0, 0.33, 0.67)));
+    //Tonemapping from https://www.shadertoy.com/view/4ccBRB
+    vec3 acesApprox(vec3 v) {
+        v *= 0.6;
+        float a = 2.51;
+        float b = 0.03;
+        float c = 2.43;
+        float d = 0.59;
+        float e = 0.14;
+        return clamp((v * (a * v + b)) / (v * (c * v + d) + e), 0.0, 1.0);
+    }
+
+    //IQ
+    vec3 paletteEarthy(float t) {
+        vec3 a = vec3(0.5, 0.5, 0.5);
+        vec3 b = vec3(0.5, 0.5, 0.5);
+        vec3 c = vec3(1.0, 1.0, 1.0);
+        vec3 d = vec3(0.0, 0.10, 0.20);
+        return a + b * cos(6.28318 * (c * t + d));
     }
 
     void main() {
+      // gl_FragCoord is in atlas pixels, so subtract this region's placement
       vec2 uv = (gl_FragCoord.xy - uRegionOffset) / uRegionSize;
 
-      vec2 p = uv - 0.5;
-      p.x *= uRegionSize.x / uRegionSize.y;
-      float d = length(p);
-      vec3 color = palette(d - uTime * 0.1) * smoothstep(0.0, 0.05, abs(sin(d * 20.0 - uTime * 2.0)));
+      float time = uTime * 0.075;
 
-      gl_FragColor = vec4(color, 1.0);
+      float amount = 10.0;
+
+      //https://www.shadertoy.com/view/W3dSD7
+      vec3 sumColor = vec3(0.0);
+      for(float i = 1.0; i <= amount; i++) {
+          float n = i / amount;
+          float osc = -cos(time * 4.0 * PI - i) * 0.5 + 0.5;
+
+          float edgeYrange = 0.2;
+          edgeYrange *= smoothstep(0.0, 0.75, uv.x); // rising from left
+          float edgeY = mix(0.5 - edgeYrange, 0.5 + edgeYrange, sin(time * PI - i) * 0.5 + 0.5);
+
+          float freq = 5.0 * mix(0.5, 1.0, n);
+          float amp = 0.15;
+          amp *= smoothstep(0.0, 0.25, uv.x); // rising from left
+
+          float phaseOffset = 1.5 * i;
+
+          float waveOffset = sin(uv.x * PI * freq - time * 16.0 - phaseOffset);
+          edgeY -= waveOffset * amp;
+
+          float distToWave = uv.y - edgeY; //signed wave
+          distToWave *= sign(mod(i, 2.0) - 0.5); // flip sign every other wave
+          distToWave = max(-distToWave * 1.0, distToWave * 10.0); // like abs but tweakable for sign
+
+          float blend = mix(1.0, 1.75, osc);
+          float weight = 1.0 / (0.001 + pow(distToWave, blend));
+
+          if(mod(i, 3.0) == 1.0)
+              weight *= 1.5;// add more variation
+
+          float b = -cos(uv.x - n * PI * 2.0 - time) * 0.5 + 0.5;
+          b = mix(0.3, 0.6, b);
+          vec3 waveColor = paletteEarthy(b);
+
+          float brightness = 0.3 / amount;
+          sumColor += waveColor * weight * brightness;
+      }
+
+      sumColor = acesApprox(sumColor);
+
+      gl_FragColor = vec4(sumColor, 1.0);
     }
   `,
   depthTest: false,
