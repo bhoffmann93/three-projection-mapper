@@ -284,9 +284,15 @@ export class ProjectionMapper {
     this.applyPickerEnabled();
   }
 
-  /** Canvas selection is pointless once everything is hidden or drags are off */
+  /**
+   * Canvas selection is pointless once everything is hidden or drags are off.
+   * Gated on *any* control being visible rather than the outline alone —
+   * hiding one handle type is a styling choice, not a request to stop editing.
+   */
   private applyPickerEnabled(): void {
-    this.picker?.setEnabled(this.dragEnabled && this.controlsVisibility.outline);
+    const anyControlVisible =
+      this.controlsVisibility.grid || this.controlsVisibility.corners || this.controlsVisibility.outline;
+    this.picker?.setEnabled(this.dragEnabled && anyControlVisible);
   }
 
   addSurface(options: { id?: string; uvRect?: UvRect } = {}): WarpSurface {
@@ -539,11 +545,13 @@ export class ProjectionMapper {
   setGridPointsVisible(visible: boolean): void {
     this.controlsVisibility.grid = visible;
     this.getWarper().setGridPointsVisible(visible);
+    this.applyPickerEnabled();
   }
 
   setCornerPointsVisible(visible: boolean): void {
     this.controlsVisibility.corners = visible;
     this.getWarper().setCornerPointsVisible(visible);
+    this.applyPickerEnabled();
   }
 
   /** Outlines are shared by all surfaces — they double as selection targets */

@@ -271,7 +271,7 @@ export class WarpSurface {
   /** Keep this surface's masks and handles glued to its current perspective */
   syncMasks(pixelToWorld: number): void {
     this.warper.updateControlPointsScale(pixelToWorld);
-    this.maskPlane.syncPerspective(this.warper.getPerspectiveCoeffs());
+    this.maskPlane.syncPerspective(this.warper.syncHomography());
 
     if (this.polygonMask) {
       this.polygonMask.updateTransformedPositions(

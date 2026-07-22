@@ -291,11 +291,11 @@ export class ProjectionMapperGUI {
         this.saveSettings();
         this.broadcast(ProjectionEventType.SHOULD_WARP_CHANGED, { shouldWarp: enabled });
       } else if (col === 1) {
+        // Corner handles only. The outline stays: it is the selection affordance,
+        // so hiding it would make surfaces unclickable.
         const enabled = !this.settings.showCornerPoints;
         this.settings.showCornerPoints = enabled;
-        this.settings.showOutline = enabled;
         this.mapper.setCornerPointsVisible(enabled);
-        this.mapper.setOutlineVisible(enabled);
         this.saveSettings();
       } else if (col === 2) {
         const show = !this.settings.showWarpGrid;

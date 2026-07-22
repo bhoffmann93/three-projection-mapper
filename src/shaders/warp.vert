@@ -25,6 +25,7 @@ uniform int uGridSizeY;
 uniform float uTime;
 uniform int uWarpMode;
 uniform bool uShouldWarp;
+uniform mat3 uHomography; //corner perspective, used when grid warp is bypassed
 
 const int BILINEAR_INTERPOLATION = 0;
 const int BICUBIC_INTERPOLATION = 1;
@@ -123,7 +124,14 @@ void main() {
     vUv = uv;
 
     if(uShouldWarp == false) {
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); //orignal vertex pos
+        // Corner perspective only: bypass the grid deformation but keep the surface
+        // where it was placed. Returning the raw geometry instead would drop every
+        // surface onto the origin, since the mesh is a flat plane there and all
+        // placement lives in uCorners. Same homography as MaskPlane, so the mesh
+        // and its masks stay aligned.
+        vec3 h = uHomography * vec3(position.xy, 1.0);
+        vec2 worldPos = h.xy / h.z; //perspective divide
+        gl_Position = projectionMatrix * viewMatrix * vec4(worldPos, 0.0, 1.0);
         return;
     }
 
