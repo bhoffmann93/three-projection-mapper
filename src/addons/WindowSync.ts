@@ -247,10 +247,19 @@ export class WindowSync {
     return this.resolveSurface(surfaceId)?.getWarper() ?? null;
   }
 
-  /** Get or create a surface on the projector, always non-interactive */
-  private ensureSurface(surfaceId: string, uvRect?: UvRect, resolution?: Resolution): WarpSurface {
+  /**
+   * Get or create a surface on the projector, always non-interactive.
+   *
+   * Null when this projector cannot hold the surface — a single-surface mapper
+   * refuses addSurface(). Callers must skip rather than fall back to the first
+   * surface, or every incoming surface would be written onto that one and the
+   * projector would show the last sender's warp instead of the first's.
+   */
+  private ensureSurface(surfaceId: string, uvRect?: UvRect, resolution?: Resolution): WarpSurface | null {
     const existing = this.mapper.getSurface(surfaceId);
     if (existing) return existing;
+    if (!this.mapper.isMultiSurface()) return null;
+
     const surface = this.mapper.addSurface({ id: surfaceId, uvRect, resolution });
     surface.getWarper().setAllControlsVisible(false);
     surface.getWarper().setDragEnabled(false);
@@ -332,6 +341,7 @@ export class WindowSync {
 
   private applySurfaceState(state: SurfaceSyncState): void {
     const surface = this.ensureSurface(state.id, state.uvRect, state.resolution);
+    if (!surface) return;
     const warper = surface.getWarper();
 
     surface.setUvRect(state.uvRect.offsetX, state.uvRect.offsetY, state.uvRect.scaleX, state.uvRect.scaleY);

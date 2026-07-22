@@ -200,7 +200,10 @@ if (freshLayout) {
 // rather than a uv rect of the shared buffer, and takes that image's aspect.
 // Each surface owns its own texture uniform, so mixing the two costs nothing.
 new THREE.TextureLoader().load('/static/screenshot-warp.png', (imageTexture) => {
-  imageTexture.colorSpace = THREE.SRGBColorSpace;
+  // Left at the loader's default NoColorSpace on purpose. projection.frag does no
+  // output conversion, so the whole path passes raw values through; marking this
+  // sRGB would have the GPU decode it to linear with nothing to re-encode it,
+  // and the image would render dark next to the atlas surfaces.
 
   // The surface is created from the loaded image's real dimensions, so its plane
   // is 4:3 while the atlas surfaces stay square

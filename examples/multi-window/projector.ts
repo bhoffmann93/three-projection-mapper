@@ -20,7 +20,7 @@ const bufferResolution = {
   height: projectionResolution.height * MUTLI_WINDOW_CONFIG.bufferResOversampling,
 };
 const projectionScene = new ProjectionScene({ width: bufferResolution.width, height: bufferResolution.height });
-const mapper = new ProjectionMapper(renderer, projectionScene.getTexture(), { appId: MUTLI_WINDOW_CONFIG.appId, multiSurface: false });
+const mapper = new ProjectionMapper(renderer, projectionScene.getTexture(), { appId: MUTLI_WINDOW_CONFIG.appId });
 const sync = new WindowSync(mapper, { mode: WINDOW_SYNC_MODE.PROJECTOR });
 
 const clock = new THREE.Clock();
