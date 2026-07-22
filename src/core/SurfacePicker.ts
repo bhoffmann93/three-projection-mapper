@@ -87,18 +87,14 @@ export class SurfacePicker {
   }
 
   /**
-   * Topmost surface under the pointer. Surfaces are coplanar, so raycast
-   * distances tie — the most recently added one wins, matching draw order.
+   * Topmost surface under the pointer, by point-in-quad against the warped
+   * corner points — the meshes cannot be raycast, see MeshWarper.containsPoint.
+   * Where surfaces overlap the most recently added one wins, matching draw order.
    */
-  private pickSurface(): WarpSurface | null {
+  private pickSurface(world: THREE.Vector3): WarpSurface | null {
     const surfaces = this.config.getSurfaces();
-    const meshes = surfaces.map((s) => s.getWarper().mesh);
-    const hits = this.raycaster.intersectObjects(meshes, false);
-    if (hits.length === 0) return null;
-
-    const hitMeshes = new Set(hits.map((hit) => hit.object));
     for (let i = surfaces.length - 1; i >= 0; i--) {
-      if (hitMeshes.has(surfaces[i].getWarper().mesh)) return surfaces[i];
+      if (surfaces[i].getWarper().containsPoint(world.x, world.y)) return surfaces[i];
     }
     return null;
   }
@@ -109,7 +105,8 @@ export class SurfacePicker {
     this.raycaster.setFromCamera(this.toNDC(event), this.config.camera);
     if (this.hitsHandle()) return;
 
-    const surface = this.pickSurface();
+    const world = this.toWorld(event);
+    const surface = this.pickSurface(world);
     if (!surface) return; // empty space keeps the current selection
 
     this.config.setActiveSurface(surface.id);
@@ -117,7 +114,7 @@ export class SurfacePicker {
     this.dragging = surface;
     this.movedPastThreshold = false;
     this.dragStart.set(event.clientX, event.clientY);
-    this.lastWorld.copy(this.toWorld(event));
+    this.lastWorld.copy(world);
     this.config.domElement.setPointerCapture(event.pointerId);
   }
 
@@ -143,7 +140,7 @@ export class SurfacePicker {
       return;
     }
 
-    const surface = this.pickSurface();
+    const surface = this.pickSurface(this.toWorld(event));
     this.setHovered(surface);
     this.config.domElement.style.cursor = surface ? 'move' : '';
   }

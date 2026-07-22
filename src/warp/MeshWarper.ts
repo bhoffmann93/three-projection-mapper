@@ -20,7 +20,7 @@ import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 //@ts-ignore
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import PerspT from '../utils/perspective';
-import { isQuadConcave } from './geometry';
+import { isQuadConcave, isPointInQuad } from './geometry';
 import { clamp } from '../utils/math';
 import meshWarpVertexShader from '../shaders/warp.vert';
 import { RenderOrder } from '../core/RenderOrder';
@@ -605,6 +605,21 @@ export class MeshWarper {
   /** Visible drag handles — raycast these before the body so handles win */
   public getHandleObjects(): THREE.Mesh[] {
     return [...this.cornerObjects, ...this.gridObjects].filter((obj) => obj.visible);
+  }
+
+  /**
+   * Is this world-space point inside the surface as drawn?
+   *
+   * The mesh cannot be raycast for this: warp.vert displaces the vertices on the
+   * GPU, so mesh.geometry stays an un-warped plane at the origin — identical for
+   * every surface. The corner control points are the real world-space quad, and
+   * they are what the outline is drawn from, so hit-testing them matches what
+   * the user sees. Concave drags are rejected on drag, so the quad is convex and
+   * a consistent-sign edge test is valid.
+   */
+  public containsPoint(x: number, y: number): boolean {
+    const [tl, tr, bl, br] = this.dragCornerControlPoints;
+    return isPointInQuad([tl, tr, br, bl], x, y); // wound as updateLine draws it
   }
 
   public setAllControlsVisible(visible: boolean): void {
