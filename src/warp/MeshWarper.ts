@@ -79,6 +79,7 @@ export class MeshWarper {
   private dragControls!: DragControls;
 
   private cornerObjects: THREE.Mesh[] = [];
+  private scaleObject!: THREE.Mesh;
   private gridObjects: THREE.Mesh[] = [];
 
   private gridPointsEnabled: boolean = true;
@@ -250,6 +251,7 @@ export class MeshWarper {
 
     this.createGridControlPoints(controlPointPlaneGeometry, xControlPointAmount, yControlPointAmount);
     this.createCornerControlPoints();
+    this.createScaleControlPoint();
   }
 
   private createGridControlPoints(controlGeometry: THREE.PlaneGeometry, xAmount: number, yAmount: number): void {
@@ -281,6 +283,28 @@ export class MeshWarper {
       xAmount,
       yAmount,
     );
+  }
+
+  /**
+   * A single handle on the top edge that resizes the surface about its centre,
+   * keeping the warp. Distinct hue because it is a different verb from the corner
+   * handles it sits between — those reshape, this one scales.
+   */
+  private createScaleControlPoint(): void {
+    this.scaleObject = new THREE.Mesh(
+      new THREE.BoxGeometry(),
+      new THREE.MeshBasicMaterial({ color: WARP_HANDLE_STYLE.scaleColor, transparent: true, opacity: 0.9 }),
+    );
+    this.scaleObject.renderOrder = RenderOrder.CONTROLS;
+    this.scaleObject.userData.group = 'scale';
+    this.positionScaleControlPoint();
+  }
+
+  /** Midpoint of the top edge, so it follows the quad however it is warped */
+  private positionScaleControlPoint(): void {
+    if (!this.scaleObject) return;
+    const [topLeft, topRight] = this.dragCornerControlPoints;
+    this.scaleObject.position.set((topLeft.x + topRight.x) / 2, (topLeft.y + topRight.y) / 2, 0);
   }
 
   private createCornerControlPoints(): void {
@@ -329,7 +353,7 @@ export class MeshWarper {
 
   private initializeDragControls(): void {
     this.dragControls = new DragControls(
-      [...this.cornerObjects, ...this.gridObjects],
+      [...this.cornerObjects, ...this.gridObjects, this.scaleObject],
       this.config.camera,
       this.config.renderer.domElement,
     );
@@ -346,6 +370,12 @@ export class MeshWarper {
   private handleDrag(event: { object: THREE.Object3D<THREE.Object3DEventMap> }): void {
     const object = event.object;
     const pointGroupName = event.object.userData.group as string;
+
+    if (pointGroupName === 'scale') {
+      this.handleScaleDrag(object.position);
+      return;
+    }
+
     const draggedPoint = event.object.position;
     const dragControlCorners = this.dragCornerControlPoints.flatMap((point) => [point.x, point.y]);
 
@@ -367,6 +397,34 @@ export class MeshWarper {
     if (this.material.uniforms.uWarpPlaneSize) {
       this.material.uniforms.uWarpPlaneSize.value.set(this.averageDimensions.width, this.averageDimensions.height);
     }
+  }
+
+  /**
+   * Turn the handle's distance from the centre into a scale factor. Applied
+   * incrementally, because the handle snaps back to the resized quad's top edge
+   * after each event — so the next event measures against the new size.
+   */
+  private handleScaleDrag(draggedPosition: THREE.Vector3): void {
+    const center = this.getCenter();
+    const [topLeft, topRight] = this.dragCornerControlPoints;
+    const currentDistance = Math.hypot(
+      (topLeft.x + topRight.x) / 2 - center.x,
+      (topLeft.y + topRight.y) / 2 - center.y,
+    );
+
+    // Only how far the pointer is from the centre matters, never where it is:
+    // the handle belongs on the top edge and is put back there below, whatever
+    // DragControls did to it on the way in.
+    if (currentDistance > 0) {
+      const draggedDistance = Math.hypot(draggedPosition.x - center.x, draggedPosition.y - center.y);
+      const limit = WARP_HANDLE_STYLE.scaleFactorLimit;
+      const factor = clamp(draggedDistance / currentDistance, 1 / limit, limit);
+      this.applyScale(factor, factor, false); // dragend persists, as for every other handle
+    }
+
+    // Unconditional: DragControls writes the position on every pointer move, so a
+    // path that scaled by nothing would otherwise leave the handle where it was dropped
+    this.positionScaleControlPoint();
   }
 
   perspectiveTransformControlPoints(
@@ -396,6 +454,7 @@ export class MeshWarper {
   }
 
   private updateLine(): void {
+    this.positionScaleControlPoint();
     //@ts-ignore
     this.quadOutlineLine.geometry.setPositions([
       ...this.dragCornerControlPoints[0],
@@ -504,6 +563,7 @@ export class MeshWarper {
     this.config.scene.add(this.quadOutlineLine);
     this.cornerObjects.forEach((obj) => this.config.scene.add(obj));
     this.gridObjects.forEach((obj) => this.config.scene.add(obj));
+    this.config.scene.add(this.scaleObject);
   }
 
   public getCornerControlPoints(): THREE.Vector3[] {
@@ -569,6 +629,7 @@ export class MeshWarper {
     this.config.scene.remove(this.quadOutlineLine);
     this.cornerObjects.forEach((obj) => this.config.scene.remove(obj));
     this.gridObjects.forEach((obj) => this.config.scene.remove(obj));
+    this.config.scene.remove(this.scaleObject);
   }
 
   public getBufferTexture(): THREE.Texture {
@@ -608,6 +669,7 @@ export class MeshWarper {
 
     this.cornerObjects.forEach((obj) => obj.scale.setScalar(cornerCubeSize));
     this.gridObjects.forEach((obj) => obj.scale.setScalar(gridControlCubeSize));
+    this.scaleObject.scale.setScalar(screenScale * WARP_HANDLE_STYLE.scalePointPixelRadius);
   }
 
   // Visibility toggles for GUI
@@ -625,6 +687,11 @@ export class MeshWarper {
   }
 
   public setCornerPointsVisible(visible: boolean): void {
+    // The scale handle belongs to the same set: both act on the quad as a whole
+    this.scaleObject.visible = visible;
+    if (visible) this.scaleObject.layers.enable(0);
+    else this.scaleObject.layers.disable(0);
+
     this.cornerObjects.forEach((obj) => {
       obj.visible = visible;
       // Disable raycasting when hidden
@@ -669,7 +736,7 @@ export class MeshWarper {
 
   /** Visible drag handles — raycast these before the body so handles win */
   public getHandleObjects(): THREE.Mesh[] {
-    return [...this.cornerObjects, ...this.gridObjects].filter((obj) => obj.visible);
+    return [...this.cornerObjects, ...this.gridObjects, this.scaleObject].filter((obj) => obj.visible);
   }
 
   /**
@@ -948,6 +1015,10 @@ export class MeshWarper {
    * keep its shape.
    */
   public scale(factorX: number, factorY: number = factorX): void {
+    this.applyScale(factorX, factorY, true);
+  }
+
+  private applyScale(factorX: number, factorY: number, persist: boolean): void {
     if (factorX === 0 || factorY === 0) return;
 
     const scaled = scaleQuadAboutCenter(this.dragCornerControlPoints, factorX, factorY);
@@ -961,7 +1032,7 @@ export class MeshWarper {
     this.updateLine();
     this.averageDimensions = this.getAverageDimensions();
     this.material.uniforms.uWarpPlaneSize.value.set(this.averageDimensions.width, this.averageDimensions.height);
-    this.saveToStorage();
+    if (persist) this.saveToStorage();
   }
 
   /** Move the whole surface by a world-space delta, preserving its warp */

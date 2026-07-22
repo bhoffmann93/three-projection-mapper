@@ -19,12 +19,13 @@ import { EventChannel } from '../ipc/EventChannel';
 import { WindowManager } from '../windows/WindowManager';
 import { ProjectionEventType } from '../ipc/EventTypes';
 import type { ProjectionEventPayloads } from '../ipc/EventPayloads';
-import { createElement, Eye, EyeOff, Feather, Projector, IconNode } from 'lucide';
+import { createElement, ChevronDown, ChevronUp, Eye, EyeOff, Feather, Projector, IconNode } from 'lucide';
 import {
   RESET_BUTTON_COLOR,
   WARP_BUTTON_EYE_ICON,
   MASK_TOGGLE_BUTTON,
   OPEN_PROJECTOR_BUTTON_ICON,
+  SURFACE_ORDER_ICON,
   TOGGLE_ENABLED_OPACITY,
   TOGGLE_DISABLED_OPACITY,
   TWEAKPANE_TRANSPARENCY,
@@ -308,22 +309,24 @@ export class ProjectionMapperGUI {
   private initSurfacesFolder(page: PaneContainer): void {
     this.surfacesFolder = page.addFolder({ title: SURFACE_FOLDER_TITLE.singular, expanded: true });
 
-    const { blade: surfaceBtnGrid, buttons: surfaceButtons } = addButtonGrid(this.surfacesFolder, ['Add', 'Remove']);
-    const removeBtn = surfaceButtons[1];
+    // One row: manage the set, then move the selected surface through the overlap
+    // order, which is the same shape as the effect stack's move controls
+    const { blade: surfaceBtnGrid, buttons } = addButtonGrid(this.surfacesFolder, ['Add', 'Remove', '', '']);
+    const [, removeBtn, backBtn, frontBtn] = buttons;
     removeBtn.style.background = RESET_BUTTON_COLOR;
 
-    // Overlap order, the same shape as an effect stack: the selected surface
-    // moves through the list, and the list is the draw order
-    const { blade: orderBtnGrid, buttons: orderButtons } = addButtonGrid(this.surfacesFolder, [
-      'Back',
-      'Front',
-    ]);
-    const [backBtn, frontBtn] = orderButtons;
-
-    orderBtnGrid.on('click', (ev) => {
-      this.mapper.moveSurface(this.activeSurfaceId(), ev.index[0] === 0 ? -1 : 1);
-      this.broadcast(ProjectionEventType.SURFACE_ORDER_CHANGED, { surfaceIds: this.mapper.getSurfaceOrder() });
-    });
+    const setChevron = (button: HTMLButtonElement, icon: IconNode) => {
+      button.replaceChildren(
+        createElement(icon, {
+          width: SURFACE_ORDER_ICON.sizePx,
+          height: SURFACE_ORDER_ICON.sizePx,
+          'stroke-width': SURFACE_ORDER_ICON.strokeWidth,
+          style: `position: relative; top: ${SURFACE_ORDER_ICON.verticalShiftPx}px`,
+        }),
+      );
+    };
+    setChevron(backBtn, ChevronDown);
+    setChevron(frontBtn, ChevronUp);
 
     this.syncSurfaceButtons = () => {
       const surfaces = this.mapper.getSurfaces();
@@ -334,18 +337,23 @@ export class ProjectionMapperGUI {
     };
 
     surfaceBtnGrid.on('click', (ev) => {
-      if (ev.index[0] === 0) {
+      const column = ev.index[0];
+
+      if (column === 0) {
         const surface = this.mapper.addSurface();
         this.broadcast(ProjectionEventType.SURFACE_ADDED, {
           surfaceId: surface.id,
           uvRect: surface.getUvRect(),
           resolution: surface.getResolution(),
         });
-      } else {
+      } else if (column === 1) {
         if (this.mapper.getSurfaces().length <= 1) return;
         const surfaceId = this.activeSurfaceId();
         this.mapper.removeSurface(surfaceId);
         this.broadcast(ProjectionEventType.SURFACE_REMOVED, { surfaceId });
+      } else {
+        this.mapper.moveSurface(this.activeSurfaceId(), column === 2 ? -1 : 1);
+        this.broadcast(ProjectionEventType.SURFACE_ORDER_CHANGED, { surfaceIds: this.mapper.getSurfaceOrder() });
       }
       // the mapper's onSurfacesChanged rebuilds the list
     });

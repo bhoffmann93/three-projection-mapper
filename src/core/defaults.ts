@@ -169,6 +169,11 @@ export const WARP_HANDLE_STYLE = {
   gridPointPixelRadius: 15,
   outlineLineWidth: 4,
   cornerColor: 'hsl(23, 80%, 80%)',
+  /** Same size as a corner, complementary hue, so it reads as a different verb */
+  scalePointPixelRadius: 20,
+  scaleColor: 'hsl(203, 80%, 80%)',
+  /** A single drag event cannot scale by more than this, so a flick cannot collapse a surface */
+  scaleFactorLimit: 2,
   gridColor: 'orange',
   outlineColor: 'orange',
   inactiveOutlineColor: 'hsl(30, 40%, 45%)',
