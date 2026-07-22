@@ -47,7 +47,7 @@ const atlas = new AtlasScene();
 // room around the canvas, whose dashed boundary shows what is actually projected.
 const mapper = new ProjectionMapper(renderer, atlas.getTexture(), {
   resolution: MULTI_SURFACE_CONFIG.outputResolution,
-  surfaceResolution: MULTI_SURFACE_CONFIG.regionResolution,
+  surfaceResolution: MULTI_SURFACE_CONFIG.cubeSurfaceResolution,
   zoom: 0.4,
   appId: MULTI_SURFACE_CONFIG.appId,
 });
@@ -57,14 +57,30 @@ const sync = new WindowSync(mapper, { mode: WINDOW_SYNC_MODE.CONTROLLER });
 // (square), the image surface is wider because it takes the image's 4:3 aspect.
 // The marker key survives reloads, so calibration afterwards restores from
 // localStorage. Bump the marker version to force a fresh layout.
-const LAYOUT_KEY = 'multi-surface-example-layout-v3';
+const LAYOUT_KEY = 'multi-surface-example-layout-v5';
 
 // The output canvas is 16:9, so 10 world units tall and about 17.8 wide. Surfaces
-// default to the full canvas height, so they are sized down here to sit side by
-// side inside it — otherwise they would overflow what the projector frames.
-// All three happen to be square: the atlas regions are, and so is the uv grid.
-const SURFACE_HEIGHT = 5;
-const SURFACE_SPACING = 6;
+// default to the full canvas height, so they are sized down here to sit in a row
+// inside it — otherwise they would overflow what the projector frames. Positions
+// are derived rather than written down, so the row stays centred and gapped when
+// any of the sizes change.
+const SURFACE_HEIGHT = 4;
+const SURFACE_GAP = 0.7;
+
+// The cube surface is 16:9 while its atlas region is square, so it samples a 16:9
+// slice of that region rather than all of it. Straight from the invariant in the
+// README: uvRect.scaleX / scaleY = surfaceAspect / bufferAspect, which for a 16:9
+// surface on a 2:1 buffer gives 0.889 — with scaleX 0.5 for the left half, that
+// is scaleY 0.5625, centred vertically. Sample the whole square instead and the
+// cube would simply stretch.
+const CUBE_UV_RECT = { offsetX: 0, offsetY: 0.21875, scaleX: 0.5, scaleY: 0.5625 };
+const CUBE_WIDTH = SURFACE_HEIGHT * (16 / 9);
+
+const ROW_WIDTH = CUBE_WIDTH + SURFACE_GAP + SURFACE_HEIGHT + SURFACE_GAP + SURFACE_HEIGHT;
+const ROW_LEFT = -ROW_WIDTH / 2;
+const CUBE_CENTER_X = ROW_LEFT + CUBE_WIDTH / 2;
+const SHADER_CENTER_X = ROW_LEFT + CUBE_WIDTH + SURFACE_GAP + SURFACE_HEIGHT / 2;
+const IMAGE_CENTER_X = ROW_LEFT + CUBE_WIDTH + SURFACE_GAP + SURFACE_HEIGHT + SURFACE_GAP + SURFACE_HEIGHT / 2;
 
 if (!localStorage.getItem(LAYOUT_KEY)) {
   const cubeSurface = mapper.getSurfaces()[0];
@@ -74,10 +90,16 @@ if (!localStorage.getItem(LAYOUT_KEY)) {
       uvRect: { offsetX: 0.5, offsetY: 0, scaleX: 0.5, scaleY: 1 },
       resolution: MULTI_SURFACE_CONFIG.regionResolution,
     });
-  mapper.setUvRect(0, 0, 0.5, 1, cubeSurface.id);
+  mapper.setUvRect(
+    CUBE_UV_RECT.offsetX,
+    CUBE_UV_RECT.offsetY,
+    CUBE_UV_RECT.scaleX,
+    CUBE_UV_RECT.scaleY,
+    cubeSurface.id,
+  );
   mapper.setUvRect(0.5, 0, 0.5, 1, shaderSurface.id);
-  cubeSurface.setBounds(-SURFACE_SPACING, 0, SURFACE_HEIGHT, SURFACE_HEIGHT);
-  shaderSurface.setBounds(0, 0, SURFACE_HEIGHT, SURFACE_HEIGHT);
+  cubeSurface.setBounds(CUBE_CENTER_X, 0, CUBE_WIDTH, SURFACE_HEIGHT);
+  shaderSurface.setBounds(SHADER_CENTER_X, 0, SURFACE_HEIGHT, SURFACE_HEIGHT);
   localStorage.setItem(LAYOUT_KEY, '1');
 }
 
@@ -91,7 +113,7 @@ loadImageSurface(mapper, {
       uvRect: surface.getUvRect(),
       resolution: surface.getResolution(),
     });
-    surface.setBounds(SURFACE_SPACING, 0, SURFACE_HEIGHT, SURFACE_HEIGHT);
+    surface.setBounds(IMAGE_CENTER_X, 0, SURFACE_HEIGHT, SURFACE_HEIGHT);
   },
 });
 

@@ -10,6 +10,13 @@ export const MULTI_SURFACE_CONFIG = {
    * out inside. Independent of the buffer — this is the projector's resolution.
    */
   outputResolution: { width: 1920, height: 1080 },
+  /**
+   * Shape of the cube surface, deliberately unlike the square atlas region it
+   * samples and unlike the two surfaces beside it. It has to arrive as the
+   * mapper's default surface shape, because the first surface is created by the
+   * constructor before any example code can give it one of its own.
+   */
+  cubeSurfaceResolution: { width: 1920, height: 1080 },
   /** The surface that ignores the atlas and samples this image instead */
   imageSurfaceId: 'image',
   imagePath: '/static/uv-grid.jpg',
