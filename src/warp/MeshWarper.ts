@@ -743,7 +743,14 @@ export class MeshWarper {
     }
   }
 
-  public resetToDefault(): void {
+  /**
+   * Reset the warp to a flat default rectangle. Position and warp share the
+   * corner points, so by default the surface's centroid is preserved —
+   * reset clears the deformation, not the placement.
+   */
+  public resetToDefault(keepPosition: boolean = true): void {
+    const center = this.getCenter();
+
     // Reset corners — dragCornerControlPoints[i] IS cornerObjects[i].position (same ref)
     for (let i = 0; i < 4; i++) {
       const x = this.quadData.initalCorners[i * 2];
@@ -778,11 +785,46 @@ export class MeshWarper {
     if (this.material.uniforms.uWarpPlaneSize) {
       this.material.uniforms.uWarpPlaneSize.value.set(this.averageDimensions.width, this.averageDimensions.height);
     }
-    localStorage.removeItem(this.storageKey);
+
+    if (keepPosition && (center.x !== 0 || center.y !== 0)) {
+      this.translate(center.x, center.y); // also saves to storage
+    } else {
+      localStorage.removeItem(this.storageKey);
+    }
   }
 
   public clearStorage(): void {
     localStorage.removeItem(this.storageKey);
+  }
+
+  /** Centroid of the 4 corner points in world space */
+  public getCenter(): { x: number; y: number } {
+    const [tl, tr, bl, br] = this.dragCornerControlPoints;
+    return { x: (tl.x + tr.x + bl.x + br.x) / 4, y: (tl.y + tr.y + bl.y + br.y) / 4 };
+  }
+
+  /** Move the surface's centroid to an absolute world-space position, preserving its warp */
+  public setPosition(x: number, y: number): void {
+    const center = this.getCenter();
+    this.translate(x - center.x, y - center.y);
+  }
+
+  /** Move the whole surface by a world-space delta, preserving its warp */
+  public translate(dx: number, dy: number): void {
+    // Corner points ARE the corner objects' positions (same refs), so this moves visuals too
+    this.dragCornerControlPoints.forEach((p) => {
+      p.x += dx;
+      p.y += dy;
+    });
+    this.cornerObjects.forEach((obj) => obj.userData.lastValidPosition?.copy(obj.position));
+
+    const corners = this.dragCornerControlPoints.flatMap((p) => [p.x, p.y]);
+    this.perspectiveTransformControlPoints(corners, new THREE.Vector3(), 'corner');
+
+    this.updateLine();
+    this.averageDimensions = this.getAverageDimensions();
+    this.material.uniforms.uWarpPlaneSize.value.set(this.averageDimensions.width, this.averageDimensions.height);
+    this.saveToStorage();
   }
 
   public setUvRect(offsetX: number, offsetY: number, scaleX: number, scaleY: number): void {

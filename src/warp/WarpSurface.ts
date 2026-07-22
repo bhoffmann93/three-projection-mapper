@@ -52,6 +52,16 @@ export class WarpSurface {
     return { ...this.uvRect };
   }
 
+  /** Move the whole surface by a world-space delta, preserving its warp */
+  translate(dx: number, dy: number): void {
+    this.warper.translate(dx, dy);
+  }
+
+  /** Move the surface's centroid to an absolute world-space position, preserving its warp */
+  setPosition(x: number, y: number): void {
+    this.warper.setPosition(x, y);
+  }
+
   dispose(): void {
     this.warper.dispose();
   }

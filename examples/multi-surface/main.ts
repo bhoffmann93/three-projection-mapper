@@ -1,8 +1,12 @@
 /*
-Multi Surface Example
----------------------
-Two independently warped surfaces sampling the left and right half of one
-shared input texture — MadMapper/Resolume-style discrete multi-object mapping.
+Multi Surface Example — atlas pattern
+-------------------------------------
+Two independently warped square surfaces sampling one shared input buffer
+(Resolume-style slices). The buffer is an atlas rendered with scissor/viewport
+regions: left half = a 3D scene (rotating cube), right half = a GLSL shader.
+Each region renders once, straight into the shared render target — no blits.
+The surfaces spawn side by side, not overlapping.
+
 Use the GUI's Surfaces folder to select, add or remove surfaces; only the
 active surface shows drag handles.
 */
@@ -18,7 +22,31 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 document.body.appendChild(renderer.domElement);
 
-const bufferRes = { width: 1920, height: 1080 };
+// Atlas: two square 1080x1080 regions side by side in one buffer
+const regionRes = { width: 1080, height: 1080 };
+const bufferRes = { width: regionRes.width * 2, height: regionRes.height };
+
+// --- Region 1: 3D scene with a rotating cube ---
+
+const cubeScene = new THREE.Scene();
+cubeScene.background = new THREE.Color(0x101018);
+
+const cubeCamera = new THREE.PerspectiveCamera(45, regionRes.width / regionRes.height, 0.1, 100);
+cubeCamera.position.set(0, 0.75, 4);
+cubeCamera.lookAt(0, 0, 0);
+
+const cube = new THREE.Mesh(
+  new THREE.BoxGeometry(1.5, 1.5, 1.5),
+  new THREE.MeshStandardMaterial({ color: 0xff7733, roughness: 0.35, metalness: 0.2 }),
+);
+cubeScene.add(cube);
+
+const keyLight = new THREE.DirectionalLight(0xffffff, 2.5);
+keyLight.position.set(2, 3, 4);
+cubeScene.add(keyLight);
+cubeScene.add(new THREE.HemisphereLight(0x8899ff, 0x332211, 1.0));
+
+// --- Region 2: fullscreen shader ---
 
 const shaderCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 const shaderScene = new THREE.Scene();
@@ -26,7 +54,9 @@ const shaderScene = new THREE.Scene();
 const shaderMaterial = new THREE.ShaderMaterial({
   uniforms: {
     uTime: { value: 0 },
-    uResolution: { value: new THREE.Vector2(bufferRes.width, bufferRes.height) },
+    // gl_FragCoord is in atlas pixels, so the shader needs its region's placement
+    uRegionOffset: { value: new THREE.Vector2(regionRes.width, 0) },
+    uRegionSize: { value: new THREE.Vector2(regionRes.width, regionRes.height) },
   },
   vertexShader: /* glsl */ `
     void main() {
@@ -35,7 +65,8 @@ const shaderMaterial = new THREE.ShaderMaterial({
   `,
   fragmentShader: /* glsl */ `
     uniform float uTime;
-    uniform vec2 uResolution;
+    uniform vec2 uRegionOffset;
+    uniform vec2 uRegionSize;
 
     #define TAU 6.28318530718
 
@@ -45,23 +76,12 @@ const shaderMaterial = new THREE.ShaderMaterial({
     }
 
     void main() {
-      vec2 uv = gl_FragCoord.xy / uResolution.xy;
+      vec2 uv = (gl_FragCoord.xy - uRegionOffset) / uRegionSize;
 
-      // Distinct halves so the uv rect split is obvious:
-      // left half = flowing rings, right half = scrolling diagonals
-      vec3 color;
-      if (uv.x < 0.5) {
-        vec2 p = uv * vec2(2.0, 1.0) - 0.5;
-        float d = length(p - 0.5);
-        color = palette(d * 2.0 - uTime * 0.1) * smoothstep(0.0, 0.05, abs(sin(d * 20.0 - uTime * 2.0)));
-      } else {
-        vec2 p = (uv - vec2(0.5, 0.0)) * vec2(2.0, 1.0);
-        float stripes = sin((p.x + p.y) * 20.0 + uTime * 2.0);
-        color = palette(p.y - uTime * 0.05) * smoothstep(-0.2, 0.2, stripes);
-      }
-
-      // Thin center split line
-      color = mix(color, vec3(1.0), 1.0 - smoothstep(0.001, 0.003, abs(uv.x - 0.5)));
+      vec2 p = uv - 0.5;
+      p.x *= uRegionSize.x / uRegionSize.y;
+      float d = length(p);
+      vec3 color = palette(d - uTime * 0.1) * smoothstep(0.0, 0.05, abs(sin(d * 20.0 - uTime * 2.0)));
 
       gl_FragColor = vec4(color, 1.0);
     }
@@ -72,24 +92,35 @@ const shaderMaterial = new THREE.ShaderMaterial({
 
 shaderScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), shaderMaterial));
 
+// --- Shared atlas buffer ---
 const renderTarget = new THREE.WebGLRenderTarget(bufferRes.width, bufferRes.height, {
   minFilter: THREE.LinearFilter,
   magFilter: THREE.LinearFilter,
   generateMipmaps: false,
 });
 
-// resolution = the crop's resolution (half the buffer width) so each
-// surface's plane aspect matches what it samples
+// resolution = one region's resolution so each surface's plane aspect
+// matches the half of the atlas it samples
 const mapper = new ProjectionMapper(renderer, renderTarget.texture, {
-  resolution: { width: bufferRes.width / 2, height: bufferRes.height },
+  resolution: regionRes,
   zoom: 0.4,
 });
 
-// First run only: split the input between two surfaces.
-// On reload the surface list and calibration restore from localStorage.
-if (mapper.getSurfaces().length === 1) {
-  mapper.setUvRect(0, 0, 0.5, 1);
-  mapper.addSurface({ uvRect: { offsetX: 0.5, offsetY: 0, scaleX: 0.5, scaleY: 1 } });
+// Apply the example layout once: one surface per atlas region, side by side
+// (surfaces are 10 world units wide, so ±6 leaves a 2-unit gap). The marker
+// key survives reloads, so calibration afterwards restores from localStorage.
+// Bump the marker version to force a fresh layout on existing storage.
+const LAYOUT_KEY = 'multi-surface-example-layout-v1';
+if (!localStorage.getItem(LAYOUT_KEY)) {
+  const cubeSurface = mapper.getSurfaces()[0];
+  const shaderSurface =
+    mapper.getSurfaces()[1] ?? mapper.addSurface({ uvRect: { offsetX: 0.5, offsetY: 0, scaleX: 0.5, scaleY: 1 } });
+  mapper.setUvRect(0, 0, 0.5, 1, cubeSurface.id);
+  mapper.setUvRect(0.5, 0, 0.5, 1, shaderSurface.id);
+  mapper.reset(); // clear any stored warp before placing
+  cubeSurface.setPosition(-6, 0);
+  shaderSurface.setPosition(6, 0);
+  localStorage.setItem(LAYOUT_KEY, '1');
 }
 
 const gui = new ProjectionMapperGUI(mapper, {
@@ -98,13 +129,19 @@ const gui = new ProjectionMapperGUI(mapper, {
 });
 
 const hint = document.createElement('div');
-hint.style.cssText = 'position:fixed;bottom:16px;left:16px;color:rgba(255,255,255,0.5);font:12px/1.6 monospace;pointer-events:none;transition:opacity 0.3s';
-hint.innerHTML = '<span>G</span> toggle UI<br><span>T</span> test card<br><span>W</span> warp controls<br>Select a surface in the GUI, then drag its corners apart';
+hint.style.cssText =
+  'position:fixed;bottom:16px;left:16px;color:rgba(255,255,255,0.5);font:12px/1.6 monospace;pointer-events:none;transition:opacity 0.3s';
+hint.innerHTML =
+  '<span>G</span> toggle UI<br><span>T</span> test card<br><span>W</span> warp controls<br>Select a surface in the GUI to edit its warp';
 document.body.appendChild(hint);
 
 let uiVisible = true;
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'g' || e.key === 'p') { gui.toggle(); uiVisible = !uiVisible; hint.style.opacity = uiVisible ? '1' : '0'; }
+  if (e.key === 'g' || e.key === 'p') {
+    gui.toggle();
+    uiVisible = !uiVisible;
+    hint.style.opacity = uiVisible ? '1' : '0';
+  }
   if (e.key === 't') gui.toggleTestCard();
   if (e.key === 'w') gui.toggleWarpUI();
 });
@@ -119,18 +156,35 @@ const clock = new THREE.Clock();
 function animate() {
   requestAnimationFrame(animate);
 
-  shaderMaterial.uniforms.uTime.value = clock.getElapsedTime();
+  const t = clock.getElapsedTime();
+  cube.rotation.x = t * 0.5;
+  cube.rotation.y = t * 0.8;
+  shaderMaterial.uniforms.uTime.value = t;
 
+  // Render both regions into the shared atlas. The render target's own
+  // viewport/scissor are used (renderer.setViewport is canvas-only — it
+  // scales by devicePixelRatio); setRenderTarget applies them, so re-bind
+  // after each change.
+  renderTarget.scissorTest = true;
+
+  renderTarget.viewport.set(0, 0, regionRes.width, regionRes.height);
+  renderTarget.scissor.set(0, 0, regionRes.width, regionRes.height);
+  renderer.setRenderTarget(renderTarget);
+  renderer.render(cubeScene, cubeCamera);
+
+  renderTarget.viewport.set(regionRes.width, 0, regionRes.width, regionRes.height);
+  renderTarget.scissor.set(regionRes.width, 0, regionRes.width, regionRes.height);
   renderer.setRenderTarget(renderTarget);
   renderer.render(shaderScene, shaderCamera);
 
+  renderTarget.scissorTest = false;
   renderer.setRenderTarget(null);
   mapper.render();
 }
 
 animate();
 
-console.log('Multi Surface Example');
+console.log('Multi Surface Example (atlas: scene + shader in one buffer)');
 console.log('Controls:');
 console.log('  G/P - Toggle GUI');
 console.log('  T   - Toggle testcard');
