@@ -560,6 +560,10 @@ export class MeshWarper {
     this.gridObjects.forEach((obj) => this.config.scene.remove(obj));
   }
 
+  public getBufferTexture(): THREE.Texture {
+    return this.material.uniforms.uBuffer.value as THREE.Texture;
+  }
+
   public setBufferTexture(texture: THREE.Texture): void {
     if (this.material.uniforms.uBuffer) {
       this.material.uniforms.uBuffer.value = texture;

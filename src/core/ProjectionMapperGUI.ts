@@ -49,11 +49,6 @@ export interface ProjectionMapperGUIConfig {
   eventChannel?: EventChannel; // Optional: enables event broadcasting
   windowManager?: WindowManager; // Optional: enables projector window button
   enableWhiteOut?: boolean; // Optional: adds a full-screen white-out toggle button
-  /**
-   * Show the UV crop folder. Defaults to the mapper's multiSurface setting —
-   * set it explicitly to keep cropping on a single-surface mapper.
-   */
-  showInputCrop?: boolean;
 }
 
 /**
@@ -89,7 +84,6 @@ export class ProjectionMapperGUI {
   private surfacesFolder!: FolderApi;
   private surfaceListBlade: { dispose(): void; value?: unknown } | null = null;
   private warpModeBlade!: { value: unknown };
-  private uvRectState = { offset: { x: 0, y: 0 }, scale: { x: 1, y: 1 } };
   private config: ProjectionMapperGUIConfig;
   private syncSettingButtons: () => void = () => {};
   private syncWarpButtons: () => void = () => {};
@@ -138,8 +132,13 @@ export class ProjectionMapperGUI {
     Object.assign(this.edgeMaskState, mapper.getEdgeMask());
     Object.assign(this.polygonState, mapper.getActiveSurface().getPolygonSettings());
 
-    // Canvas clicks are the primary way to select a surface; the pane follows
+    // Canvas clicks are the primary way to select a surface; the pane follows.
+    // Surfaces added by the host app rather than by this pane must show up too.
     mapper.onActiveSurfaceChanged = () => this.syncFromActiveSurface();
+    mapper.onSurfacesChanged = () => {
+      this.rebuildSurfaceList();
+      this.syncFromActiveSurface();
+    };
 
     this.pane = new Pane({ title });
     this.pane.element.style.opacity = TWEAKPANE_TRANSPARENCY;
@@ -174,19 +173,21 @@ export class ProjectionMapperGUI {
   }
 
   /**
-   * Output-wide controls first, then the surface selector, then the folders it
-   * scopes — everything the surface does in its own flat space first (which
-   * pixels it samples, how they are graded, what is cut away), then Warp last,
-   * which is the only part concerned with where the result lands in the output.
+   * Output-wide controls, then the surface selector, then the folders it scopes:
+   * how the surface's pixels are graded, what is cut away, and last where the
+   * result lands in the output.
+   *
+   * There is deliberately no uv-crop section. This pane is a calibration
+   * harness; choosing which slice of a buffer a surface samples is app work,
+   * and four 0-1 sliders are a poor way to express it. The mechanism stays on
+   * the mapper (setUvRect), and the UvRectEditor addon provides a visual one.
    */
   private initPane(): void {
-    // A single-surface mapper has no set to choose from and nothing to crop
-    // against, so both of those sections are left out entirely
+    // A single-surface mapper has no set to choose from
     const multiSurface = this.mapper.isMultiSurface();
 
     this.initOutputControls(this.pane);
     if (multiSurface) this.initSurfacesFolder(this.pane);
-    if (this.config.showInputCrop ?? multiSurface) this.initInputFolder(this.pane);
     this.initImageFolder(this.pane);
     this.initMasksFolder(this.pane);
     this.initWarpFolder(this.pane);
@@ -294,8 +295,7 @@ export class ProjectionMapperGUI {
         this.mapper.removeSurface(surfaceId);
         this.broadcast(ProjectionEventType.SURFACE_REMOVED, { surfaceId });
       }
-      this.rebuildSurfaceList();
-      this.syncFromActiveSurface();
+      // the mapper's onSurfacesChanged rebuilds the list
     });
   }
 
@@ -469,32 +469,10 @@ export class ProjectionMapperGUI {
     });
   }
 
-  /** The crop rectangle of the shared input texture this surface samples */
-  private initInputFolder(page: PaneContainer): void {
-    const inputFolder = page.addFolder({ title: 'Input', expanded: true });
-    const uvRange = { min: 0, max: 1, step: 0.001 };
-
-    inputFolder
-      .addBinding(this.uvRectState, 'offset', { label: 'UV Offset', x: uvRange, y: uvRange })
-      .on('change', () => this.onUvRectChange());
-    inputFolder
-      .addBinding(this.uvRectState, 'scale', { label: 'UV Scale', x: uvRange, y: uvRange })
-      .on('change', () => this.onUvRectChange());
-  }
-
   private activeSurfaceId(): string {
     return this.mapper.getActiveSurface().id;
   }
 
-
-  private onUvRectChange(): void {
-    const { offset, scale } = this.uvRectState;
-    this.mapper.setUvRect(offset.x, offset.y, scale.x, scale.y);
-    this.broadcast(ProjectionEventType.UV_RECT_CHANGED, {
-      uvRect: this.mapper.getUvRect(),
-      surfaceId: this.activeSurfaceId(),
-    });
-  }
 
   // The list blade's options are fixed at creation, so it is recreated on add/remove.
   // With a single surface there is nothing to choose between, so it is left out.
@@ -529,12 +507,6 @@ export class ProjectionMapperGUI {
     this.settings.warpMode = warper.getWarpMode();
     if (this.warpModeBlade) this.warpModeBlade.value = this.settings.warpMode;
     if (this.surfaceListBlade) this.surfaceListBlade.value = this.activeSurfaceId();
-
-    const uvRect = this.mapper.getUvRect();
-    this.uvRectState.offset.x = uvRect.offsetX;
-    this.uvRectState.offset.y = uvRect.offsetY;
-    this.uvRectState.scale.x = uvRect.scaleX;
-    this.uvRectState.scale.y = uvRect.scaleY;
 
     Object.assign(this.imageState, this.mapper.getImageSettings());
     Object.assign(this.edgeMaskState, this.mapper.getEdgeMask());

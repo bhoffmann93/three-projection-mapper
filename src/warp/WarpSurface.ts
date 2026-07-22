@@ -108,6 +108,19 @@ export class WarpSurface {
     return this.warper;
   }
 
+  /**
+   * The texture this surface samples. Each surface owns its own texture uniform,
+   * so surfaces sharing one buffer (an atlas, sliced by uvRect) and surfaces with
+   * their own media are the same model, not two modes.
+   */
+  setTexture(texture: THREE.Texture): void {
+    this.warper.setBufferTexture(texture);
+  }
+
+  getTexture(): THREE.Texture {
+    return this.warper.getBufferTexture();
+  }
+
   /** This surface's own pixel resolution — independent of the input buffer's */
   getResolution(): Resolution {
     return this.warper.getResolution();

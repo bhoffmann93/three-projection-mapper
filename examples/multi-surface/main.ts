@@ -1,11 +1,17 @@
 /*
 Multi Surface Example — atlas pattern
 -------------------------------------
-Two independently warped square surfaces sampling one shared input buffer
-(Resolume-style slices). The buffer is an atlas rendered with scissor/viewport
-regions: left half = a 3D scene (rotating cube), right half = a GLSL shader.
-Each region renders once, straight into the shared render target — no blits.
-The surfaces spawn side by side, not overlapping.
+Three surfaces, showing that atlas slicing and per-surface media are the same
+model rather than two modes.
+
+Two square surfaces sample one shared input buffer (Resolume-style slices). That
+buffer is an atlas rendered with scissor/viewport regions: left half = a 3D scene
+(rotating cube), right half = a GLSL shader. Each region renders once, straight
+into the shared render target — no blits.
+
+The third surface ignores the atlas and samples its own image instead, taking
+that image's 4:3 aspect while the atlas surfaces stay square. Each surface owns
+its own texture uniform, so both kinds coexist without a mode switch.
 
 Click a surface on the canvas to select it and drag its body to move it; only
 the active surface shows drag handles. The input view (bottom right) shows the
@@ -166,12 +172,15 @@ const mapper = new ProjectionMapper(renderer, renderTarget.texture, {
   appId: 'multi-surface',
 });
 
-// Apply the example layout once: one surface per atlas region, side by side
-// (surfaces are 10 world units wide, so ±6 leaves a 2-unit gap). The marker
-// key survives reloads, so calibration afterwards restores from localStorage.
-// Bump the marker version to force a fresh layout on existing storage.
-const LAYOUT_KEY = 'multi-surface-example-layout-v1';
-if (!localStorage.getItem(LAYOUT_KEY)) {
+// Apply the example layout once: the two atlas surfaces are 10 world units wide
+// (square), the image surface is wider because it takes the image's 4:3 aspect.
+// The marker key survives reloads, so calibration afterwards restores from
+// localStorage. Bump the marker version to force a fresh layout.
+const LAYOUT_KEY = 'multi-surface-example-layout-v2';
+const IMAGE_SURFACE_ID = 'image';
+const freshLayout = !localStorage.getItem(LAYOUT_KEY);
+
+if (freshLayout) {
   const cubeSurface = mapper.getSurfaces()[0];
   const shaderSurface =
     mapper.getSurfaces()[1] ??
@@ -182,10 +191,30 @@ if (!localStorage.getItem(LAYOUT_KEY)) {
   mapper.setUvRect(0, 0, 0.5, 1, cubeSurface.id);
   mapper.setUvRect(0.5, 0, 0.5, 1, shaderSurface.id);
   mapper.reset(); // clear any stored warp before placing
-  cubeSurface.setPosition(-6, 0);
-  shaderSurface.setPosition(6, 0);
+  cubeSurface.setPosition(-13, 0);
+  shaderSurface.setPosition(0, 0);
   localStorage.setItem(LAYOUT_KEY, '1');
 }
+
+// A third surface that ignores the atlas entirely: it samples its own image
+// rather than a uv rect of the shared buffer, and takes that image's aspect.
+// Each surface owns its own texture uniform, so mixing the two costs nothing.
+new THREE.TextureLoader().load('/static/screenshot-warp.png', (imageTexture) => {
+  imageTexture.colorSpace = THREE.SRGBColorSpace;
+
+  // The surface is created from the loaded image's real dimensions, so its plane
+  // is 4:3 while the atlas surfaces stay square
+  const existing = mapper.getSurface(IMAGE_SURFACE_ID);
+  const imageSurface =
+    existing ??
+    mapper.addSurface({
+      id: IMAGE_SURFACE_ID,
+      resolution: { width: imageTexture.image.width, height: imageTexture.image.height },
+    });
+
+  mapper.setTexture(imageTexture, imageSurface.id); // only this surface
+  if (!existing) imageSurface.setPosition(13, 0);
+});
 
 const gui = new ProjectionMapperGUI(mapper, {
   title: 'Projection Mapper',
@@ -253,7 +282,7 @@ function animate() {
 
 animate();
 
-console.log('Multi Surface Example (atlas: scene + shader in one buffer)');
+console.log('Multi Surface Example (atlas: scene + shader, plus one surface with its own image)');
 console.log('Controls:');
 console.log('  G/P - Toggle GUI');
 console.log('  T   - Toggle testcard');

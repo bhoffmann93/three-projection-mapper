@@ -40,8 +40,11 @@ The texture source can be a **3D scene** rendered into a `WebGLRenderTarget`, a 
 
 - **Corner control points** — 4 outer points for broad perspective correction
 - **Grid control points** — configurable inner grid for fine-grained surface warping (Bilinear or Bicubic Warping)
+- **Multiple surfaces** — several independently warped surfaces in one output; click a surface on the canvas to select it, drag its body to move it
+- **Per-surface everything** — each surface owns its warp, resolution, source texture, crop, image adjustments and masks
 - **Polygon mask** — interactive closed polygon evaluated as an SDF in the fragment shader; click edges to insert nodes, double-click to remove, with feather and invert support
-- **Image adjustments** — contrast, hue, gamma, ACES tonemapping, feather mask
+- **Image adjustments** — contrast, hue, gamma, saturation, blacks/whites, ACES tonemapping (per surface, for matching projectors)
+- **Edge feather** — per-surface feather mask for blending overlapping projections
 - **Testcard overlay** — procedural pattern (resolution- and aspect-independent)
 - **GUI** — Tweakpane based UI included
 - **Auto-save** — all settings saved to `localStorage`, restored on reload
@@ -115,6 +118,74 @@ window.addEventListener('keydown', (e) => {
 ```
 
 > **Canvas / p5.js:** If you're drawing with p5.js or a plain 2D canvas instead of a 3D scene, skip the render target — wrap the canvas element directly with `new THREE.CanvasTexture(canvasEl)` and set `canvasTexture.needsUpdate = true` each frame. See [`/examples/p5-canvas`](./examples/p5-canvas/) for a working example.
+
+## Multiple Surfaces
+
+A mapper can hold several independently warped surfaces. Each one owns its warp,
+resolution, source texture, crop, image adjustments and masks.
+
+Click a surface on the canvas to select it; drag its body to move it. Only the
+active surface shows drag handles, the others stay as dimmed outlines.
+
+```typescript
+const mapper = new ProjectionMapper(renderer, texture, { appId: 'my-app' });
+
+// A second surface with its own shape
+mapper.addSurface({ resolution: { width: 1080, height: 1080 } });
+```
+
+### Buffer, crop and surface resolution
+
+Three different things, and keeping them apart is what makes mixed layouts work:
+
+| | is | example |
+| --- | --- | --- |
+| **buffer resolution** | pixel size of the source texture | 2160×1080 atlas |
+| **`uvRect`** | which slice of it a surface samples | `0.5, 0 → 0.5, 1` |
+| **surface resolution** | the shape that slice is drawn into | 1080×1080 |
+
+They coincide only when one surface samples the whole buffer, which is the
+single-surface case. A surface shows undistorted content when its resolution
+matches the region it samples — that is, when
+
+```
+uvRect.scaleX / uvRect.scaleY  =  surfaceAspect / bufferAspect
+```
+
+Surfaces that do not declare a resolution inherit the mapper's.
+
+### Atlas or per-surface media
+
+Each surface owns its own texture uniform, so these are the same model rather
+than two modes:
+
+```typescript
+// Atlas: one buffer, sliced by uvRect
+mapper.setUvRect(0, 0, 0.5, 1, wideSurface.id);
+mapper.setUvRect(0.5, 0, 0.5, 1, squareSurface.id);
+
+// Per-surface media: this surface ignores the shared buffer entirely
+mapper.setTexture(myImageTexture, squareSurface.id);
+```
+
+[`/examples/multi-surface`](./examples/multi-surface/) does both at once: two
+square surfaces slicing one atlas, and a third sampling its own image with that
+image's aspect.
+
+### Single-surface mode
+
+If your app only ever wants one surface, say so. `addSurface()` is then refused,
+extra surfaces left in storage are ignored rather than restored, canvas selection
+is not installed, and the GUI drops its surface and crop controls:
+
+```typescript
+const mapper = new ProjectionMapper(renderer, texture, {
+  appId: 'my-app',
+  multiSurface: false,
+});
+```
+
+---
 
 ## Multi-Window Setup
 
@@ -267,20 +338,26 @@ new ProjectionMapper(
 
 ```typescript
 interface ProjectionMapperConfig {
-  resolution?: { width: number; height: number }; // Default: input texture size
+  resolution?: { width: number; height: number }; // View aspect + default surface resolution
   segments?: number; // Mesh density (default: 50)
   gridControlPoints?: { x: number; y: number }; // Grid size (auto-calculated if omitted)
   antialias?: boolean; // Enable SMAA (default: true)
-  planeScale?: number; // Fill factor 0–1 (default: 0.5)
+  zoom?: number; // Fill factor 0–1 (default: 0.5)
+  multiSurface?: boolean; // Allow more than one surface (default: true)
+  canvasSelection?: boolean; // Click/drag surfaces on the canvas (default: true)
+  appId?: string; // Scopes saved calibration — required if several apps share an origin
 }
 ```
+
+> **`appId` matters more than it looks.** Everything is saved to `localStorage`, which is shared by every app on an origin. Without an `appId` two apps overwrite each other's surfaces and warp points.
 
 **Methods:**
 
 | Method                            | Description                      |
 | --------------------------------- | -------------------------------- |
 | `render()`                        | Render the warped output         |
-| `setTexture(texture)`             | Swap the input texture           |
+| `setTexture(texture, surfaceId?)` | Swap the shared buffer, or one surface's own texture |
+| `getTexture(surfaceId?)`          | The shared buffer, or one surface's texture |
 | `setShowTestCard(show)`           | Toggle testcard                  |
 | `setShowControlLines(show)`       | Show/hide control line overlay   |
 | `resize(width, height)`           | Handle window resize             |
@@ -289,13 +366,27 @@ interface ProjectionMapperConfig {
 | `setCornerPointsVisible(visible)` | Show/hide corner points          |
 | `setOutlineVisible(visible)`      | Show/hide outline                |
 | `setGridSize(x, y)`               | Change grid density (2–10)       |
-| `setPlaneScale(scale)`            | Set fill factor (0–1)            |
-| `setShouldWarp(enabled)`          | Enable/disable warping           |
+| `setZoom(scale)`                  | Set fill factor (0–1)            |
+| `setShouldWarp(enabled)`          | Bypass warping (no GUI button; for host apps) |
 | `setCameraOffset(x, y)`           | Offset the orthographic camera   |
 | `getCameraOffset()`               | Get current camera offset        |
-| `reset()`                         | Reset warp and clear saved state |
-| `getWarper()`                     | Access the internal `MeshWarper` |
+| `reset(surfaceId?)`               | Reset one surface's warp, or all |
+| `getWarper()`                     | The active surface's `MeshWarper` |
 | `dispose()`                       | Clean up GPU resources           |
+
+**Surfaces:**
+
+| Method                                       | Description                                   |
+| -------------------------------------------- | --------------------------------------------- |
+| `addSurface({ id?, resolution?, uvRect? })`   | Add a surface; returns it                     |
+| `removeSurface(id)`                           | Remove a surface and its saved calibration    |
+| `getSurfaces()` / `getSurface(id)`            | The surface list, or one by id                |
+| `getActiveSurface()` / `setActiveSurface(id)` | The selected surface                          |
+| `isMultiSurface()`                            | Whether more than one surface is allowed      |
+| `setUvRect(ox, oy, sx, sy, surfaceId?)`       | Which slice of the buffer a surface samples   |
+| `setImageSettings(settings, surfaceId?)`      | Image adjustments for one surface             |
+| `setEdgeMask(enabled, feather?, surfaceId?)`  | Edge feather for one surface                  |
+| `onSurfacesChanged` / `onActiveSurfaceChanged` | Callbacks for host-app UI                    |
 
 ---
 
@@ -311,6 +402,20 @@ const gui = new ProjectionMapperGUI(mapper, {
   anchor: 'left', // or 'right'
   enableWhiteOut: true, // optional: adds a full-screen white button beside Testcard
 });
+```
+
+The panel is a flat folder list. Output-wide controls come first, then the
+surface selector, then the folders it scopes — Image, Masks and Warp. Everything
+below the selector acts on the **active surface**, and follows canvas selection.
+With `multiSurface: false` the surface folder is omitted.
+
+This pane is a **calibration harness**, not an app panel. It deliberately has no
+uv-crop section: choosing which slice of a buffer a surface samples is app work,
+and four 0–1 sliders express it poorly. The mechanism stays on the mapper
+(`setUvRect`), and [`UvRectEditor`](./src/addons/UvRectEditor.ts) provides a
+visual one — or build your own.
+
+```typescript
 
 gui.toggle(); // show/hide the GUI panel
 gui.show();
@@ -444,6 +549,8 @@ npm test           # Run tests with Vitest
 
 ## Roadmap
 
+- [ ] `surface.setResolution()` — change a surface's aspect at runtime (needs plane, control points and masks rebuilt)
+- [ ] Fit helper — derive a `uvRect` that shows media undistorted (contain / cover)
 - [ ] Bezier mask — SDF-based interactive Bezier mask in fragment shader
 - [ ] Mask Shapes
 - [ ] Surface Shapes

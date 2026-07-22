@@ -111,7 +111,7 @@ export class ProjectionMapper {
   private shouldWarp = true;
   private polygonHandlesEnabled = true;
 
-  /** Called whenever the surface list changes */
+  /** Called whenever a surface is added or removed */
   public onSurfacesChanged: () => void = () => {};
 
   /** Called whenever the selected surface changes, including via canvas clicks */
@@ -398,8 +398,8 @@ export class ProjectionMapper {
     this.activeSurfaceId = id;
     this.applyActiveSurface();
     this.saveSurfaces();
+    // Selection is not a list change — onSurfacesChanged means membership changed
     this.onActiveSurfaceChanged(id);
-    this.onSurfacesChanged();
   }
 
   /** Surface the id names, or the active one when no id is given */
@@ -496,13 +496,23 @@ export class ProjectionMapper {
     }
   }
 
-  setTexture(texture: THREE.Texture): void {
+  /**
+   * Set the texture one surface samples, or the shared buffer for all of them
+   * when no id is given. Each surface owns its own texture uniform, so a surface
+   * can be given its own media without leaving the shared buffer behind.
+   */
+  setTexture(texture: THREE.Texture, surfaceId?: string): void {
+    if (surfaceId) {
+      this.resolveSurface(surfaceId).setTexture(texture);
+      return;
+    }
     this.uniforms.uBuffer.value = texture;
-    this.surfaces.forEach((surface) => surface.getWarper().setBufferTexture(texture));
+    this.surfaces.forEach((surface) => surface.setTexture(texture));
   }
 
-  /** The shared input texture every surface samples */
-  getTexture(): THREE.Texture {
+  /** The shared input buffer, or one surface's own texture when an id is given */
+  getTexture(surfaceId?: string): THREE.Texture {
+    if (surfaceId) return this.resolveSurface(surfaceId).getTexture();
     return this.uniforms.uBuffer.value;
   }
 
