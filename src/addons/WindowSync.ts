@@ -171,6 +171,10 @@ export class WindowSync {
       this.mapper.removeSurface(surfaceId);
     });
 
+    this.eventChannel.on(ProjectionEventType.SURFACE_ORDER_CHANGED, ({ surfaceIds }) => {
+      this.mapper.setSurfaceOrder(surfaceIds);
+    });
+
     this.eventChannel.on(ProjectionEventType.UV_RECT_CHANGED, ({ uvRect, surfaceId }) => {
       const surface = surfaceId ? this.mapper.getSurface(surfaceId) : this.mapper.getSurfaces()[0];
       surface?.setUvRect(uvRect.offsetX, uvRect.offsetY, uvRect.scaleX, uvRect.scaleY);
@@ -402,6 +406,9 @@ export class WindowSync {
         if (!syncedIds.has(surface.id)) this.mapper.removeSurface(surface.id);
       }
       state.surfaces.forEach((surfaceState) => this.applySurfaceState(surfaceState));
+      // The payload order is the overlap order, and surfaces created earlier by
+      // SURFACE_ADDED will not already be in it
+      this.mapper.setSurfaceOrder(state.surfaces.map((surfaceState) => surfaceState.id));
     } else {
       // Single-surface sender: legacy top-level fields describe the first surface
       const firstSurface = this.mapper.getSurfaces()[0];

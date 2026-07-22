@@ -1059,6 +1059,11 @@ export class MeshWarper {
    * size, which is the undeformed shape. Feed its aspect into a content shader to
    * keep circles round when the surface is scaled non-uniformly.
    */
+  /** Where this surface sits in the overlap stack; higher draws on top */
+  public setRenderOrder(order: number): void {
+    this.mesh.renderOrder = order;
+  }
+
   public getWarpedSize(): { width: number; height: number } {
     return { ...this.averageDimensions };
   }

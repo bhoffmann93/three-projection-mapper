@@ -89,7 +89,8 @@ export class SurfacePicker {
   /**
    * Topmost surface under the pointer, by point-in-quad against the warped
    * corner points — the meshes cannot be raycast, see MeshWarper.containsPoint.
-   * Where surfaces overlap the most recently added one wins, matching draw order.
+   * Later in the list wins an overlap, which is the same order they are drawn in
+   * (ProjectionMapper.applyRenderOrder), so clicking picks what you can see.
    */
   private pickSurface(world: THREE.Vector3): WarpSurface | null {
     const surfaces = this.config.getSurfaces();

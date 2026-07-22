@@ -128,6 +128,11 @@ export class WarpSurface {
     return this.warper.getBufferTexture();
   }
 
+  /** Where this surface sits in the overlap stack; higher draws on top */
+  setRenderOrder(order: number): void {
+    this.warper.setRenderOrder(order);
+  }
+
   /**
    * The surface's current size in world units, as drawn — scaling and warping
    * included. Its aspect is what a content shader needs to stay size independent:

@@ -8,6 +8,7 @@ import projectionFragmentShader from '../shaders/projection.frag';
 import { calculateGridPoints } from '../warp/geometry';
 import { SurfacePicker } from './SurfacePicker';
 import { OutputFrame } from './OutputFrame';
+import { RenderOrder } from './RenderOrder';
 import { ListenerSet } from '../utils/ListenerSet';
 import { clamp } from '../utils/math';
 import {
@@ -253,6 +254,7 @@ export class ProjectionMapper {
 
     this.activeSurfaceId =
       stored?.activeId && this.getSurface(stored.activeId) ? stored.activeId : this.surfaces[0].id;
+    this.applyRenderOrder();
     this.applyActiveSurface();
 
     // Nothing to select or arrange when there can only ever be one surface
@@ -372,6 +374,64 @@ export class ProjectionMapper {
     return surface;
   }
 
+  /**
+   * Stack surfaces in list order, last on top. Without this they all sit at the
+   * same depth and the same render order, and which one wins an overlap falls out
+   * of three's sort being stable — true today, but nothing states it.
+   */
+  private applyRenderOrder(): void {
+    this.surfaces.forEach((surface, index) => surface.setRenderOrder(RenderOrder.CONTENT + index));
+  }
+
+  /**
+   * Move a surface within the overlap stack. Positive moves it towards the front,
+   * and it stops at either end rather than wrapping.
+   */
+  moveSurface(id: string, offset: number): void {
+    const from = this.surfaces.findIndex((surface) => surface.id === id);
+    if (from === -1) return;
+
+    const to = clamp(from + offset, 0, this.surfaces.length - 1);
+    if (to === from) return;
+
+    const [moved] = this.surfaces.splice(from, 1);
+    this.surfaces.splice(to, 0, moved);
+
+    this.applyRenderOrder();
+    this.saveSurfaces();
+    this.surfacesChanged.emit();
+  }
+
+  /** Front to back, the order they are drawn and the order overlaps resolve in */
+  getSurfaceIndex(id: string): number {
+    return this.surfaces.findIndex((surface) => surface.id === id);
+  }
+
+  /** Every surface id, front to back */
+  getSurfaceOrder(): string[] {
+    return this.surfaces.map((surface) => surface.id);
+  }
+
+  /**
+   * Reorder to match a list of ids, for a receiving window. Ids it does not know
+   * are ignored and surfaces the list omits keep their relative order at the
+   * back, so a partial or stale list cannot drop a surface.
+   */
+  setSurfaceOrder(surfaceIds: string[]): void {
+    const ordered = surfaceIds
+      .map((id) => this.surfaces.find((surface) => surface.id === id))
+      .filter((surface): surface is WarpSurface => !!surface);
+
+    const remaining = this.surfaces.filter((surface) => !ordered.includes(surface));
+    const next = [...ordered, ...remaining];
+    if (next.every((surface, index) => surface === this.surfaces[index])) return;
+
+    this.surfaces = next;
+    this.applyRenderOrder();
+    this.saveSurfaces();
+    this.surfacesChanged.emit();
+  }
+
   /** Only the active surface shows handles and accepts drags */
   private applyActiveSurface(): void {
     for (const surface of this.surfaces) {
@@ -430,6 +490,7 @@ export class ProjectionMapper {
     });
     this.surfaces.push(surface);
     this.activeSurfaceId = id;
+    this.applyRenderOrder();
     this.applyActiveSurface();
     this.saveSurfaces();
     this.surfacesChanged.emit();
@@ -450,6 +511,7 @@ export class ProjectionMapper {
     if (selectionChanged) {
       this.activeSurfaceId = this.surfaces[0].id;
     }
+    this.applyRenderOrder();
     this.applyActiveSurface();
     this.saveSurfaces();
     this.surfacesChanged.emit();

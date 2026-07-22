@@ -311,8 +311,26 @@ export class ProjectionMapperGUI {
     const { blade: surfaceBtnGrid, buttons: surfaceButtons } = addButtonGrid(this.surfacesFolder, ['Add', 'Remove']);
     const removeBtn = surfaceButtons[1];
     removeBtn.style.background = RESET_BUTTON_COLOR;
+
+    // Overlap order, the same shape as an effect stack: the selected surface
+    // moves through the list, and the list is the draw order
+    const { blade: orderBtnGrid, buttons: orderButtons } = addButtonGrid(this.surfacesFolder, [
+      'Back',
+      'Front',
+    ]);
+    const [backBtn, frontBtn] = orderButtons;
+
+    orderBtnGrid.on('click', (ev) => {
+      this.mapper.moveSurface(this.activeSurfaceId(), ev.index[0] === 0 ? -1 : 1);
+      this.broadcast(ProjectionEventType.SURFACE_ORDER_CHANGED, { surfaceIds: this.mapper.getSurfaceOrder() });
+    });
+
     this.syncSurfaceButtons = () => {
-      removeBtn.disabled = this.mapper.getSurfaces().length <= 1;
+      const surfaces = this.mapper.getSurfaces();
+      const index = this.mapper.getSurfaceIndex(this.activeSurfaceId());
+      removeBtn.disabled = surfaces.length <= 1;
+      backBtn.disabled = index <= 0;
+      frontBtn.disabled = index === -1 || index >= surfaces.length - 1;
     };
 
     surfaceBtnGrid.on('click', (ev) => {

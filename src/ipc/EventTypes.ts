@@ -13,6 +13,7 @@ export const enum ProjectionEventType {
   // Surfaces
   SURFACE_ADDED = 'SURFACE_ADDED',
   SURFACE_REMOVED = 'SURFACE_REMOVED',
+  SURFACE_ORDER_CHANGED = 'SURFACE_ORDER_CHANGED',
   UV_RECT_CHANGED = 'UV_RECT_CHANGED',
 
   // Warp settings

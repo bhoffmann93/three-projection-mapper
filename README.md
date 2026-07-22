@@ -212,6 +212,22 @@ surfaceB.setWarpedSize(width, height);
 surface.scale(1.05); // 5% larger, perspective intact
 ```
 
+### Overlapping surfaces
+
+Surfaces are drawn in list order, last on top, and clicking picks whatever is
+visible — the picker follows the same order. Overlap matters for edge blending,
+so it is set explicitly rather than left to depth sorting between coplanar
+surfaces:
+
+```typescript
+mapper.moveSurface(id, +1); // towards the front
+mapper.moveSurface(id, -1); // towards the back
+mapper.getSurfaceIndex(id); // where it currently sits
+```
+
+The order persists with the surface list, and the built-in pane exposes it as
+Back/Front buttons beside Add/Remove.
+
 ### Size-independent content
 
 A surface can be scaled to any shape, which stretches whatever it samples. When

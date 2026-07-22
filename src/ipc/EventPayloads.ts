@@ -109,6 +109,8 @@ export interface ProjectionEventPayloads {
   [ProjectionEventType.WARP_MODE_CHANGED]: { mode: number; surfaceId?: string };
   [ProjectionEventType.SURFACE_ADDED]: { surfaceId: string; uvRect: UvRect; resolution?: Resolution };
   [ProjectionEventType.SURFACE_REMOVED]: { surfaceId: string };
+  /** Front-to-back order; overlap is resolved by it, so the projector needs it too */
+  [ProjectionEventType.SURFACE_ORDER_CHANGED]: { surfaceIds: string[] };
   [ProjectionEventType.UV_RECT_CHANGED]: { uvRect: UvRect; surfaceId?: string };
   [ProjectionEventType.SHOULD_WARP_CHANGED]: { shouldWarp: boolean };
   [ProjectionEventType.TESTCARD_TOGGLED]: { show: boolean };
