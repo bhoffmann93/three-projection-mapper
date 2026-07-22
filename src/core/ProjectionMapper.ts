@@ -1,17 +1,31 @@
 import * as THREE from 'three';
-import { MeshWarper, MeshWarperConfig } from '../warp/MeshWarper';
+import { MeshWarper } from '../warp/MeshWarper';
+import { WarpSurface } from '../warp/WarpSurface';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import projectionFragmentShader from '../shaders/projection.frag';
 import { calculateGridPoints } from '../warp/geometry';
-import { GUI_STORAGE_KEY, DEFAULT_IMAGE_SETTINGS, DEFAULTS } from './defaults';
-import type { ImageSettings } from './defaults';
+import {
+  GUI_STORAGE_KEY,
+  DEFAULT_IMAGE_SETTINGS,
+  DEFAULTS,
+  DEFAULT_SURFACE_ID,
+  DEFAULT_UV_RECT,
+  SURFACES_STORAGE_KEY,
+} from './defaults';
+import type { ImageSettings, UvRect } from './defaults';
 import { PolygonMask, type UVPoint, POLYGON_MASK_STORAGE_KEY } from '../mask/PolygonMask';
 import { MaskPlane } from '../mask/MaskPlane';
 
 export { GUI_STORAGE_KEY, DEFAULT_IMAGE_SETTINGS };
 export type { ImageSettings };
+
+interface StoredSurfaces {
+  version: number;
+  activeId: string;
+  surfaces: { id: string; uvRect: UvRect }[];
+}
 
 export interface ProjectionMapperConfig {
   /** Projection resolution in pixels (default: { width: 1920, height: 1080 }) */
@@ -46,14 +60,21 @@ export class ProjectionMapper {
   private renderer: THREE.WebGLRenderer;
   private scene: THREE.Scene;
   private camera: THREE.OrthographicCamera;
-  private meshWarper: MeshWarper;
+  private surfaces: WarpSurface[] = [];
+  private activeSurfaceId: string = DEFAULT_SURFACE_ID;
   private composer: EffectComposer;
   private clock: THREE.Clock;
+
+  /** Handle visibility applied to whichever surface is active */
+  private controlsVisibility = { grid: true, corners: true, outline: true };
+  private dragEnabled = true;
+
+  /** Called whenever the surface list or active surface changes */
+  public onSurfacesChanged: () => void = () => {};
 
   private uniforms: {
     uBuffer: { value: THREE.Texture };
     uBufferResolution: { value: THREE.Vector2 };
-    uWarpPlaneSize: { value: THREE.Vector2 };
     uTime: { value: number };
     uShowTestCard: { value: boolean };
     uShowControlLines: { value: boolean };
@@ -120,9 +141,6 @@ export class ProjectionMapper {
       uBufferResolution: {
         value: new THREE.Vector2(this.resolution.width, this.resolution.height),
       },
-      uWarpPlaneSize: {
-        value: new THREE.Vector2(this.worldWidth, this.worldHeight),
-      },
       uTime: { value: 0 },
       uShowTestCard: { value: false },
       uShowControlLines: { value: true },
@@ -137,29 +155,25 @@ export class ProjectionMapper {
 
     this.imageSettings = { ...DEFAULT_IMAGE_SETTINGS };
 
-    const warperConfig: MeshWarperConfig = {
-      width: this.worldWidth,
-      height: this.worldHeight,
-      widthSegments: this.config.segments,
-      heightSegments: this.config.segments,
-      gridControlPoints: this.config.gridControlPoints,
-      scene: this.scene,
-      camera: this.camera,
-      renderer: this.renderer,
-      fragmentShader: projectionFragmentShader,
-      globalUniforms: this.uniforms,
-      globalDefines: {},
-      bufferTexture: inputTexture,
-    };
+    const stored = this.loadStoredSurfaces();
+    const initialSurfaces = stored?.surfaces?.length
+      ? stored.surfaces
+      : [{ id: DEFAULT_SURFACE_ID, uvRect: { ...DEFAULT_UV_RECT } }];
 
-    this.meshWarper = new MeshWarper(warperConfig);
+    for (const { id, uvRect } of initialSurfaces) {
+      this.surfaces.push(this.createSurface(id, uvRect));
+    }
+
+    this.activeSurfaceId =
+      stored?.activeId && this.getSurface(stored.activeId) ? stored.activeId : this.surfaces[0].id;
+    this.applyActiveSurface();
 
     this.maskPlane = new MaskPlane({
       worldWidth: this.worldWidth,
       worldHeight: this.worldHeight,
       segments: this.config.segments,
       scene: this.scene,
-      warpPlaneSizeRef: this.uniforms.uWarpPlaneSize,
+      warpPlaneSizeRef: this.surfaces[0].getWarper().getWarpPlaneSizeUniform(),
     });
 
     this.composer = new EffectComposer(this.renderer);
@@ -191,6 +205,148 @@ export class ProjectionMapper {
     return gridControlPoints;
   }
 
+  // A surface's own persisted grid size wins so calibration restores exactly;
+  // the mapper config value only seeds the default surface
+  private createSurface(id: string, uvRect?: UvRect): WarpSurface {
+    const storedGridSize = MeshWarper.getStoredGridSize(WarpSurface.storageNamespace(id));
+    const gridControlPoints =
+      storedGridSize ??
+      (id === DEFAULT_SURFACE_ID
+        ? { ...this.config.gridControlPoints }
+        : calculateGridPoints(this.worldWidth / this.worldHeight, DEFAULTS.minGridWarpPoints));
+
+    return new WarpSurface({
+      id,
+      uvRect,
+      warper: {
+        width: this.worldWidth,
+        height: this.worldHeight,
+        widthSegments: this.config.segments,
+        heightSegments: this.config.segments,
+        gridControlPoints,
+        scene: this.scene,
+        camera: this.camera,
+        renderer: this.renderer,
+        fragmentShader: projectionFragmentShader,
+        globalUniforms: this.uniforms,
+        globalDefines: {},
+        bufferTexture: this.uniforms.uBuffer.value,
+      },
+    });
+  }
+
+  /** Only the active surface shows handles and accepts drags */
+  private applyActiveSurface(): void {
+    for (const surface of this.surfaces) {
+      const warper = surface.getWarper();
+      if (surface.id === this.activeSurfaceId) {
+        warper.setGridPointsVisible(this.controlsVisibility.grid);
+        warper.setCornerPointsVisible(this.controlsVisibility.corners);
+        warper.setOutlineVisible(this.controlsVisibility.outline);
+        warper.setDragEnabled(this.dragEnabled);
+      } else {
+        warper.setAllControlsVisible(false);
+        warper.setDragEnabled(false);
+      }
+    }
+  }
+
+  addSurface(options: { id?: string; uvRect?: UvRect } = {}): WarpSurface {
+    const id = options.id ?? this.nextSurfaceId();
+    const existing = this.getSurface(id);
+    if (existing) return existing;
+
+    const surface = this.createSurface(id, options.uvRect);
+    this.surfaces.push(surface);
+    this.activeSurfaceId = id;
+    this.applyActiveSurface();
+    this.saveSurfaces();
+    this.onSurfacesChanged();
+    return surface;
+  }
+
+  removeSurface(id: string): void {
+    if (this.surfaces.length <= 1) return;
+    const index = this.surfaces.findIndex((s) => s.id === id);
+    if (index === -1) return;
+
+    const [removed] = this.surfaces.splice(index, 1);
+    removed.getWarper().clearStorage();
+    removed.dispose();
+
+    if (index === 0) {
+      this.maskPlane.setWarpPlaneSizeRef(this.surfaces[0].getWarper().getWarpPlaneSizeUniform());
+    }
+    if (this.activeSurfaceId === id) {
+      this.activeSurfaceId = this.surfaces[0].id;
+    }
+    this.applyActiveSurface();
+    this.saveSurfaces();
+    this.onSurfacesChanged();
+  }
+
+  getSurfaces(): WarpSurface[] {
+    return [...this.surfaces];
+  }
+
+  getSurface(id: string): WarpSurface | null {
+    return this.surfaces.find((s) => s.id === id) ?? null;
+  }
+
+  getActiveSurface(): WarpSurface {
+    return this.getSurface(this.activeSurfaceId) ?? this.surfaces[0];
+  }
+
+  setActiveSurface(id: string): void {
+    if (!this.getSurface(id) || this.activeSurfaceId === id) return;
+    this.activeSurfaceId = id;
+    this.applyActiveSurface();
+    this.saveSurfaces();
+    this.onSurfacesChanged();
+  }
+
+  setUvRect(offsetX: number, offsetY: number, scaleX: number, scaleY: number, surfaceId?: string): void {
+    const surface = surfaceId ? this.getSurface(surfaceId) : this.getActiveSurface();
+    if (!surface) return;
+    surface.setUvRect(offsetX, offsetY, scaleX, scaleY);
+    this.saveSurfaces();
+  }
+
+  getUvRect(surfaceId?: string): UvRect {
+    const surface = surfaceId ? this.getSurface(surfaceId) : this.getActiveSurface();
+    return (surface ?? this.getActiveSurface()).getUvRect();
+  }
+
+  private nextSurfaceId(): string {
+    const numericIds = this.surfaces.map((s) => Number(s.id)).filter((n) => Number.isInteger(n));
+    return String(numericIds.length ? Math.max(...numericIds) + 1 : 0);
+  }
+
+  private loadStoredSurfaces(): StoredSurfaces | null {
+    try {
+      const stored = localStorage.getItem(SURFACES_STORAGE_KEY);
+      if (!stored) return null;
+      const parsed = JSON.parse(stored) as StoredSurfaces;
+      if (!Array.isArray(parsed.surfaces)) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+
+  private saveSurfaces(): void {
+    const data: StoredSurfaces = {
+      version: 1,
+      activeId: this.activeSurfaceId,
+      surfaces: this.surfaces.map((s) => ({ id: s.id, uvRect: s.getUvRect() })),
+    };
+    try {
+      localStorage.setItem(SURFACES_STORAGE_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.warn('Failed to save surfaces to localStorage:', e);
+    }
+  }
+
   render(): void {
     if (this.whiteOut) {
       const savedColor = new THREE.Color();
@@ -209,14 +365,16 @@ export class ProjectionMapper {
     const frustumWidth = this.camera.right - this.camera.left;
     const viewportWidth = this.renderer.domElement.clientWidth;
     const pixelToWorld = frustumWidth / viewportWidth;
-    this.meshWarper.updateControlPointsScale(pixelToWorld);
+    this.surfaces.forEach((surface) => surface.getWarper().updateControlPointsScale(pixelToWorld));
 
-    this.maskPlane.syncPerspective(this.meshWarper.getPerspectiveCoeffs());
+    // Edge feather mask and polygon mask follow the first surface's perspective
+    const firstWarper = this.surfaces[0].getWarper();
+    this.maskPlane.syncPerspective(firstWarper.getPerspectiveCoeffs());
 
     if (this.polygonMask) {
       this.polygonMask.updateTransformedPositions(
-        (x, y) => this.meshWarper.applyPerspectiveTransform(x, y),
-        (x, y) => this.meshWarper.applyInversePerspectiveTransform(x, y),
+        (x, y) => firstWarper.applyPerspectiveTransform(x, y),
+        (x, y) => firstWarper.applyInversePerspectiveTransform(x, y),
       );
       this.polygonMask.updateControlPointsScale(pixelToWorld);
     }
@@ -231,7 +389,7 @@ export class ProjectionMapper {
 
   setTexture(texture: THREE.Texture): void {
     this.uniforms.uBuffer.value = texture;
-    this.meshWarper.setBufferTexture(texture);
+    this.surfaces.forEach((surface) => surface.getWarper().setBufferTexture(texture));
   }
 
   setShowTestCard(show: boolean): void {
@@ -328,39 +486,49 @@ export class ProjectionMapper {
     this.updateCameraFrustum();
   }
 
+  /** Active surface's warper — the single-surface facade */
   getWarper(): MeshWarper {
-    return this.meshWarper;
+    return this.getActiveSurface().getWarper();
   }
 
   setControlsVisible(visible: boolean): void {
     this.setShowControlLines(visible);
-    this.meshWarper.setAllControlsVisible(visible);
+    this.controlsVisibility = { grid: visible, corners: visible, outline: visible };
+    this.applyActiveSurface();
   }
 
   setGridPointsVisible(visible: boolean): void {
-    this.meshWarper.setGridPointsVisible(visible);
+    this.controlsVisibility.grid = visible;
+    this.getWarper().setGridPointsVisible(visible);
   }
 
   setCornerPointsVisible(visible: boolean): void {
-    this.meshWarper.setCornerPointsVisible(visible);
+    this.controlsVisibility.corners = visible;
+    this.getWarper().setCornerPointsVisible(visible);
   }
 
   setOutlineVisible(visible: boolean): void {
-    this.meshWarper.setOutlineVisible(visible);
+    this.controlsVisibility.outline = visible;
+    this.getWarper().setOutlineVisible(visible);
+  }
+
+  setDragEnabled(enabled: boolean): void {
+    this.dragEnabled = enabled;
+    this.applyActiveSurface();
   }
 
   setGridSize(x: number, y: number): void {
-    this.meshWarper.setGridSize(x, y);
+    this.getWarper().setGridSize(x, y);
   }
 
   setShouldWarp(enabled: boolean): void {
-    this.meshWarper.setShouldWarp(enabled);
+    this.surfaces.forEach((surface) => surface.getWarper().setShouldWarp(enabled));
     this.maskPlane.setShouldWarp(enabled);
     this.polygonMask?.setVisible(enabled);
   }
 
   isWarpEnabled(): boolean {
-    return this.meshWarper.getShouldWarp();
+    return this.getWarper().getShouldWarp();
   }
 
   setZoom(scale: number): void {
@@ -385,8 +553,13 @@ export class ProjectionMapper {
     return { ...this.resolution };
   }
 
-  reset(): void {
-    this.meshWarper.resetToDefault();
+  /** Reset one surface's warp, or all surfaces when no id is given */
+  reset(surfaceId?: string): void {
+    if (surfaceId) {
+      this.getSurface(surfaceId)?.getWarper().resetToDefault();
+      return;
+    }
+    this.surfaces.forEach((surface) => surface.getWarper().resetToDefault());
   }
 
   getScene(): THREE.Scene {
@@ -408,7 +581,7 @@ export class ProjectionMapper {
       nodes,
     );
     this.polygonMask.onChanged = () => this.syncPolygonMaskUniforms();
-    this.polygonMask.setVisible(this.meshWarper.getShouldWarp());
+    this.polygonMask.setVisible(this.getWarper().getShouldWarp());
     this.maskPlane.setPolygonMaskEnabled(true);
     this.syncPolygonMaskUniforms();
     return this.polygonMask;
@@ -420,7 +593,7 @@ export class ProjectionMapper {
     this.polygonMask.dispose();
     this.polygonMask = new PolygonMask(this.scene, this.camera, this.renderer, this.worldWidth, this.worldHeight);
     this.polygonMask.onChanged = () => this.syncPolygonMaskUniforms();
-    this.polygonMask.setVisible(this.meshWarper.getShouldWarp());
+    this.polygonMask.setVisible(this.getWarper().getShouldWarp());
     this.syncPolygonMaskUniforms();
   }
 
@@ -470,7 +643,7 @@ export class ProjectionMapper {
   }
 
   dispose(): void {
-    this.meshWarper.dispose();
+    this.surfaces.forEach((surface) => surface.dispose());
     this.maskPlane.dispose();
     this.composer.dispose();
     this.polygonMask?.dispose();

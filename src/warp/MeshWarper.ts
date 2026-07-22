@@ -24,7 +24,8 @@ import { isQuadConcave } from './geometry';
 import { clamp } from '../utils/math';
 import meshWarpVertexShader from '../shaders/warp.vert';
 import { RenderOrder } from '../core/RenderOrder';
-import { MESH_WARP_GRID_SIZE, WARP_HANDLE_STYLE } from '../core/defaults';
+import { DEFAULT_UV_RECT, MESH_WARP_GRID_SIZE, WARP_HANDLE_STYLE } from '../core/defaults';
+import type { UvRect } from '../core/defaults';
 
 const STORAGE_KEY = 'warp-grid-control-points';
 
@@ -46,6 +47,8 @@ export interface MeshWarperConfig {
   globalUniforms: Record<string, { value: unknown }>;
   globalDefines: Record<string, unknown>;
   bufferTexture: THREE.Texture;
+  /** Suffixes the localStorage key so multiple warpers persist independently */
+  storageNamespace?: string;
 }
 
 interface StoredControlPoints {
@@ -85,8 +88,30 @@ export class MeshWarper {
   private xControlPointAmount: number;
   private yControlPointAmount: number;
 
+  private storageKey: string;
+
+  static storageKeyFor(storageNamespace?: string): string {
+    return storageNamespace ? `${STORAGE_KEY}:${storageNamespace}` : STORAGE_KEY;
+  }
+
+  /** Grid size persisted with a warper's control points, if any */
+  static getStoredGridSize(storageNamespace?: string): { x: number; y: number } | null {
+    try {
+      const stored = localStorage.getItem(MeshWarper.storageKeyFor(storageNamespace));
+      if (!stored) return null;
+      const data: StoredControlPoints = JSON.parse(stored);
+      if (data.gridSize?.x && data.gridSize?.y) {
+        return { x: data.gridSize.x, y: data.gridSize.y };
+      }
+    } catch {
+      // ignore parse errors
+    }
+    return null;
+  }
+
   constructor(config: MeshWarperConfig) {
     this.config = config;
+    this.storageKey = MeshWarper.storageKeyFor(config.storageNamespace);
     this.xControlPointAmount = config.gridControlPoints.x;
     this.yControlPointAmount = config.gridControlPoints.y;
 
@@ -132,6 +157,15 @@ export class MeshWarper {
       },
       uWarpMode: { value: WARP_MODE.bicubic },
       uShouldWarp: { value: true },
+      uWarpPlaneSize: {
+        value: new THREE.Vector2(this.config.width, this.config.height),
+      },
+      uUvRectOffset: {
+        value: new THREE.Vector2(DEFAULT_UV_RECT.offsetX, DEFAULT_UV_RECT.offsetY),
+      },
+      uUvRectScale: {
+        value: new THREE.Vector2(DEFAULT_UV_RECT.scaleX, DEFAULT_UV_RECT.scaleY),
+      },
     };
 
     const material = new THREE.ShaderMaterial({
@@ -658,7 +692,7 @@ export class MeshWarper {
       referenceGrid: this.referenceGridControlPoints.map((p) => this.toNormalized(p)),
     };
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      localStorage.setItem(this.storageKey, JSON.stringify(data));
     } catch (e) {
       console.warn('Failed to save control points to localStorage:', e);
     }
@@ -666,7 +700,7 @@ export class MeshWarper {
 
   private loadFromStorage(): void {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = localStorage.getItem(this.storageKey);
       if (!stored) return;
 
       const data: StoredControlPoints = JSON.parse(stored);
@@ -744,6 +778,30 @@ export class MeshWarper {
     if (this.material.uniforms.uWarpPlaneSize) {
       this.material.uniforms.uWarpPlaneSize.value.set(this.averageDimensions.width, this.averageDimensions.height);
     }
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(this.storageKey);
+  }
+
+  public clearStorage(): void {
+    localStorage.removeItem(this.storageKey);
+  }
+
+  public setUvRect(offsetX: number, offsetY: number, scaleX: number, scaleY: number): void {
+    this.material.uniforms.uUvRectOffset.value.set(offsetX, offsetY);
+    this.material.uniforms.uUvRectScale.value.set(scaleX, scaleY);
+  }
+
+  public getUvRect(): UvRect {
+    const offset = this.material.uniforms.uUvRectOffset.value as THREE.Vector2;
+    const scale = this.material.uniforms.uUvRectScale.value as THREE.Vector2;
+    return { offsetX: offset.x, offsetY: offset.y, scaleX: scale.x, scaleY: scale.y };
+  }
+
+  public getDragControls(): DragControls {
+    return this.dragControls;
+  }
+
+  /** Shared with MaskPlane so the mask follows the warped quad's dimensions */
+  public getWarpPlaneSizeUniform(): { value: THREE.Vector2 } {
+    return this.material.uniforms.uWarpPlaneSize as { value: THREE.Vector2 };
   }
 }

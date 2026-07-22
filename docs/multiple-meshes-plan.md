@@ -1,6 +1,13 @@
 # Plan: Multiple Warp Surfaces (MadMapper/Resolume-style)
 
-Status: planned, not started. Written 2026-07-22.
+Status: implemented on branch `multiple-meshes` (Phases 1–4), 2026-07-22.
+See `examples/multi-surface/` for a two-surface demo. Notes vs. the plan below:
+`WarpSurface` composes `MeshWarper` (which already owned mesh/material/points/
+persistence) rather than replacing it; the `storageNamespace` mechanism was
+implemented directly instead of cherry-picked; the default surface keeps the
+legacy un-namespaced storage key so existing calibrations survive; edge/polygon
+masks follow the first surface (whole-view background mask still open);
+`reset()` with no id resets all surfaces, `reset(surfaceId)` one.
 
 Goal: several independently warped meshes ("surfaces") in one output window, each
 sampling its own rectangle of the single shared input texture. The host app keeps

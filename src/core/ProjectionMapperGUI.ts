@@ -73,6 +73,10 @@ export class ProjectionMapperGUI {
     'showWarpGrid' | 'showCornerPoints' | 'showOutline'
   > | null = null;
   private warpFolder!: FolderApi;
+  private surfacesFolder!: FolderApi;
+  private surfaceListBlade: { dispose(): void } | null = null;
+  private warpModeBlade!: { value: unknown };
+  private uvRectState = { offset: { x: 0, y: 0 }, scale: { x: 1, y: 1 } };
   private config: ProjectionMapperGUIConfig;
   private syncSettingButtons: () => void = () => {};
   private syncWarpButtons: () => void = () => {};
@@ -353,11 +357,15 @@ export class ProjectionMapperGUI {
       this.syncWarpButtons();
     });
 
+    this.initSurfacesUI();
+
     const onGridSizeChange = () => {
       this.mapper.setGridSize(this.settings.gridSize.x, this.settings.gridSize.y);
       this.saveSettings();
+      const surfaceId = this.activeSurfaceId();
       this.broadcast(ProjectionEventType.GRID_SIZE_CHANGED, {
         gridSize: { x: this.settings.gridSize.x, y: this.settings.gridSize.y },
+        surfaceId,
       });
       if (this.isMultiWindowMode()) {
         const warper = this.mapper.getWarper();
@@ -375,27 +383,31 @@ export class ProjectionMapperGUI {
             y: (p.y + config.height / 2) / config.height,
             z: p.z,
           })),
+          surfaceId,
         });
       }
     };
 
-    this.warpFolder
-      .addBlade({
-        view: 'list',
-        label: 'Warp Mode',
-        options: [
-          { text: 'Bilinear', value: WARP_MODE.bilinear },
-          { text: 'Bicubic', value: WARP_MODE.bicubic },
-        ],
-        value: this.settings.warpMode,
-      })
-      //@ts-ignore
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        this.settings.warpMode = e.value as WARP_MODE;
-        this.mapper.getWarper().setWarpMode(e.value as WARP_MODE);
-        this.saveSettings();
-        this.broadcast(ProjectionEventType.WARP_MODE_CHANGED, { mode: e.value as number });
+    const warpModeBlade = this.warpFolder.addBlade({
+      view: 'list',
+      label: 'Warp Mode',
+      options: [
+        { text: 'Bilinear', value: WARP_MODE.bilinear },
+        { text: 'Bicubic', value: WARP_MODE.bicubic },
+      ],
+      value: this.settings.warpMode,
+    });
+    this.warpModeBlade = warpModeBlade as unknown as { value: unknown };
+    //@ts-ignore
+    warpModeBlade.on('change', (e: TpChangeEvent<unknown>) => {
+      this.settings.warpMode = e.value as WARP_MODE;
+      this.mapper.getWarper().setWarpMode(e.value as WARP_MODE);
+      this.saveSettings();
+      this.broadcast(ProjectionEventType.WARP_MODE_CHANGED, {
+        mode: e.value as number,
+        surfaceId: this.activeSurfaceId(),
       });
+    });
 
     this.warpFolder
       .addBinding(this.settings, 'gridSize', {
@@ -411,9 +423,97 @@ export class ProjectionMapperGUI {
       });
 
     this.addResetButton(this.warpFolder, 'Reset Warp', () => {
-      this.broadcast(ProjectionEventType.RESET_WARP, {});
-      this.mapper.reset();
+      const surfaceId = this.activeSurfaceId();
+      this.broadcast(ProjectionEventType.RESET_WARP, { surfaceId });
+      this.mapper.reset(surfaceId);
     });
+  }
+
+  private activeSurfaceId(): string {
+    return this.mapper.getActiveSurface().id;
+  }
+
+  private initSurfacesUI(): void {
+    this.surfacesFolder = this.warpFolder.addFolder({ title: 'Surfaces', expanded: true });
+
+    const surfaceBtnGrid = this.surfacesFolder.addBlade({
+      view: 'buttongrid',
+      size: [2, 1],
+      cells: (x: number) => ({ title: ['Add', 'Remove'][x] }),
+    }) as unknown as ButtonGridBladeApi;
+
+    surfaceBtnGrid.on('click', (ev) => {
+      if (ev.index[0] === 0) {
+        const surface = this.mapper.addSurface();
+        this.broadcast(ProjectionEventType.SURFACE_ADDED, {
+          surfaceId: surface.id,
+          uvRect: surface.getUvRect(),
+        });
+      } else {
+        if (this.mapper.getSurfaces().length <= 1) return;
+        const surfaceId = this.activeSurfaceId();
+        this.mapper.removeSurface(surfaceId);
+        this.broadcast(ProjectionEventType.SURFACE_REMOVED, { surfaceId });
+      }
+      this.rebuildSurfaceList();
+      this.syncFromActiveSurface();
+    });
+
+    const uvRange = { min: 0, max: 1, step: 0.001 };
+    this.surfacesFolder
+      .addBinding(this.uvRectState, 'offset', { label: 'UV Offset', x: uvRange, y: uvRange })
+      .on('change', () => this.onUvRectChange());
+    this.surfacesFolder
+      .addBinding(this.uvRectState, 'scale', { label: 'UV Scale', x: uvRange, y: uvRange })
+      .on('change', () => this.onUvRectChange());
+
+    this.rebuildSurfaceList();
+    this.syncFromActiveSurface();
+  }
+
+  private onUvRectChange(): void {
+    const { offset, scale } = this.uvRectState;
+    this.mapper.setUvRect(offset.x, offset.y, scale.x, scale.y);
+    this.broadcast(ProjectionEventType.UV_RECT_CHANGED, {
+      uvRect: this.mapper.getUvRect(),
+      surfaceId: this.activeSurfaceId(),
+    });
+  }
+
+  // The list blade's options are fixed at creation, so it is recreated on add/remove
+  private rebuildSurfaceList(): void {
+    this.surfaceListBlade?.dispose();
+    const listBlade = this.surfacesFolder.addBlade({
+      view: 'list',
+      label: 'Active',
+      index: 0,
+      options: this.mapper.getSurfaces().map((s) => ({ text: `Surface ${s.id}`, value: s.id })),
+      value: this.activeSurfaceId(),
+    });
+    this.surfaceListBlade = listBlade;
+    //@ts-ignore
+    listBlade.on('change', (e: TpChangeEvent<unknown>) => {
+      this.mapper.setActiveSurface(e.value as string);
+      this.syncFromActiveSurface();
+    });
+  }
+
+  /** Pull grid size, warp mode and uv rect of the newly active surface into the pane */
+  private syncFromActiveSurface(): void {
+    const warper = this.mapper.getWarper();
+    this.settings.gridSize.x = warper.getGridSizeX();
+    this.settings.gridSize.y = warper.getGridSizeY();
+    this.settings.warpMode = warper.getWarpMode();
+    if (this.warpModeBlade) this.warpModeBlade.value = this.settings.warpMode;
+
+    const uvRect = this.mapper.getUvRect();
+    this.uvRectState.offset.x = uvRect.offsetX;
+    this.uvRectState.offset.y = uvRect.offsetY;
+    this.uvRectState.scale.x = uvRect.scaleX;
+    this.uvRectState.scale.y = uvRect.scaleY;
+
+    this.pane.refresh();
+    this.saveSettings();
   }
 
   private initMasksFolder(): void {

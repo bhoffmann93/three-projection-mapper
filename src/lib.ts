@@ -11,7 +11,8 @@
  */
 
 export { ProjectionMapper, type ProjectionMapperConfig } from './core/ProjectionMapper';
-export { DEFAULT_IMAGE_SETTINGS, type ImageSettings } from './core/defaults';
+export { DEFAULT_IMAGE_SETTINGS, DEFAULT_UV_RECT, type ImageSettings, type UvRect } from './core/defaults';
+export { WarpSurface, type WarpSurfaceConfig } from './warp/WarpSurface';
 export {
   ProjectionMapperGUI,
   type GUIAnchor,

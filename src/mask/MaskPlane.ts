@@ -99,6 +99,12 @@ export class MaskPlane {
     );
   }
 
+  /** Rebind when the surface providing the warped plane size is removed */
+  setWarpPlaneSizeRef(ref: { value: THREE.Vector2 }): void {
+    this.uniforms.uWarpPlaneSize = ref;
+    this.material.uniforms.uWarpPlaneSize = ref;
+  }
+
   setFeatherMask(enabled: boolean, amount: number): void {
     this.uniforms.uMaskEnabled.value = enabled;
     this.uniforms.uFeather.value = amount;

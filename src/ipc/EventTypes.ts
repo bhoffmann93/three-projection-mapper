@@ -10,6 +10,11 @@ export const enum ProjectionEventType {
   // Grid configuration
   GRID_SIZE_CHANGED = 'GRID_SIZE_CHANGED',
 
+  // Surfaces
+  SURFACE_ADDED = 'SURFACE_ADDED',
+  SURFACE_REMOVED = 'SURFACE_REMOVED',
+  UV_RECT_CHANGED = 'UV_RECT_CHANGED',
+
   // Warp settings
   WARP_MODE_CHANGED = 'WARP_MODE_CHANGED',
   SHOULD_WARP_CHANGED = 'SHOULD_WARP_CHANGED',

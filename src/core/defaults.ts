@@ -40,6 +40,25 @@ export const DEFAULT_IMAGE_SETTINGS: Readonly<ImageSettings> = {
   hue: 0.0,
 };
 
+/** Crop rectangle of the input texture a surface samples (normalized 0-1) */
+export interface UvRect {
+  offsetX: number;
+  offsetY: number;
+  scaleX: number;
+  scaleY: number;
+}
+
+export const DEFAULT_UV_RECT: Readonly<UvRect> = {
+  offsetX: 0,
+  offsetY: 0,
+  scaleX: 1,
+  scaleY: 1,
+};
+
+/** The initial surface keeps the legacy un-namespaced warp storage key */
+export const DEFAULT_SURFACE_ID = '0';
+export const SURFACES_STORAGE_KEY = 'projection-mapper-surfaces';
+
 export const DEFAULT_POLYGON_FEATHER = 0.0;
 export const MAX_POLYGON_POINTS = 16;
 

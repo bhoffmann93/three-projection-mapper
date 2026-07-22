@@ -1,5 +1,5 @@
 import { ProjectionEventType } from './EventTypes';
-import type { ImageSettings } from '../core/defaults';
+import type { ImageSettings, UvRect } from '../core/defaults';
 
 /**
  * Normalized point format (0-1 range) for resolution-independent serialization
@@ -37,6 +37,19 @@ export interface PolygonMaskSyncState {
 }
 
 /**
+ * One warp surface's state for synchronization
+ */
+export interface SurfaceSyncState {
+  id: string;
+  uvRect: UvRect;
+  cornerPoints: NormalizedPoint[];
+  gridPoints: NormalizedPoint[];
+  referenceGridPoints: NormalizedPoint[];
+  gridSize: GridSize;
+  warpMode: number;
+}
+
+/**
  * Complete projection state for full synchronization
  */
 export interface FullProjectionState {
@@ -66,6 +79,10 @@ export interface FullProjectionState {
 
   // Polygon mask (optional — absent means no mask active)
   polygonMask?: PolygonMaskSyncState;
+
+  // All warp surfaces (optional — absent on single-surface senders; the
+  // legacy top-level warp fields always describe the first surface)
+  surfaces?: SurfaceSyncState[];
 }
 
 /**
@@ -73,10 +90,18 @@ export interface FullProjectionState {
  * Maps each event type to its specific payload shape
  */
 export interface ProjectionEventPayloads {
-  [ProjectionEventType.CORNER_POINTS_UPDATED]: { points: NormalizedPoint[] };
-  [ProjectionEventType.GRID_POINTS_UPDATED]: { points: NormalizedPoint[]; referencePoints: NormalizedPoint[] };
-  [ProjectionEventType.GRID_SIZE_CHANGED]: { gridSize: GridSize };
-  [ProjectionEventType.WARP_MODE_CHANGED]: { mode: number };
+  // surfaceId is optional for backwards compatibility — absent means the first surface
+  [ProjectionEventType.CORNER_POINTS_UPDATED]: { points: NormalizedPoint[]; surfaceId?: string };
+  [ProjectionEventType.GRID_POINTS_UPDATED]: {
+    points: NormalizedPoint[];
+    referencePoints: NormalizedPoint[];
+    surfaceId?: string;
+  };
+  [ProjectionEventType.GRID_SIZE_CHANGED]: { gridSize: GridSize; surfaceId?: string };
+  [ProjectionEventType.WARP_MODE_CHANGED]: { mode: number; surfaceId?: string };
+  [ProjectionEventType.SURFACE_ADDED]: { surfaceId: string; uvRect: UvRect };
+  [ProjectionEventType.SURFACE_REMOVED]: { surfaceId: string };
+  [ProjectionEventType.UV_RECT_CHANGED]: { uvRect: UvRect; surfaceId?: string };
   [ProjectionEventType.SHOULD_WARP_CHANGED]: { shouldWarp: boolean };
   [ProjectionEventType.TESTCARD_TOGGLED]: { show: boolean };
   [ProjectionEventType.WHITE_OUT_TOGGLED]: { show: boolean };
@@ -92,5 +117,5 @@ export interface ProjectionEventPayloads {
   [ProjectionEventType.POLYGON_MASK_NODES_CHANGED]: { nodes: { u: number; v: number }[] };
   [ProjectionEventType.POLYGON_MASK_SETTINGS_CHANGED]: { enabled: boolean; inverted: boolean; feather: number };
   [ProjectionEventType.POLYGON_MASK_REMOVED]: {};
-  [ProjectionEventType.RESET_WARP]: {};
+  [ProjectionEventType.RESET_WARP]: { surfaceId?: string };
 }
