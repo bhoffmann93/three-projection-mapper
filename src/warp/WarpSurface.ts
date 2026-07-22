@@ -262,10 +262,6 @@ export class WarpSurface {
     this.maskPlane.setShouldWarp(enabled);
   }
 
-  setShowBorderLines(show: boolean): void {
-    this.maskPlane.setShowBorderLines(show);
-  }
-
   // --- per-frame ------------------------------------------------------------
 
   /** Keep this surface's masks and handles glued to its current perspective */

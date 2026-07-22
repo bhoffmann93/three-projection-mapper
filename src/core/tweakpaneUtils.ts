@@ -1,4 +1,4 @@
-import type { BindingApi, FolderApi } from '@tweakpane/core';
+import type { BindingApi, FolderApi, TabApi } from '@tweakpane/core';
 
 export interface TweakpaneButtonOptions {
   background?: string;
@@ -48,7 +48,12 @@ export function replaceLabelWithButton(binding: BindingApi, button: HTMLButtonEl
   label.appendChild(button);
 }
 
-export function appendButtonToListBinding(binding: BindingApi, button: HTMLButtonElement, gapPx: number, dropdownWidthPx?: number): void {
+export function appendButtonToListBinding(
+  binding: BindingApi,
+  button: HTMLButtonElement,
+  gapPx: number,
+  dropdownWidthPx?: number,
+): void {
   const label = binding.element.querySelector('.tp-lblv_l') as HTMLElement | null;
   if (label) label.style.display = 'none';
   const container = binding.element.querySelector('.tp-lblv_v') as HTMLElement;
@@ -98,8 +103,27 @@ export function setFolderEnabled(folder: FolderApi, enabled: boolean, disabledOp
   content.style.transition = 'none';
   content.style.opacity = enabled ? '' : disabledOpacity;
   content.style.pointerEvents = enabled ? '' : 'none';
-  requestAnimationFrame(() => { content.style.transition = ''; });
+  requestAnimationFrame(() => {
+    content.style.transition = '';
+  });
 
   const title = folder.element.querySelector('.tp-fldv_t') as HTMLElement | null;
   if (title) title.style.opacity = enabled ? '' : disabledOpacity;
 }
+
+const TAB_FLAT_CLASS = 'wm-tab-flat';
+let tabFlatStyleInjected = false;
+
+export const removeTabIndent = (tab: TabApi): void => {
+  if (!tabFlatStyleInjected) {
+    const style = document.createElement('style');
+    style.textContent = [
+      `.${TAB_FLAT_CLASS} .tp-tbpv_c { padding-left: 0; }`,
+      `.${TAB_FLAT_CLASS} .tp-tbpv_c > .tp-cntv { margin-left: 0; }`,
+      `.${TAB_FLAT_CLASS} .tp-tabv_i { display: none; }`,
+    ].join('\n');
+    document.head.appendChild(style);
+    tabFlatStyleInjected = true;
+  }
+  tab.element.classList.add(TAB_FLAT_CLASS);
+};

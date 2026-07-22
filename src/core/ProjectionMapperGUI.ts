@@ -53,7 +53,6 @@ export interface ProjectionMapperGUIConfig {
  * are mirrored into local state that follows the selection.
  */
 export interface ProjectionMapperGUISettings {
-  shouldWarp: boolean;
   showTestcard: boolean;
   showWhiteOut: boolean;
   showWarpGrid: boolean;
@@ -105,7 +104,6 @@ export class ProjectionMapperGUI {
     const anchor = config.anchor || 'left';
 
     this.settings = {
-      shouldWarp: mapper.isWarpEnabled(),
       showTestcard: mapper.isShowingTestCard(),
       showWhiteOut: mapper.isWhiteOut(),
       showWarpGrid: true,
@@ -242,19 +240,17 @@ export class ProjectionMapperGUI {
   }
 
   /**
-   * Warp on/off and handle visibility apply to the whole output, not to one
-   * surface, so they sit on the Output tab next to the other view toggles.
+   * Handle visibility applies to the whole output, not to one surface, so it
+   * sits on the Output tab next to the other view toggles.
    */
   private initWarpDisplayControls(page: TabPageApi): void {
     const warpBtnGrid = page.addBlade({
       view: 'buttongrid',
-      size: [3, 1],
-      cells: (x: number) => ({ title: ['Warp', 'Persp', 'Grid'][x] }),
+      size: [2, 1],
+      cells: (x: number) => ({ title: ['Persp', 'Grid'][x] }),
     }) as unknown as ButtonGridBladeApi;
 
-    const [warpEnableBtn, perspBtn, gridBtn] = Array.from(
-      warpBtnGrid.element.querySelectorAll('button'),
-    ) as HTMLButtonElement[];
+    const [perspBtn, gridBtn] = Array.from(warpBtnGrid.element.querySelectorAll('button')) as HTMLButtonElement[];
 
     const setEyeButtonContent = (btn: HTMLButtonElement, icon: IconNode, label: string) => {
       if (!WARP_BUTTON_EYE_ICON.enabled) {
@@ -271,9 +267,6 @@ export class ProjectionMapperGUI {
     };
 
     this.syncWarpButtons = () => {
-      warpEnableBtn.style.opacity = this.settings.shouldWarp ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
-      perspBtn.disabled = !this.settings.shouldWarp;
-      gridBtn.disabled = !this.settings.shouldWarp;
       perspBtn.style.opacity = this.settings.showCornerPoints ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
       gridBtn.style.opacity = this.settings.showWarpGrid ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
       setEyeButtonContent(perspBtn, this.settings.showCornerPoints ? Eye : EyeOff, 'Persp');
@@ -284,20 +277,13 @@ export class ProjectionMapperGUI {
     warpBtnGrid.on('click', (ev) => {
       const col = ev.index[0];
       if (col === 0) {
-        const enabled = !this.settings.shouldWarp;
-        this.settings.shouldWarp = enabled;
-        this.mapper.setShouldWarp(enabled);
-        this.toggleWarpUI(enabled);
-        this.saveSettings();
-        this.broadcast(ProjectionEventType.SHOULD_WARP_CHANGED, { shouldWarp: enabled });
-      } else if (col === 1) {
         // Corner handles only. The outline stays: it is the selection affordance,
         // so hiding it would make surfaces unclickable.
         const enabled = !this.settings.showCornerPoints;
         this.settings.showCornerPoints = enabled;
         this.mapper.setCornerPointsVisible(enabled);
         this.saveSettings();
-      } else if (col === 2) {
+      } else if (col === 1) {
         const show = !this.settings.showWarpGrid;
         this.settings.showWarpGrid = show;
         this.mapper.setGridPointsVisible(show);
@@ -768,11 +754,6 @@ export class ProjectionMapperGUI {
         this.settings.showCornerPoints = true;
         this.settings.showOutline = true;
       }
-
-      if (!this.settings.shouldWarp) {
-        this.settings.shouldWarp = true;
-        this.mapper.setShouldWarp(true);
-      }
     }
 
     this.applyVisibility();
@@ -787,7 +768,7 @@ export class ProjectionMapperGUI {
   }
 
   private applySettings(): void {
-    this.mapper.setShouldWarp(this.settings.shouldWarp);
+    // Warp bypass is not a pane control: it stays wherever the host app left it
     this.mapper.setShowTestCard(this.settings.showTestcard);
     this.mapper.setWhiteOut(this.settings.showWhiteOut);
     //only apply if settings differ

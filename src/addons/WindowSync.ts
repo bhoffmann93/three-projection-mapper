@@ -119,7 +119,6 @@ export class WindowSync {
   private setupProjectorSync(): void {
     // Configure mapper for projector mode (receive-only, no user interaction)
     this.mapper.setControlsVisible(false);
-    this.mapper.setShowBorderLines(false);
     this.mapper.setZoom(1.0);
     this.mapper.setDragEnabled(false);
     this.mapper.setPolygonHandlesVisible(false);
@@ -537,7 +536,6 @@ export class WindowSync {
       this.reattachDragListeners();
     } else {
       this.mapper.setControlsVisible(false);
-      this.mapper.setShowBorderLines(false);
       this.mapper.setZoom(1.0);
       this.mapper.setDragEnabled(false);
       // New mapper has default state — re-request full state from controller so all

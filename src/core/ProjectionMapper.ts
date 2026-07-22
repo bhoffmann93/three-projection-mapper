@@ -679,10 +679,6 @@ export class ProjectionMapper {
     this.applyActiveSurface();
   }
 
-  setShowBorderLines(show: boolean): void {
-    this.surfaces.forEach((surface) => surface.setShowBorderLines(show));
-  }
-
   dispose(): void {
     this.picker?.dispose();
     this.surfaces.forEach((surface) => surface.dispose());
