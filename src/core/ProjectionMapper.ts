@@ -17,7 +17,6 @@ import {
   DEFAULT_UV_RECT,
   SURFACES_STORAGE_KEY,
   STORAGE_VERSION,
-  DEFAULT_SURFACE_DRAG_MODE,
   scopedStorageKey,
 } from './defaults';
 import type {
@@ -25,7 +24,6 @@ import type {
   EdgeMaskSettings,
   PolygonMaskSettings,
   UvRect,
-  SurfaceDragMode,
 } from './defaults';
 import { PolygonMask, type UVPoint } from '../mask/PolygonMask';
 
@@ -69,8 +67,6 @@ export interface ProjectionMapperConfig {
   multiSurface?: boolean;
   /** Click a surface to select it, drag its body to move it (default: true) */
   canvasSelection?: boolean;
-  /** When a body drag moves a surface (default: 'multi-only') */
-  surfaceDragging?: SurfaceDragMode;
   /**
    * Scopes all persisted calibration to this app. Required whenever more than
    * one app is served from the same origin — they share localStorage, so
@@ -166,7 +162,6 @@ export class ProjectionMapper {
       multiSurface: config.multiSurface ?? true,
       canvasSelection: config.canvasSelection ?? true,
       appId: config.appId,
-      surfaceDragging: config.surfaceDragging ?? DEFAULT_SURFACE_DRAG_MODE,
     };
 
     this.scene = new THREE.Scene();
@@ -212,7 +207,6 @@ export class ProjectionMapper {
         camera: this.camera,
         getSurfaces: () => this.surfaces,
         setActiveSurface: (id) => this.setActiveSurface(id),
-        dragMode: this.config.surfaceDragging,
         onSurfaceMoved: () => this.saveSurfaces(),
       });
       this.applyPickerEnabled();

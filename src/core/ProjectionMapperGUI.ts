@@ -175,8 +175,9 @@ export class ProjectionMapperGUI {
 
   /**
    * Output-wide controls first, then the surface selector, then the folders it
-   * scopes — ordered along the signal path: what this surface samples, where it
-   * lands, what is cut away, and finally how it is graded.
+   * scopes — everything the surface does in its own flat space first (which
+   * pixels it samples, how they are graded, what is cut away), then Warp last,
+   * which is the only part concerned with where the result lands in the output.
    */
   private initPane(): void {
     // A single-surface mapper has no set to choose from and nothing to crop
@@ -186,9 +187,9 @@ export class ProjectionMapperGUI {
     this.initOutputControls(this.pane);
     if (multiSurface) this.initSurfacesFolder(this.pane);
     if (this.config.showInputCrop ?? multiSurface) this.initInputFolder(this.pane);
-    this.initWarpFolder(this.pane);
-    this.initMasksFolder(this.pane);
     this.initImageFolder(this.pane);
+    this.initMasksFolder(this.pane);
+    this.initWarpFolder(this.pane);
 
     this.rebuildSurfaceList();
     this.syncFromActiveSurface();
