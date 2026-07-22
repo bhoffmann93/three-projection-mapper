@@ -152,6 +152,15 @@ export const WARP_HANDLE_STYLE = {
   hoverOutlineOpacity: 1.0,
 } as const;
 
+/** The dashed boundary showing what the projector frames. Controller only. */
+export const OUTPUT_FRAME_STYLE = {
+  color: 'hsl(0, 0%, 55%)',
+  lineWidth: 2,
+  opacity: 0.7,
+  dashSize: 0.35,
+  gapSize: 0.25,
+} as const;
+
 /** Canvas interaction thresholds for selecting and moving surfaces */
 export const SURFACE_PICKER = {
   /** Pointer travel (px) before a pointerdown counts as a body drag rather than a click */

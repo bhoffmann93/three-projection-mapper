@@ -7,6 +7,7 @@ import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import projectionFragmentShader from '../shaders/projection.frag';
 import { calculateGridPoints } from '../warp/geometry';
 import { SurfacePicker } from './SurfacePicker';
+import { OutputFrame } from './OutputFrame';
 import {
   GUI_STORAGE_KEY,
   DEFAULT_IMAGE_SETTINGS,
@@ -105,6 +106,7 @@ export class ProjectionMapper {
   private composer: EffectComposer;
   private clock: THREE.Clock;
   private picker: SurfacePicker | null = null;
+  private outputFrame: OutputFrame | null = null;
 
   /** Handle visibility applied to whichever surface is active */
   private controlsVisibility = { grid: true, corners: true, outline: true };
@@ -121,6 +123,13 @@ export class ProjectionMapper {
   /** Called whenever any surface's polygon mask nodes change (drag, insert, delete, reset). */
   public onPolygonNodesChanged: (surfaceId: string) => void = () => {};
 
+  /**
+   * Called when a surface is moved as a whole, by a body drag or setPosition.
+   * Handle drags are reported by their own DragControls; this covers everything
+   * else that changes a surface's geometry.
+   */
+  public onSurfaceTransformed: (surfaceId: string) => void = () => {};
+
   /** Genuinely output-wide uniforms, shared by reference across every surface material */
   private uniforms: {
     uBuffer: { value: THREE.Texture };
@@ -134,7 +143,7 @@ export class ProjectionMapper {
 
   /** Resolution in pixels, passed through to shaders */
   private resolution: { width: number; height: number };
-  /** Normalized world-space dimensions derived from resolution aspect ratio */
+  /** Output canvas in world units, derived from the resolution's aspect */
   private worldWidth: number;
   private worldHeight: number;
 
@@ -211,6 +220,12 @@ export class ProjectionMapper {
         onSurfaceMoved: () => this.saveSurfaces(),
       });
       this.applyPickerEnabled();
+    }
+
+    // Only meaningful with several surfaces to arrange inside the output
+    if (this.config.multiSurface) {
+      this.outputFrame = new OutputFrame(this.scene, this.worldWidth, this.worldHeight);
+      this.outputFrame.setVisible(this.controlsVisibility.outline);
     }
 
     this.composer = new EffectComposer(this.renderer);
@@ -292,6 +307,7 @@ export class ProjectionMapper {
     });
 
     surface.onPolygonNodesChanged = () => this.onPolygonNodesChanged(surface.id);
+    surface.onTransformed = () => this.onSurfaceTransformed(surface.id);
     surface.setShouldWarp(this.shouldWarp);
     return surface;
   }
@@ -329,6 +345,8 @@ export class ProjectionMapper {
     const anyControlVisible =
       this.controlsVisibility.grid || this.controlsVisibility.corners || this.controlsVisibility.outline;
     this.picker?.setEnabled(this.dragEnabled && anyControlVisible);
+    // The frame is a calibration aid, never part of the projected output
+    this.outputFrame?.setVisible(this.controlsVisibility.outline && this.dragEnabled);
   }
 
   /** Can this mapper hold more than one surface? */
@@ -686,6 +704,28 @@ export class ProjectionMapper {
     return { ...this.resolution };
   }
 
+  /**
+   * Resize the output canvas — the region the projector frames and surfaces are
+   * arranged within.
+   *
+   * Surfaces keep their own resolutions and world positions, so nothing is
+   * rebuilt and no warp is touched; the canvas grows or shrinks around them.
+   * They will occupy a different fraction of the projector afterwards, the same
+   * as changing a projector's resolution in real life, so this is a set-once
+   * decision rather than something to drag.
+   */
+  setOutputResolution(width: number, height: number): void {
+    if (width <= 0 || height <= 0) return;
+    this.resolution = { width, height };
+
+    const plane = planeSizeFor(this.resolution);
+    this.worldWidth = plane.width;
+    this.worldHeight = plane.height;
+
+    this.outputFrame?.setSize(this.worldWidth, this.worldHeight);
+    this.updateCameraFrustum();
+  }
+
   /** Reset one surface's warp, or all surfaces when no id is given */
   reset(surfaceId?: string): void {
     if (surfaceId) {
@@ -754,6 +794,7 @@ export class ProjectionMapper {
 
   dispose(): void {
     this.picker?.dispose();
+    this.outputFrame?.dispose();
     this.surfaces.forEach((surface) => surface.dispose());
     this.composer.dispose();
   }

@@ -77,6 +77,10 @@ export class WindowSync {
     // Broadcast point updates when dragging
     this.attachDragListeners();
 
+    // Moving a surface's body changes its geometry without touching a handle,
+    // so DragControls never reports it — the mapper does instead
+    this.mapper.onSurfaceTransformed = (surfaceId) => this.broadcastSurfaceGeometry(surfaceId);
+
     // Auto-reattach drag listener when grid size changes
     // (that surface's DragControls is recreated)
     this.eventChannel.on(ProjectionEventType.GRID_SIZE_CHANGED, () => {
@@ -279,19 +283,24 @@ export class WindowSync {
       if (this.attachedDragControls.has(dragControls)) continue;
       this.attachedDragControls.add(dragControls);
 
-      dragControls.addEventListener('drag', () => {
-        this.eventChannel.emit(ProjectionEventType.CORNER_POINTS_UPDATED, {
-          points: warper.getCornerControlPoints().map((p) => warper.toNormalizedPoint(p)),
-          surfaceId: surface.id,
-        });
-
-        this.eventChannel.emit(ProjectionEventType.GRID_POINTS_UPDATED, {
-          points: warper.getGridControlPoints().map((p) => warper.toNormalizedPoint(p)),
-          referencePoints: warper.getReferenceGridControlPoints().map((p) => warper.toNormalizedPoint(p)),
-          surfaceId: surface.id,
-        });
-      });
+      dragControls.addEventListener('drag', () => this.broadcastSurfaceGeometry(surface.id));
     }
+  }
+
+  /** Send one surface's corner and grid points, the whole of its geometry */
+  private broadcastSurfaceGeometry(surfaceId: string): void {
+    const warper = this.mapper.getSurface(surfaceId)?.getWarper();
+    if (!warper) return;
+
+    this.eventChannel.emit(ProjectionEventType.CORNER_POINTS_UPDATED, {
+      points: warper.getCornerControlPoints().map((p) => warper.toNormalizedPoint(p)),
+      surfaceId,
+    });
+    this.eventChannel.emit(ProjectionEventType.GRID_POINTS_UPDATED, {
+      points: warper.getGridControlPoints().map((p) => warper.toNormalizedPoint(p)),
+      referencePoints: warper.getReferenceGridControlPoints().map((p) => warper.toNormalizedPoint(p)),
+      surfaceId,
+    });
   }
 
   /**

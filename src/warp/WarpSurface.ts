@@ -68,6 +68,13 @@ export class WarpSurface {
   public onPolygonNodesChanged: () => void = () => {};
 
   /**
+   * Called when the surface is moved as a whole. Dragging a handle is reported by
+   * its DragControls, but moving the body is not, so without this a body drag
+   * never leaves this window.
+   */
+  public onTransformed: () => void = () => {};
+
+  /**
    * Scopes this surface's warp points and polygon mask. The app id keeps
    * separate apps on one origin from sharing a calibration; the default surface
    * of an app with no id keeps the legacy un-namespaced keys.
@@ -150,11 +157,22 @@ export class WarpSurface {
   /** Move the whole surface by a world-space delta, preserving its warp */
   translate(dx: number, dy: number): void {
     this.warper.translate(dx, dy);
+    this.onTransformed();
   }
 
   /** Move the surface's centroid to an absolute world-space position, preserving its warp */
   setPosition(x: number, y: number): void {
     this.warper.setPosition(x, y);
+    this.onTransformed();
+  }
+
+  /**
+   * Place the surface as an axis-aligned rectangle, for arranging surfaces inside
+   * the output canvas. Replaces the corner quad, so any perspective is discarded.
+   */
+  setBounds(centerX: number, centerY: number, width: number, height: number): void {
+    this.warper.setBounds(centerX, centerY, width, height);
+    this.onTransformed();
   }
 
   // --- image adjustments ----------------------------------------------------

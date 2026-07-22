@@ -936,6 +936,38 @@ export class MeshWarper {
     return { x: (tl.x + tr.x + bl.x + br.x) / 4, y: (tl.y + tr.y + bl.y + br.y) / 4 };
   }
 
+  /**
+   * Place the surface as an axis-aligned rectangle in world space.
+   *
+   * This is a layout operation, not a nudge: it replaces the corner quad, so any
+   * perspective already dialled in is discarded. Use it to arrange surfaces
+   * inside the output canvas before calibrating, not after.
+   */
+  public setBounds(centerX: number, centerY: number, width: number, height: number): void {
+    const halfWidth = width / 2;
+    const halfHeight = height / 2;
+    const corners = [
+      [centerX - halfWidth, centerY + halfHeight], // top left
+      [centerX + halfWidth, centerY + halfHeight], // top right
+      [centerX - halfWidth, centerY - halfHeight], // bottom left
+      [centerX + halfWidth, centerY - halfHeight], // bottom right
+    ];
+
+    corners.forEach(([x, y], i) => {
+      this.dragCornerControlPoints[i].set(x, y, 0);
+      this.cornerObjects[i].userData.lastValidPosition?.set(x, y, 0);
+    });
+
+    // Re-derive the grid from the new corners, as a corner drag would
+    const flatCorners = this.dragCornerControlPoints.flatMap((p) => [p.x, p.y]);
+    this.perspectiveTransformControlPoints(flatCorners, new THREE.Vector3(), 'corner');
+
+    this.updateLine();
+    this.averageDimensions = this.getAverageDimensions();
+    this.material.uniforms.uWarpPlaneSize.value.set(this.averageDimensions.width, this.averageDimensions.height);
+    this.saveToStorage();
+  }
+
   /** Move the surface's centroid to an absolute world-space position, preserving its warp */
   public setPosition(x: number, y: number): void {
     const center = this.getCenter();
