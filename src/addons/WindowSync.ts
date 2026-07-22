@@ -36,6 +36,14 @@ export interface WindowSyncConfig {
 
   /** This window's role (default: WINDOW_SYNC_MODE.CONTROLLER) */
   mode?: WINDOW_SYNC_MODE;
+
+  /**
+   * Whether warp geometry (corner/grid points, grid size, warp mode, camera offset)
+   * is synced from the controller (default: true). Set to false in projector mode
+   * so the window keeps its own locally edited and persisted warp — required when
+   * multiple projector windows each need independent alignment.
+   */
+  syncWarp?: boolean;
 }
 
 export class WindowSync {
@@ -43,6 +51,7 @@ export class WindowSync {
   private eventChannel: EventChannel;
   private windowManager: WindowManager;
   private mode: WINDOW_SYNC_MODE;
+  private syncWarp: boolean;
 
   private dragControls: any; // DragControls from MeshWarper
   private onProjectorReadyCallbacks: Array<() => void> = [];
@@ -52,10 +61,12 @@ export class WindowSync {
     const {
       channelName = 'projection-mapper-sync',
       mode = WINDOW_SYNC_MODE.CONTROLLER,
+      syncWarp = true,
     } = config;
 
     this.mapper = mapper;
     this.mode = mode;
+    this.syncWarp = syncWarp;
     this.eventChannel = new EventChannel(channelName, mode);
     this.windowManager = new WindowManager();
 
@@ -111,11 +122,13 @@ export class WindowSync {
    * Receives updates from controller
    */
   private setupProjectorSync(): void {
-    // Configure mapper for projector mode (receive-only, no user interaction)
+    // Configure mapper for projector mode (receive-only, no user interaction).
+    // With syncWarp disabled, drag stays enabled so the projector window can
+    // edit its own warp locally (handles are toggled by the host application).
     this.mapper.setControlsVisible(false);
     this.mapper.setShowBorderLines(false);
     this.mapper.setZoom(1.0);
-    this.mapper.getWarper().setDragEnabled(false);
+    if (this.syncWarp) this.mapper.getWarper().setDragEnabled(false);
 
     // Request full state from controller
     console.log('[WindowSync] Projector requesting full state from controller...');
@@ -135,21 +148,23 @@ export class WindowSync {
       this.applyFullState(state);
     });
 
-    this.eventChannel.on(ProjectionEventType.CORNER_POINTS_UPDATED, ({ points }) => {
-      this.applyCornerPoints(points);
-    });
+    if (this.syncWarp) {
+      this.eventChannel.on(ProjectionEventType.CORNER_POINTS_UPDATED, ({ points }) => {
+        this.applyCornerPoints(points);
+      });
 
-    this.eventChannel.on(ProjectionEventType.GRID_POINTS_UPDATED, ({ points, referencePoints }) => {
-      this.applyGridPoints(points, referencePoints);
-    });
+      this.eventChannel.on(ProjectionEventType.GRID_POINTS_UPDATED, ({ points, referencePoints }) => {
+        this.applyGridPoints(points, referencePoints);
+      });
 
-    this.eventChannel.on(ProjectionEventType.GRID_SIZE_CHANGED, ({ gridSize }) => {
-      this.mapper.setGridSize(gridSize.x, gridSize.y);
-    });
+      this.eventChannel.on(ProjectionEventType.GRID_SIZE_CHANGED, ({ gridSize }) => {
+        this.mapper.setGridSize(gridSize.x, gridSize.y);
+      });
 
-    this.eventChannel.on(ProjectionEventType.WARP_MODE_CHANGED, ({ mode }) => {
-      this.mapper.getWarper().setWarpMode(mode);
-    });
+      this.eventChannel.on(ProjectionEventType.WARP_MODE_CHANGED, ({ mode }) => {
+        this.mapper.getWarper().setWarpMode(mode);
+      });
+    }
 
     this.eventChannel.on(ProjectionEventType.SHOULD_WARP_CHANGED, ({ shouldWarp }) => {
       this.mapper.setShouldWarp(shouldWarp);
@@ -166,17 +181,21 @@ export class WindowSync {
 
     // Projector never shows editing controls regardless of controller state
 
-    this.eventChannel.on(ProjectionEventType.CAMERA_OFFSET_CHANGED, ({ offset }) => {
-      this.mapper.setCameraOffset(offset.x, offset.y);
-    });
+    if (this.syncWarp) {
+      this.eventChannel.on(ProjectionEventType.CAMERA_OFFSET_CHANGED, ({ offset }) => {
+        this.mapper.setCameraOffset(offset.x, offset.y);
+      });
+    }
 
     this.eventChannel.on(ProjectionEventType.IMAGE_SETTINGS_CHANGED, ({ settings }) => {
       this.mapper.setImageSettings(settings as ImageSettings);
     });
 
-    this.eventChannel.on(ProjectionEventType.RESET_WARP, () => {
-      this.mapper.reset();
-    });
+    if (this.syncWarp) {
+      this.eventChannel.on(ProjectionEventType.RESET_WARP, () => {
+        this.mapper.reset();
+      });
+    }
 
     this.eventChannel.on(ProjectionEventType.POLYGON_MASK_NODES_CHANGED, ({ nodes }) => {
       if (!this.mapper.getPolygonMask()) this.mapper.addPolygonMask(nodes);
@@ -285,6 +304,44 @@ export class WindowSync {
    * Apply full state from controller (projector only)
    */
   private applyFullState(state: FullProjectionState): void {
+    if (this.syncWarp) {
+      this.applyWarpGeometry(state);
+    }
+
+    // Warp on/off is global — local-warp projectors keep their geometry either way
+    this.mapper.setShouldWarp(state.shouldWarp); // use mapper so maskPlane.uShouldWarp is updated
+
+    // Apply visual settings
+    this.mapper.setShowTestCard(state.showTestcard);
+    this.mapper.setWhiteOut(state.showWhiteOut);
+    this.mapper.setShowControlLines(false); // Always hide on projector
+    if (this.syncWarp) this.mapper.setControlsVisible(state.showControls);
+
+    // Apply image settings
+    this.mapper.setImageSettings(state.imageSettings);
+
+    // Apply polygon mask (applyPolygonMaskState always hides handles on projector)
+    if (state.polygonMask) {
+      this.applyPolygonMaskState(state.polygonMask);
+    } else if (this.mapper.getPolygonMask()) {
+      this.mapper.removePolygonMask();
+    }
+    // Ensure mask handles are hidden even if setShouldWarp re-enabled them
+    this.mapper.getPolygonMask()?.setVisible(false);
+
+    // Hide loading message (if it exists)
+    const loadingEl = document.getElementById('loading');
+    if (loadingEl) {
+      loadingEl.classList.add('hidden');
+    }
+
+    console.log('[WindowSync] Applied full state from controller');
+  }
+
+  /**
+   * Apply warp geometry from controller state (projector with synced warp only)
+   */
+  private applyWarpGeometry(state: FullProjectionState): void {
     const warper = this.mapper.getWarper();
     const config = (warper as any).config;
 
@@ -318,41 +375,14 @@ export class WindowSync {
       }
     });
 
-    // 5. Apply warp settings
+    // 5. Apply warp mode
     warper.setWarpMode(state.warpMode);
-    this.mapper.setShouldWarp(state.shouldWarp); // use mapper so maskPlane.uShouldWarp is updated
 
-    // 6. Apply visual settings
-    this.mapper.setShowTestCard(state.showTestcard);
-    this.mapper.setWhiteOut(state.showWhiteOut);
-    this.mapper.setShowControlLines(false); // Always hide on projector
-    this.mapper.setControlsVisible(state.showControls);
-
-    // 7. Apply camera offset
+    // 6. Apply camera offset
     this.mapper.setCameraOffset(state.cameraOffset.x, state.cameraOffset.y);
-
-    // 8. Apply image settings
-    this.mapper.setImageSettings(state.imageSettings);
-
-    // 9. Apply polygon mask (applyPolygonMaskState always hides handles on projector)
-    if (state.polygonMask) {
-      this.applyPolygonMaskState(state.polygonMask);
-    } else if (this.mapper.getPolygonMask()) {
-      this.mapper.removePolygonMask();
-    }
-    // Ensure mask handles are hidden even if setShouldWarp re-enabled them
-    this.mapper.getPolygonMask()?.setVisible(false);
 
     // Update mesh
     (warper as any).updateLine();
-
-    // Hide loading message (if it exists)
-    const loadingEl = document.getElementById('loading');
-    if (loadingEl) {
-      loadingEl.classList.add('hidden');
-    }
-
-    console.log('[WindowSync] Applied full state from controller');
   }
 
   /**
@@ -433,12 +463,12 @@ export class WindowSync {
   /**
    * Open projector window (controller only)
    */
-  public openProjectorWindow(): void {
+  public openProjectorWindow(url?: string, name?: string): void {
     if (this.mode !== WINDOW_SYNC_MODE.CONTROLLER) {
       console.warn('WindowSync: openProjectorWindow() can only be called from controller mode');
       return;
     }
-    this.windowManager.openProjectorWindow();
+    this.windowManager.openProjectorWindow(url, name);
   }
 
   /**
@@ -460,7 +490,7 @@ export class WindowSync {
       this.mapper.setControlsVisible(false);
       this.mapper.setShowBorderLines(false);
       this.mapper.setZoom(1.0);
-      this.mapper.getWarper().setDragEnabled(false);
+      if (this.syncWarp) this.mapper.getWarper().setDragEnabled(false);
       // New mapper has default state — re-request full state from controller so all
       // projection state (test card, polygon mask, image settings, warp, etc.) is restored.
       this.eventChannel.emit(ProjectionEventType.PROJECTOR_READY, {});

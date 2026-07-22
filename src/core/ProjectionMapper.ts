@@ -24,6 +24,8 @@ export interface ProjectionMapperConfig {
   antialias?: boolean;
   /** Scale factor for how much of the window the plane fills (default: 0.9 = 90%) */
   zoom?: number;
+  /** Suffix for localStorage keys so multiple windows persist independent warp state */
+  storageNamespace?: string;
 }
 
 /**
@@ -80,7 +82,8 @@ export class ProjectionMapper {
   private worldWidth: number;
   private worldHeight: number;
 
-  private config: Required<Omit<ProjectionMapperConfig, 'resolution'>>;
+  private config: Required<Omit<ProjectionMapperConfig, 'resolution' | 'storageNamespace'>>;
+  private storageNamespace?: string;
 
   constructor(renderer: THREE.WebGLRenderer, inputTexture: THREE.Texture, config: ProjectionMapperConfig = {}) {
     this.renderer = renderer;
@@ -98,6 +101,8 @@ export class ProjectionMapper {
     const aspectRatio = this.resolution.width / this.resolution.height;
     this.worldHeight = 10; // fixed internal coordinate system: height=10, width follows aspect ratio
     this.worldWidth = 10 * aspectRatio;
+
+    this.storageNamespace = config.storageNamespace;
 
     const gridControlPoints = this.getGridControlPoints(config, aspectRatio, DEFAULTS.minGridWarpPoints);
 
@@ -150,6 +155,7 @@ export class ProjectionMapper {
       globalUniforms: this.uniforms,
       globalDefines: {},
       bufferTexture: inputTexture,
+      storageNamespace: this.storageNamespace,
     };
 
     this.meshWarper = new MeshWarper(warperConfig);
@@ -174,7 +180,9 @@ export class ProjectionMapper {
   // is created with the correct grid size before loading stored control points
   private getGridControlPoints(config: ProjectionMapperConfig, aspectRatio: number, minGridWarpPoints: number) {
     let gridControlPoints = config.gridControlPoints;
-    if (!gridControlPoints) {
+    // Namespaced (multi-window) mappers never read the shared GUI settings —
+    // those belong to the controller window only
+    if (!gridControlPoints && !config.storageNamespace) {
       try {
         const savedGui = localStorage.getItem(GUI_STORAGE_KEY);
         if (savedGui) {
@@ -186,9 +194,8 @@ export class ProjectionMapper {
       } catch {
         // ignore parse errors
       }
-      gridControlPoints = gridControlPoints ?? calculateGridPoints(aspectRatio, minGridWarpPoints);
     }
-    return gridControlPoints;
+    return gridControlPoints ?? calculateGridPoints(aspectRatio, minGridWarpPoints);
   }
 
   render(): void {

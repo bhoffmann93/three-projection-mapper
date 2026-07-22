@@ -1,17 +1,24 @@
+const DEFAULT_PROJECTOR_URL = './projector.html';
+const DEFAULT_PROJECTOR_NAME = 'ProjectorOutput';
+const CLOSE_POLL_INTERVAL_MS = 500;
+
 /**
- * Manages projector window lifecycle
+ * Manages projector window lifecycle. Supports multiple named projector
+ * windows (e.g. one per physical projector for soft-edge blending).
  */
 export class WindowManager {
-  private projectorWindow: Window | null = null;
+  private projectorWindows = new Map<string, Window>();
   private checkInterval: number | null = null;
   private onCloseCallback?: () => void;
 
   /**
-   * Open the projector window at 1280x800
+   * Open a projector window at 1280x800. Re-focuses if a window with the
+   * same name is already open.
    */
-  openProjectorWindow(): void {
-    if (this.projectorWindow && !this.projectorWindow.closed) {
-      this.projectorWindow.focus();
+  openProjectorWindow(url: string = DEFAULT_PROJECTOR_URL, name: string = DEFAULT_PROJECTOR_NAME): void {
+    const existing = this.projectorWindows.get(name);
+    if (existing && !existing.closed) {
+      existing.focus();
       return;
     }
 
@@ -21,37 +28,40 @@ export class WindowManager {
     const left = (window.screen.width - width) / 2;
     const top = (window.screen.height - height) / 2;
 
-    this.projectorWindow = window.open(
-      './projector.html',
-      'ProjectorOutput',
+    const opened = window.open(
+      url,
+      name,
       `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no,resizable=yes`
     );
+    if (opened) {
+      this.projectorWindows.set(name, opened);
+    }
 
-    // Monitor for window close
     this.startCloseMonitoring();
   }
 
   /**
-   * Check if projector window is open
+   * Check if any projector window is open
    */
   isProjectorOpen(): boolean {
-    return this.projectorWindow !== null && !this.projectorWindow.closed;
+    return [...this.projectorWindows.values()].some((w) => !w.closed);
   }
 
   /**
-   * Register callback for when projector window closes
+   * Register callback for when the last projector window closes
    */
   onProjectorClose(callback: () => void): void {
     this.onCloseCallback = callback;
   }
 
   /**
-   * Close the projector window
+   * Close all projector windows
    */
   closeProjectorWindow(): void {
-    if (this.projectorWindow && !this.projectorWindow.closed) {
-      this.projectorWindow.close();
+    for (const projectorWindow of this.projectorWindows.values()) {
+      if (!projectorWindow.closed) projectorWindow.close();
     }
+    this.projectorWindows.clear();
     this.stopCloseMonitoring();
   }
 
@@ -61,10 +71,13 @@ export class WindowManager {
   private startCloseMonitoring(): void {
     this.stopCloseMonitoring();
     this.checkInterval = window.setInterval(() => {
-      if (this.projectorWindow && this.projectorWindow.closed) {
-        this.handleWindowClosed();
+      for (const [name, projectorWindow] of this.projectorWindows) {
+        if (projectorWindow.closed) this.projectorWindows.delete(name);
       }
-    }, 500);
+      if (this.projectorWindows.size === 0) {
+        this.handleAllWindowsClosed();
+      }
+    }, CLOSE_POLL_INTERVAL_MS);
   }
 
   /**
@@ -78,11 +91,10 @@ export class WindowManager {
   }
 
   /**
-   * Handle projector window closed event
+   * Handle all projector windows closed
    */
-  private handleWindowClosed(): void {
+  private handleAllWindowsClosed(): void {
     this.stopCloseMonitoring();
-    this.projectorWindow = null;
     if (this.onCloseCallback) {
       this.onCloseCallback();
     }

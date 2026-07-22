@@ -36,6 +36,8 @@ export enum WARP_MODE {
 export interface MeshWarperConfig {
   width: number;
   height: number;
+  /** Suffix for the localStorage key, so multiple windows can persist independent warps */
+  storageNamespace?: string;
   widthSegments: number;
   heightSegments: number;
   gridControlPoints: { x: number; y: number };
@@ -58,6 +60,7 @@ interface StoredControlPoints {
 
 export class MeshWarper {
   private config: MeshWarperConfig;
+  private storageKey: string;
 
   public mesh: THREE.Mesh;
   public material: THREE.ShaderMaterial;
@@ -87,6 +90,7 @@ export class MeshWarper {
 
   constructor(config: MeshWarperConfig) {
     this.config = config;
+    this.storageKey = config.storageNamespace ? `${STORAGE_KEY}:${config.storageNamespace}` : STORAGE_KEY;
     this.xControlPointAmount = config.gridControlPoints.x;
     this.yControlPointAmount = config.gridControlPoints.y;
 
@@ -658,7 +662,7 @@ export class MeshWarper {
       referenceGrid: this.referenceGridControlPoints.map((p) => this.toNormalized(p)),
     };
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      localStorage.setItem(this.storageKey, JSON.stringify(data));
     } catch (e) {
       console.warn('Failed to save control points to localStorage:', e);
     }
@@ -666,7 +670,7 @@ export class MeshWarper {
 
   private loadFromStorage(): void {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = localStorage.getItem(this.storageKey);
       if (!stored) return;
 
       const data: StoredControlPoints = JSON.parse(stored);
@@ -744,6 +748,6 @@ export class MeshWarper {
     if (this.material.uniforms.uWarpPlaneSize) {
       this.material.uniforms.uWarpPlaneSize.value.set(this.averageDimensions.width, this.averageDimensions.height);
     }
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(this.storageKey);
   }
 }

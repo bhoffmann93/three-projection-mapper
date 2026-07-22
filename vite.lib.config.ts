@@ -9,7 +9,7 @@ export default defineConfig({
     glsl(),
     dts({
       tsconfigPath: './tsconfig.lib.json',
-      rollupTypes: true,
+      rollupTypes: false,
     }),
   ],
   build: {
