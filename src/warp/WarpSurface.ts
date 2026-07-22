@@ -271,7 +271,11 @@ export class WarpSurface {
   /** Keep this surface's masks and handles glued to its current perspective */
   syncMasks(pixelToWorld: number): void {
     this.warper.updateControlPointsScale(pixelToWorld);
-    this.maskPlane.syncPerspective(this.warper.syncHomography());
+    this.maskPlane.syncPerspective(this.warper.getPerspectiveCoeffs());
+
+    // With warp off both mesh and mask fall back to a flat rect at this centre
+    const center = this.warper.getCenter();
+    this.maskPlane.setSurfaceCenter(center.x, center.y);
 
     if (this.polygonMask) {
       this.polygonMask.updateTransformedPositions(

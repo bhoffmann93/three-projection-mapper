@@ -136,7 +136,6 @@ export class MeshWarper {
     this.addToScene();
 
     this.averageDimensions = this.getAverageDimensions();
-    this.syncHomography(); // so a warp-off first frame is not drawn with an identity transform
   }
 
   private createShaderMaterial(): THREE.ShaderMaterial {
@@ -163,7 +162,6 @@ export class MeshWarper {
       },
       uWarpMode: { value: WARP_MODE.bicubic },
       uShouldWarp: { value: true },
-      uHomography: { value: new THREE.Matrix3() },
       uWarpPlaneSize: {
         value: new THREE.Vector2(this.config.width, this.config.height),
       },
@@ -546,21 +544,6 @@ export class MeshWarper {
   public getPerspectiveCoeffs(): number[] {
     const currentCorners = this.dragCornerControlPoints.flatMap((p) => [p.x, p.y]);
     return new PerspT(this.quadData.initalCorners, currentCorners).coeffs;
-  }
-
-  /**
-   * Refresh this material's corner homography and hand the coefficients back so
-   * masks can reuse them — computing PerspT once per surface per frame rather
-   * than once per consumer.
-   */
-  public syncHomography(): number[] {
-    const coeffs = this.getPerspectiveCoeffs();
-    (this.material.uniforms.uHomography.value as THREE.Matrix3).set(
-      coeffs[0], coeffs[1], coeffs[2],
-      coeffs[3], coeffs[4], coeffs[5],
-      coeffs[6], coeffs[7], 1,
-    );
-    return coeffs;
   }
 
   public dispose(): void {

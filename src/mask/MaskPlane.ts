@@ -36,6 +36,7 @@ export class MaskPlane {
     uHomography: { value: THREE.Matrix3 };
     uFlatPlaneSize: { value: THREE.Vector2 };
     uWarpPlaneSize: { value: THREE.Vector2 };
+    uSurfaceCenter: { value: THREE.Vector2 };
     uMaskEnabled: { value: boolean };
     uFeather: { value: number };
     uPolygonMaskEnabled: { value: boolean };
@@ -61,6 +62,7 @@ export class MaskPlane {
       uHomography: { value: new THREE.Matrix3() },
       uFlatPlaneSize: { value: new THREE.Vector2(config.worldWidth, config.worldHeight) },
       uWarpPlaneSize: config.warpPlaneSizeRef,
+      uSurfaceCenter: { value: new THREE.Vector2() },
       uMaskEnabled: { value: false },
       uFeather: { value: 0 },
       uPolygonMaskEnabled: { value: false },
@@ -97,6 +99,11 @@ export class MaskPlane {
       coeffs[3], coeffs[4], coeffs[5],
       coeffs[6], coeffs[7], 1,
     );
+  }
+
+  /** Centroid of the surface's corner quad, used to place the mask when warp is off */
+  setSurfaceCenter(x: number, y: number): void {
+    this.uniforms.uSurfaceCenter.value.set(x, y);
   }
 
   /** Rebind when the surface providing the warped plane size is removed */

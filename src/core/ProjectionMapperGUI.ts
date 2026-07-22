@@ -527,8 +527,10 @@ export class ProjectionMapperGUI {
     Object.assign(this.polygonState, this.mapper.getActiveSurface().getPolygonSettings());
     this.syncMasksFolder();
 
-    // Name the tab after what it edits, so the scope is never in doubt
-    if (this.surfacePage) this.surfacePage.title = `${GUI_TAB.surface} ${this.activeSurfaceId()}`;
+    // Name the tab after what it edits; the Active list below says which one
+    if (this.surfacePage) {
+      this.surfacePage.title = this.mapper.getSurfaces().length > 1 ? GUI_TAB.surfacePlural : GUI_TAB.surface;
+    }
 
     this.pane.refresh();
     this.saveSettings();

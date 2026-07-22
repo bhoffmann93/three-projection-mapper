@@ -6,6 +6,7 @@ export const TWEAKPANE_TRANSPARENCY = '0.9';
 export const GUI_TAB = {
   output: 'Output',
   surface: 'Surface',
+  surfacePlural: 'Surfaces',
 } as const;
 
 /** Slider definitions for the per-surface image folder, in display order */

@@ -19,12 +19,19 @@ varying vec2 vUv;
 
 uniform mat3 uHomography;
 uniform vec2 uFlatPlaneSize;
+uniform vec2 uWarpPlaneSize;
+uniform vec2 uSurfaceCenter;
+uniform bool uShouldWarp;
 
 void main() {
     vUv = uv;
-    // The homography applies whether or not grid warp is active: with warp off the
-    // content mesh falls back to this same corner perspective, so the mask must
-    // follow it there too rather than collapsing to the origin.
+    if(!uShouldWarp) {
+        // Match warp.vert's bypass exactly: an axis-aligned rectangle at the
+        // surface's centre, so the mask stays on the content instead of
+        // collapsing to the origin while the mesh sits elsewhere.
+        gl_Position = projectionMatrix * viewMatrix * vec4(uSurfaceCenter + (uv - 0.5) * uWarpPlaneSize, 0.0, 1.0);
+        return;
+    }
     vec2 flatWorld = (uv - 0.5) * uFlatPlaneSize; // remap uv [0,1] → three.js world space centered at origin, e.g. [-8.89, 8.89] x [-5, 5] for 16:9
     vec3 h = uHomography * vec3(flatWorld, 1.0);
     vec2 worldPos = h.xy / h.z; //perspective divide

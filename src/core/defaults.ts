@@ -108,6 +108,19 @@ export const SURFACE_PICKER = {
   dragThresholdPixels: 3,
 } as const;
 
+/**
+ * When dragging a surface's body moves it.
+ *
+ * `multi-only` is the default because with a single surface the surface *is*
+ * the output: shifting the image is what camera offset and zoom are for, and
+ * those are non-destructive, whereas a body drag rewrites the calibration.
+ * Offering both would be two ways to do one thing, one of which quietly
+ * corrupts your corner points — and there is no undo.
+ */
+export type SurfaceDragMode = 'multi-only' | 'always' | 'never';
+
+export const DEFAULT_SURFACE_DRAG_MODE: SurfaceDragMode = 'multi-only';
+
 /** Visual style of polygon mask handles. Sizes in screen pixels. */
 export const POLYGON_HANDLE_STYLE = {
   anchorPointPixelRadius: 5,

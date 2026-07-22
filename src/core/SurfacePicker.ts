@@ -11,13 +11,16 @@ Selection is controller-local state; nothing here is broadcast.
 
 import * as THREE from 'three';
 import type { WarpSurface } from '../warp/WarpSurface';
-import { SURFACE_PICKER } from './defaults';
+import { SURFACE_PICKER, DEFAULT_SURFACE_DRAG_MODE } from './defaults';
+import type { SurfaceDragMode } from './defaults';
 
 export interface SurfacePickerConfig {
   domElement: HTMLElement;
   camera: THREE.Camera;
   getSurfaces: () => WarpSurface[];
   setActiveSurface: (id: string) => void;
+  /** When a body drag moves a surface (default: only with more than one surface) */
+  dragMode?: SurfaceDragMode;
   /** Called after a body drag ends, so callers can persist or broadcast */
   onSurfaceMoved?: (surface: WarpSurface) => void;
 }
@@ -49,6 +52,17 @@ export class SurfacePicker {
     el.addEventListener('pointermove', this.onPointerMove);
     el.addEventListener('pointerup', this.onPointerUp);
     el.addEventListener('pointercancel', this.onPointerUp);
+  }
+
+  /**
+   * Body dragging is layout: it only earns its keep once surfaces have to be
+   * arranged relative to each other. See SurfaceDragMode for why.
+   */
+  private bodyDragAllowed(): boolean {
+    const mode = this.config.dragMode ?? DEFAULT_SURFACE_DRAG_MODE;
+    if (mode === 'never') return false;
+    if (mode === 'always') return true;
+    return this.config.getSurfaces().length > 1;
   }
 
   /** Disabled in projector mode and whenever all controls are hidden */
@@ -110,6 +124,7 @@ export class SurfacePicker {
     if (!surface) return; // empty space keeps the current selection
 
     this.config.setActiveSurface(surface.id);
+    if (!this.bodyDragAllowed()) return;
 
     this.dragging = surface;
     this.movedPastThreshold = false;
@@ -142,7 +157,7 @@ export class SurfacePicker {
 
     const surface = this.pickSurface(this.toWorld(event));
     this.setHovered(surface);
-    this.config.domElement.style.cursor = surface ? 'move' : '';
+    this.config.domElement.style.cursor = surface && this.bodyDragAllowed() ? 'move' : '';
   }
 
   private handlePointerUp(event: PointerEvent): void {
