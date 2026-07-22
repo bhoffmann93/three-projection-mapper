@@ -516,6 +516,16 @@ export class ProjectionMapper {
     return this.uniforms.uBuffer.value;
   }
 
+  /**
+   * Pixel size of the source texture, which is not the mapper's resolution:
+   * an atlas buffer is usually larger than the region any one surface samples.
+   * Render-target textures carry their size on `image` too, so both work.
+   */
+  getBufferResolution(surfaceId?: string): Resolution {
+    const image = this.getTexture(surfaceId).image as { width?: number; height?: number } | undefined;
+    return { width: image?.width ?? 0, height: image?.height ?? 0 };
+  }
+
   setShowTestCard(show: boolean): void {
     this.uniforms.uShowTestCard.value = show;
   }

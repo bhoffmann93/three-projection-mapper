@@ -215,8 +215,8 @@ export class ProjectionMapperGUI {
 
     page.addBlade({
       view: 'text',
-      label: 'Buffer Resolution',
-      value: `${this.mapper.getResolution().width}x${this.mapper.getResolution().height}`,
+      label: 'Buffer',
+      value: `${this.mapper.getBufferResolution().width}x${this.mapper.getBufferResolution().height}`,
       parse: (v: unknown) => v,
       disabled: true,
     });
