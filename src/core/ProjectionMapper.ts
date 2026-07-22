@@ -58,6 +58,15 @@ export interface ProjectionMapperConfig {
   antialias?: boolean;
   /** Scale factor for how much of the window the plane fills (default: 0.9 = 90%) */
   zoom?: number;
+  /**
+   * Whether this mapper can hold more than one surface (default: true).
+   *
+   * With `false` the mapper is a single-surface projection mapper: addSurface()
+   * is refused, extra surfaces in storage are ignored rather than restored, and
+   * canvas selection is not installed. The built-in GUI drops its surface and
+   * input-crop controls to match.
+   */
+  multiSurface?: boolean;
   /** Click a surface to select it, drag its body to move it (default: true) */
   canvasSelection?: boolean;
   /** When a body drag moves a surface (default: 'multi-only') */
@@ -154,6 +163,7 @@ export class ProjectionMapper {
       gridControlPoints,
       antialias: config.antialias ?? DEFAULTS.antialias,
       zoom: config.zoom ?? DEFAULTS.zoom,
+      multiSurface: config.multiSurface ?? true,
       canvasSelection: config.canvasSelection ?? true,
       appId: config.appId,
       surfaceDragging: config.surfaceDragging ?? DEFAULT_SURFACE_DRAG_MODE,
@@ -181,7 +191,10 @@ export class ProjectionMapper {
       ? stored.surfaces
       : [{ id: DEFAULT_SURFACE_ID, uvRect: { ...DEFAULT_UV_RECT } }];
 
-    for (const record of initialSurfaces) {
+    // Extra surfaces left in storage must not come back when the mode is off
+    const restorable = this.config.multiSurface ? initialSurfaces : initialSurfaces.slice(0, 1);
+
+    for (const record of restorable) {
       const surface = this.createSurface(record);
       // A polygon mask saved in a previous session comes back with its surface
       surface.restorePolygonMask();
@@ -192,7 +205,8 @@ export class ProjectionMapper {
       stored?.activeId && this.getSurface(stored.activeId) ? stored.activeId : this.surfaces[0].id;
     this.applyActiveSurface();
 
-    if (this.config.canvasSelection) {
+    // Nothing to select or arrange when there can only ever be one surface
+    if (this.config.canvasSelection && this.config.multiSurface) {
       this.picker = new SurfacePicker({
         domElement: this.renderer.domElement,
         camera: this.camera,
@@ -315,7 +329,16 @@ export class ProjectionMapper {
     this.picker?.setEnabled(this.dragEnabled && anyControlVisible);
   }
 
+  /** Can this mapper hold more than one surface? */
+  isMultiSurface(): boolean {
+    return this.config.multiSurface;
+  }
+
   addSurface(options: { id?: string; uvRect?: UvRect } = {}): WarpSurface {
+    if (!this.config.multiSurface) {
+      console.warn('ProjectionMapper: addSurface() ignored because multiSurface is disabled');
+      return this.surfaces[0];
+    }
     const id = options.id ?? this.nextSurfaceId();
     const existing = this.getSurface(id);
     if (existing) return existing;

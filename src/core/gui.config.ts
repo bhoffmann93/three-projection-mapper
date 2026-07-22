@@ -2,11 +2,10 @@ import type { ImageSettings } from './defaults';
 
 export const TWEAKPANE_TRANSPARENCY = '0.9';
 
-/** The two scopes the pane is split into: output-wide vs. the selected surface */
-export const GUI_TAB = {
-  output: 'Output',
-  surface: 'Surface',
-  surfacePlural: 'Surfaces',
+/** Titles the surface folder by count, so it reads honestly with one surface */
+export const SURFACE_FOLDER_TITLE = {
+  singular: 'Surface',
+  plural: 'Surfaces',
 } as const;
 
 /** Slider definitions for the per-surface image folder, in display order */

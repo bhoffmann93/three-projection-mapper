@@ -116,7 +116,7 @@ const renderTarget = new THREE.WebGLRenderTarget(projectionRes.width, projection
   generateMipmaps: false,
 });
 
-const mapper = new ProjectionMapper(renderer, renderTarget.texture, { appId: 'fullscreen-shader' });
+const mapper = new ProjectionMapper(renderer, renderTarget.texture, { appId: 'fullscreen-shader', multiSurface: false });
 
 const gui = new ProjectionMapperGUI(mapper, {
   title: 'Projection Mapper',

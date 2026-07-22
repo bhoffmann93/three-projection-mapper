@@ -90,7 +90,7 @@ const renderTarget = new THREE.WebGLRenderTarget(projectionResolution.x, project
   generateMipmaps: false,
 });
 
-const mapper = new ProjectionMapper(renderer, renderTarget.texture, { appId: 'single-window' });
+const mapper = new ProjectionMapper(renderer, renderTarget.texture, { appId: 'single-window', multiSurface: false });
 const gui = new ProjectionMapperGUI(mapper, {
   title: 'Projection Mapper',
   anchor: 'left',
