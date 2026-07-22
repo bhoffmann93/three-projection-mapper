@@ -127,3 +127,46 @@ export const removeTabIndent = (tab: TabApi): void => {
   }
   tab.element.classList.add(TAB_FLAT_CLASS);
 };
+
+interface ButtonGridContainer {
+  addBlade(params: Record<string, unknown>): unknown;
+}
+
+/**
+ * Tweakpane's buttongrid blade is untyped in the public API, so its shape is
+ * declared here rather than re-asserted at every call site.
+ */
+export interface ButtonGridBladeApi {
+  element: HTMLElement;
+  on(event: 'click', callback: (ev: { index: [number, number] }) => void): void;
+}
+
+export interface ButtonGridHandle {
+  blade: ButtonGridBladeApi;
+  buttons: HTMLButtonElement[];
+}
+
+/** Add a row of buttons and hand back the elements, which callers need to style */
+export function addButtonGrid(container: ButtonGridContainer, titles: readonly string[]): ButtonGridHandle {
+  const blade = container.addBlade({
+    view: 'buttongrid',
+    size: [titles.length, 1],
+    cells: (x: number) => ({ title: titles[x] }),
+  }) as unknown as ButtonGridBladeApi;
+
+  return {
+    blade,
+    buttons: Array.from(blade.element.querySelectorAll('button')) as HTMLButtonElement[],
+  };
+}
+
+/** The single `<button>` inside a button blade */
+export function buttonElement(button: { element: HTMLElement }): HTMLButtonElement {
+  return button.element.querySelector('button') as HTMLButtonElement;
+}
+
+/** Tweakpane wraps the pane in a positioning div that owns width and placement */
+export function paneWrapper(pane: { element: HTMLElement }): HTMLElement | null {
+  return pane.element.closest('.tp-dfwv');
+}
+

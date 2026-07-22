@@ -1,4 +1,3 @@
-import * as THREE from 'three';
 import { FolderApi, Pane, TpChangeEvent } from 'tweakpane';
 import * as EssentialsPlugin from '@tweakpane/plugin-essentials';
 import { ProjectionMapper } from './ProjectionMapper';
@@ -31,12 +30,14 @@ import {
   SURFACE_FOLDER_TITLE,
   IMAGE_CONTROLS,
 } from './gui.config';
-import { createTweakpaneButton, replaceLabelWithButton } from './tweakpaneUtils';
-
-interface ButtonGridBladeApi {
-  element: HTMLElement;
-  on(event: 'click', callback: (ev: { index: [number, number] }) => void): void;
-}
+import {
+  createTweakpaneButton,
+  replaceLabelWithButton,
+  addButtonGrid,
+  buttonElement,
+  paneWrapper,
+  type ButtonGridBladeApi,
+} from './tweakpaneUtils';
 
 export type GUIAnchor = 'left' | 'right';
 
@@ -144,7 +145,7 @@ export class ProjectionMapperGUI {
     this.pane.element.style.opacity = TWEAKPANE_TRANSPARENCY;
     this.pane.registerPlugin(EssentialsPlugin);
 
-    const wrapper = this.pane.element.closest('.tp-dfwv') as HTMLElement;
+    const wrapper = paneWrapper(this.pane);
     if (wrapper) {
       wrapper.style.width = '240px';
       if (anchor === 'left') {
@@ -158,7 +159,7 @@ export class ProjectionMapperGUI {
 
   private addResetButton(folder: FolderApi, title: string, onClick: () => void): void {
     const btn = folder.addButton({ title });
-    (btn.element.querySelector('button') as HTMLButtonElement).style.background = RESET_BUTTON_COLOR;
+    buttonElement(btn).style.background = RESET_BUTTON_COLOR;
     btn.on('click', onClick);
   }
 
@@ -200,7 +201,7 @@ export class ProjectionMapperGUI {
   private initOutputControls(page: PaneContainer): void {
     if (this.config.windowManager) {
       const openProjectorBtn = page.addButton({ title: 'Open Projector' });
-      const btnEl = openProjectorBtn.element.querySelector('button') as HTMLButtonElement;
+      const btnEl = buttonElement(openProjectorBtn);
       const projectorIcon = createElement(Projector, {
         width: OPEN_PROJECTOR_BUTTON_ICON.sizePx,
         height: OPEN_PROJECTOR_BUTTON_ICON.sizePx,
@@ -222,13 +223,10 @@ export class ProjectionMapperGUI {
     });
 
     const hasWhiteOut = !!this.config.enableWhiteOut;
-    const settingsBtnGrid = page.addBlade({
-      view: 'buttongrid',
-      size: [hasWhiteOut ? 2 : 1, 1],
-      cells: (x: number) => ({ title: hasWhiteOut ? ['Testcard', 'White'][x] : 'Testcard' }),
-    }) as unknown as ButtonGridBladeApi;
-
-    const settingsButtons = Array.from(settingsBtnGrid.element.querySelectorAll('button')) as HTMLButtonElement[];
+    const { blade: settingsBtnGrid, buttons: settingsButtons } = addButtonGrid(
+      page,
+      hasWhiteOut ? ['Testcard', 'White'] : ['Testcard'],
+    );
     const testcardBtn = settingsButtons[0];
     const whiteOutBtn = hasWhiteOut ? settingsButtons[1] : null;
 
@@ -269,13 +267,8 @@ export class ProjectionMapperGUI {
   private initSurfacesFolder(page: PaneContainer): void {
     this.surfacesFolder = page.addFolder({ title: SURFACE_FOLDER_TITLE.singular, expanded: true });
 
-    const surfaceBtnGrid = this.surfacesFolder.addBlade({
-      view: 'buttongrid',
-      size: [2, 1],
-      cells: (x: number) => ({ title: ['Add', 'Remove'][x] }),
-    }) as unknown as ButtonGridBladeApi;
-
-    const removeBtn = Array.from(surfaceBtnGrid.element.querySelectorAll('button'))[1] as HTMLButtonElement;
+    const { blade: surfaceBtnGrid, buttons: surfaceButtons } = addButtonGrid(this.surfacesFolder, ['Add', 'Remove']);
+    const removeBtn = surfaceButtons[1];
     removeBtn.style.background = RESET_BUTTON_COLOR;
     this.syncSurfaceButtons = () => {
       removeBtn.disabled = this.mapper.getSurfaces().length <= 1;
@@ -341,15 +334,8 @@ export class ProjectionMapperGUI {
 
   /** Handle visibility and reset, alongside the warp settings they act on */
   private initWarpButtonRow(folder: FolderApi): void {
-    const warpBtnGrid = folder.addBlade({
-      view: 'buttongrid',
-      size: [3, 1],
-      cells: (x: number) => ({ title: ['Persp', 'Grid', 'Reset'][x] }),
-    }) as unknown as ButtonGridBladeApi;
-
-    const [perspBtn, gridBtn, resetBtn] = Array.from(
-      warpBtnGrid.element.querySelectorAll('button'),
-    ) as HTMLButtonElement[];
+    const { blade: warpBtnGrid, buttons } = addButtonGrid(folder, ['Persp', 'Grid', 'Reset']);
+    const [perspBtn, gridBtn, resetBtn] = buttons;
     resetBtn.style.background = RESET_BUTTON_COLOR;
 
     const setEyeButtonContent = (btn: HTMLButtonElement, icon: IconNode, label: string) => {
@@ -407,22 +393,12 @@ export class ProjectionMapperGUI {
       gridSize: { x: this.settings.gridSize.x, y: this.settings.gridSize.y },
       surfaceId,
     });
+    // Resizing the grid rebuilds the points, so the projector needs the new set
     if (this.isMultiWindowMode()) {
       const warper = this.mapper.getWarper();
-      const config = (warper as any).config;
-      const gridPoints = warper.getGridControlPoints();
-      const referenceGridPoints = (warper as any).referenceGridControlPoints as THREE.Vector3[];
       this.broadcast(ProjectionEventType.GRID_POINTS_UPDATED, {
-        points: gridPoints.map((p: THREE.Vector3) => ({
-          x: (p.x + config.width / 2) / config.width,
-          y: (p.y + config.height / 2) / config.height,
-          z: p.z,
-        })),
-        referencePoints: referenceGridPoints.map((p: THREE.Vector3) => ({
-          x: (p.x + config.width / 2) / config.width,
-          y: (p.y + config.height / 2) / config.height,
-          z: p.z,
-        })),
+        points: warper.getGridControlPoints().map((p) => warper.toNormalizedPoint(p)),
+        referencePoints: warper.getReferenceGridControlPoints().map((p) => warper.toNormalizedPoint(p)),
         surfaceId,
       });
     }
@@ -612,15 +588,12 @@ export class ProjectionMapperGUI {
       if (polygonSubFolder) return;
       polygonSubFolder = masksFolder.addFolder({ title: 'Polygon Mask', expanded: true });
 
-      const polyBtnGrid = polygonSubFolder.addBlade({
-        view: 'buttongrid',
-        size: [3, 1],
-        cells: (x: number) => ({ title: ['Enabled', 'Invert', 'Controls'][x] }),
-      }) as unknown as ButtonGridBladeApi;
-
-      const [enabledBtn, invertBtn, controlsBtn] = Array.from(
-        polyBtnGrid.element.querySelectorAll('button'),
-      ) as HTMLButtonElement[];
+      const { blade: polyBtnGrid, buttons: polyButtons } = addButtonGrid(polygonSubFolder, [
+        'Enabled',
+        'Invert',
+        'Controls',
+      ]);
+      const [enabledBtn, invertBtn, controlsBtn] = polyButtons;
 
       const syncPolyButtons = () => {
         enabledBtn.style.opacity = polygonMaskState.enabled ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
@@ -666,13 +639,11 @@ export class ProjectionMapperGUI {
           broadcastPolySettings();
         });
 
-      const polyActionGrid = polygonSubFolder.addBlade({
-        view: 'buttongrid',
-        size: [2, 1],
-        cells: (x: number) => ({ title: ['Reset', 'Delete'][x] }),
-      }) as unknown as ButtonGridBladeApi;
-
-      (polyActionGrid.element.querySelectorAll('button')[0] as HTMLButtonElement).style.background = RESET_BUTTON_COLOR;
+      const { blade: polyActionGrid, buttons: polyActionButtons } = addButtonGrid(polygonSubFolder, [
+        'Reset',
+        'Delete',
+      ]);
+      polyActionButtons[0].style.background = RESET_BUTTON_COLOR;
 
       polyActionGrid.on('click', (ev) => {
         const surfaceId = this.activeSurfaceId();

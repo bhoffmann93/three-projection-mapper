@@ -532,6 +532,35 @@ export class MeshWarper {
     return this.dragGridControlPoints;
   }
 
+  /**
+   * The undeformed grid the warp is derived from. Multi-window sync has to send
+   * it alongside the warped points, or the receiver cannot reproduce a later
+   * corner drag.
+   */
+  public getReferenceGridControlPoints(): THREE.Vector3[] {
+    return this.referenceGridControlPoints;
+  }
+
+  /** Flat plane size in world units, the space control points are normalised against */
+  public getPlaneSize(): { width: number; height: number } {
+    return { width: this.config.width, height: this.config.height };
+  }
+
+  /** Redraw the outline after control points were moved from outside, as sync does */
+  public refreshOutline(): void {
+    this.updateLine();
+  }
+
+  /** Control point position as a 0-1 fraction of the plane, for storage and sync */
+  public toNormalizedPoint(point: THREE.Vector3): { x: number; y: number; z: number } {
+    return this.toNormalized(point);
+  }
+
+  public fromNormalizedPoint(normalized: { x: number; y: number; z: number }): THREE.Vector3 {
+    const position = this.fromNormalized(normalized);
+    return new THREE.Vector3(position.x, position.y, position.z);
+  }
+
   public applyPerspectiveTransform(x: number, y: number): THREE.Vector2 {
     const currentCorners = this.dragCornerControlPoints.flatMap((p) => [p.x, p.y]);
     const [wx, wy] = new PerspT(this.quadData.initalCorners, currentCorners).transform(x, y);

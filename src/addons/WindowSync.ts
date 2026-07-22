@@ -280,21 +280,14 @@ export class WindowSync {
       this.attachedDragControls.add(dragControls);
 
       dragControls.addEventListener('drag', () => {
-        const config = (warper as any).config;
-        const cornerPoints = warper.getCornerControlPoints();
-        const gridPoints = warper.getGridControlPoints();
-        const referenceGridPoints = (warper as any).referenceGridControlPoints;
-
-        // Broadcast corner points
         this.eventChannel.emit(ProjectionEventType.CORNER_POINTS_UPDATED, {
-          points: cornerPoints.map(p => this.normalizePoint(p, config.width, config.height)),
+          points: warper.getCornerControlPoints().map((p) => warper.toNormalizedPoint(p)),
           surfaceId: surface.id,
         });
 
-        // Broadcast grid points
         this.eventChannel.emit(ProjectionEventType.GRID_POINTS_UPDATED, {
-          points: gridPoints.map((p: THREE.Vector3) => this.normalizePoint(p, config.width, config.height)),
-          referencePoints: referenceGridPoints.map((p: THREE.Vector3) => this.normalizePoint(p, config.width, config.height)),
+          points: warper.getGridControlPoints().map((p) => warper.toNormalizedPoint(p)),
+          referencePoints: warper.getReferenceGridControlPoints().map((p) => warper.toNormalizedPoint(p)),
           surfaceId: surface.id,
         });
       });
@@ -318,16 +311,14 @@ export class WindowSync {
    */
   private getSurfaceState(surface: WarpSurface): SurfaceSyncState {
     const warper = surface.getWarper();
-    const config = (warper as any).config;
-    const referenceGridPoints = (warper as any).referenceGridControlPoints;
 
     return {
       id: surface.id,
       uvRect: surface.getUvRect(),
       resolution: surface.getResolution(),
-      cornerPoints: warper.getCornerControlPoints().map((p: THREE.Vector3) => this.normalizePoint(p, config.width, config.height)),
-      gridPoints: warper.getGridControlPoints().map((p: THREE.Vector3) => this.normalizePoint(p, config.width, config.height)),
-      referenceGridPoints: referenceGridPoints.map((p: THREE.Vector3) => this.normalizePoint(p, config.width, config.height)),
+      cornerPoints: warper.getCornerControlPoints().map((p) => warper.toNormalizedPoint(p)),
+      gridPoints: warper.getGridControlPoints().map((p) => warper.toNormalizedPoint(p)),
+      referenceGridPoints: warper.getReferenceGridControlPoints().map((p) => warper.toNormalizedPoint(p)),
       gridSize: {
         x: warper.getGridSizeX(),
         y: warper.getGridSizeY(),
@@ -450,15 +441,13 @@ export class WindowSync {
    */
   private applyCornerPoints(points: NormalizedPoint[], warper: MeshWarper | null): void {
     if (!warper) return;
-    const config = (warper as any).config;
     const cornerPoints = warper.getCornerControlPoints();
 
     points.forEach((normalized, i) => {
-      const denormalized = this.denormalizePoint(normalized, config.width, config.height);
-      cornerPoints[i].set(denormalized.x, denormalized.y, denormalized.z);
+      cornerPoints[i].copy(warper.fromNormalizedPoint(normalized));
     });
 
-    (warper as any).updateLine();
+    warper.refreshOutline();
   }
 
   /**
@@ -466,47 +455,18 @@ export class WindowSync {
    */
   private applyGridPoints(points: NormalizedPoint[], referencePoints: NormalizedPoint[], warper: MeshWarper | null): void {
     if (!warper) return;
-    const config = (warper as any).config;
     const gridPoints = warper.getGridControlPoints();
-    const referenceGridPoints = (warper as any).referenceGridControlPoints;
+    const referenceGridPoints = warper.getReferenceGridControlPoints();
 
     points.forEach((normalized, i) => {
-      if (i < gridPoints.length) {
-        const denormalized = this.denormalizePoint(normalized, config.width, config.height);
-        gridPoints[i].set(denormalized.x, denormalized.y, denormalized.z);
-      }
+      if (i < gridPoints.length) gridPoints[i].copy(warper.fromNormalizedPoint(normalized));
     });
 
     referencePoints.forEach((normalized, i) => {
-      if (i < referenceGridPoints.length) {
-        const denormalized = this.denormalizePoint(normalized, config.width, config.height);
-        referenceGridPoints[i].set(denormalized.x, denormalized.y, denormalized.z);
-      }
+      if (i < referenceGridPoints.length) referenceGridPoints[i].copy(warper.fromNormalizedPoint(normalized));
     });
 
-    (warper as any).updateLine();
-  }
-
-  /**
-   * Normalize point to 0-1 range
-   */
-  private normalizePoint(point: THREE.Vector3, width: number, height: number): NormalizedPoint {
-    return {
-      x: (point.x + width / 2) / width,
-      y: (point.y + height / 2) / height,
-      z: point.z,
-    };
-  }
-
-  /**
-   * Denormalize point from 0-1 range
-   */
-  private denormalizePoint(normalized: NormalizedPoint, width: number, height: number): THREE.Vector3 {
-    return new THREE.Vector3(
-      normalized.x * width - width / 2,
-      normalized.y * height - height / 2,
-      normalized.z
-    );
+    warper.refreshOutline();
   }
 
   /**

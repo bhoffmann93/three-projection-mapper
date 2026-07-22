@@ -61,6 +61,17 @@ export interface Resolution {
 export const WORLD_PLANE_HEIGHT = 10;
 
 /**
+ * Pixel size of a texture. Loaded images carry it on `image` as the HTML element,
+ * render targets as a plain `{ width, height }` — both are read the same way.
+ * three types `image` as unknown, so the shape is asserted here once rather than
+ * at every call site.
+ */
+export const textureResolution = (texture: { image?: unknown }): Resolution => {
+  const image = texture.image as { width?: number; height?: number } | undefined;
+  return { width: image?.width ?? 0, height: image?.height ?? 0 };
+};
+
+/**
  * A surface's plane size in world units.
  *
  * This is the surface's own shape in the output and is deliberately independent

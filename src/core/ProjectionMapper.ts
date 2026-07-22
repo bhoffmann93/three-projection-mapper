@@ -19,6 +19,7 @@ import {
   STORAGE_VERSION,
   scopedStorageKey,
   planeSizeFor,
+  textureResolution,
 } from './defaults';
 import type {
   ImageSettings,
@@ -143,13 +144,9 @@ export class ProjectionMapper {
     this.renderer = renderer;
     this.clock = new THREE.Clock();
 
-    //Get Dimensions from Texture / Render Target
-    const texWidth = (inputTexture as any).image?.width || (inputTexture as any).width;
-    const texHeight = (inputTexture as any).image?.height || (inputTexture as any).height;
-
     // Resolution in pixels (for textures/shaders)
     // User can overwrite the Resolution which calculates a different aspect ratio
-    this.resolution = config.resolution ?? { width: texWidth, height: texHeight };
+    this.resolution = config.resolution ?? textureResolution(inputTexture);
 
     // Normalize to small world units: height is always 10, width follows aspect
     const aspectRatio = this.resolution.width / this.resolution.height;
@@ -522,8 +519,7 @@ export class ProjectionMapper {
    * Render-target textures carry their size on `image` too, so both work.
    */
   getBufferResolution(surfaceId?: string): Resolution {
-    const image = this.getTexture(surfaceId).image as { width?: number; height?: number } | undefined;
-    return { width: image?.width ?? 0, height: image?.height ?? 0 };
+    return textureResolution(this.getTexture(surfaceId));
   }
 
   setShowTestCard(show: boolean): void {
