@@ -24,8 +24,8 @@ import { isQuadConcave, isPointInQuad } from './geometry';
 import { clamp } from '../utils/math';
 import meshWarpVertexShader from '../shaders/warp.vert';
 import { RenderOrder } from '../core/RenderOrder';
-import { DEFAULT_UV_RECT, MESH_WARP_GRID_SIZE, WARP_HANDLE_STYLE } from '../core/defaults';
-import type { UvRect } from '../core/defaults';
+import { DEFAULT_UV_RECT, DEFAULT_IMAGE_SETTINGS, MESH_WARP_GRID_SIZE, WARP_HANDLE_STYLE } from '../core/defaults';
+import type { UvRect, ImageSettings } from '../core/defaults';
 
 const STORAGE_KEY = 'warp-grid-control-points';
 
@@ -50,6 +50,8 @@ export interface MeshWarperConfig {
   globalUniforms: Record<string, { value: unknown }>;
   globalDefines: Record<string, unknown>;
   bufferTexture: THREE.Texture;
+  /** Image adjustments are per surface — each warper owns its own uniforms */
+  imageSettings?: ImageSettings;
   /** Suffixes the localStorage key so multiple warpers persist independently */
   storageNamespace?: string;
 }
@@ -169,6 +171,7 @@ export class MeshWarper {
       uUvRectScale: {
         value: new THREE.Vector2(DEFAULT_UV_RECT.scaleX, DEFAULT_UV_RECT.scaleY),
       },
+      ...this.createImageUniforms(),
     };
 
     const material = new THREE.ShaderMaterial({
@@ -187,6 +190,48 @@ export class MeshWarper {
     material.side = THREE.FrontSide;
 
     return material;
+  }
+
+  /**
+   * Image adjustments live in this material rather than in ProjectionMapper's
+   * shared uniform bag: two surfaces lit by different projectors need different
+   * gamma and black/white points to match.
+   */
+  private createImageUniforms() {
+    const settings = { ...DEFAULT_IMAGE_SETTINGS, ...this.config.imageSettings };
+    return {
+      uTonemap: { value: settings.tonemap },
+      uShadows: { value: settings.shadows },
+      uHighlights: { value: settings.highlights },
+      uGamma: { value: settings.gamma },
+      uContrast: { value: settings.contrast },
+      uSaturation: { value: settings.saturation },
+      uHue: { value: settings.hue },
+    };
+  }
+
+  public setImageSettings(settings: Partial<ImageSettings>): void {
+    const uniforms = this.material.uniforms;
+    if (settings.tonemap !== undefined) uniforms.uTonemap.value = settings.tonemap;
+    if (settings.shadows !== undefined) uniforms.uShadows.value = settings.shadows;
+    if (settings.highlights !== undefined) uniforms.uHighlights.value = settings.highlights;
+    if (settings.gamma !== undefined) uniforms.uGamma.value = settings.gamma;
+    if (settings.contrast !== undefined) uniforms.uContrast.value = settings.contrast;
+    if (settings.saturation !== undefined) uniforms.uSaturation.value = settings.saturation;
+    if (settings.hue !== undefined) uniforms.uHue.value = settings.hue;
+  }
+
+  public getImageSettings(): ImageSettings {
+    const uniforms = this.material.uniforms;
+    return {
+      tonemap: uniforms.uTonemap.value as boolean,
+      shadows: uniforms.uShadows.value as number,
+      highlights: uniforms.uHighlights.value as number,
+      gamma: uniforms.uGamma.value as number,
+      contrast: uniforms.uContrast.value as number,
+      saturation: uniforms.uSaturation.value as number,
+      hue: uniforms.uHue.value as number,
+    };
   }
 
   private createPlaneGeometry(): THREE.PlaneGeometry {

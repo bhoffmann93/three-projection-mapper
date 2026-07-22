@@ -190,8 +190,8 @@ export class WindowSync {
       this.mapper.setCameraOffset(offset.x, offset.y);
     });
 
-    this.eventChannel.on(ProjectionEventType.IMAGE_SETTINGS_CHANGED, ({ settings }) => {
-      this.mapper.setImageSettings(settings as ImageSettings);
+    this.eventChannel.on(ProjectionEventType.IMAGE_SETTINGS_CHANGED, ({ settings, surfaceId }) => {
+      this.resolveSurface(surfaceId)?.setImageSettings(settings as ImageSettings);
     });
 
     this.eventChannel.on(ProjectionEventType.RESET_WARP, ({ surfaceId }) => {
@@ -324,6 +324,7 @@ export class WindowSync {
         y: warper.getGridSizeY(),
       },
       warpMode: warper.getWarpMode(),
+      imageSettings: surface.getImageSettings(),
       edgeMask: surface.getEdgeMask(),
       polygonMask: surface.getPolygonMaskState() ?? undefined,
     };
@@ -344,7 +345,8 @@ export class WindowSync {
     this.applyGridPoints(state.gridPoints, state.referenceGridPoints, warper);
     warper.setWarpMode(state.warpMode);
 
-    // Masks belong to the surface (edgeMask is absent from pre-per-surface senders)
+    // Image and masks belong to the surface (absent from pre-per-surface senders)
+    if (state.imageSettings) surface.setImageSettings(state.imageSettings);
     if (state.edgeMask) surface.setEdgeFeather(state.edgeMask.maskEnabled, state.edgeMask.feather);
     if (state.polygonMask) {
       this.applyPolygonMaskState(surface, state.polygonMask);
@@ -370,7 +372,7 @@ export class WindowSync {
       showControlLines: this.mapper.isShowingControlLines(),
       showControls: false, // Projector controls default to hidden
       cameraOffset: this.mapper.getCameraOffset(),
-      imageSettings: this.mapper.getImageSettings(),
+      imageSettings: firstSurface.imageSettings,
       polygonMask: firstSurface.polygonMask,
       surfaces: surfaces.map((surface) => this.getSurfaceState(surface)),
     };
@@ -399,6 +401,7 @@ export class WindowSync {
         referenceGridPoints: state.referenceGridPoints,
         gridSize: state.gridSize,
         warpMode: state.warpMode,
+        imageSettings: state.imageSettings,
         edgeMask: firstSurface.getEdgeMask(),
         polygonMask: state.polygonMask,
       });
@@ -416,11 +419,8 @@ export class WindowSync {
     // 4. Apply camera offset
     this.mapper.setCameraOffset(state.cameraOffset.x, state.cameraOffset.y);
 
-    // 5. Apply image settings
-    this.mapper.setImageSettings(state.imageSettings);
-
-    // 6. Masks were applied per surface in applySurfaceState; make sure no handles
-    // survived setShouldWarp re-enabling them
+    // 5. Image and masks were applied per surface in applySurfaceState; make sure
+    // no handles survived setShouldWarp re-enabling them
     for (const surface of this.mapper.getSurfaces()) {
       surface.getPolygonMask()?.setVisible(false);
     }

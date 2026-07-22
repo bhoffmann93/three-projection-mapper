@@ -47,7 +47,9 @@ export interface SurfaceSyncState {
   referenceGridPoints: NormalizedPoint[];
   gridSize: GridSize;
   warpMode: number;
-  /** Edge feather belongs to the surface, not to the global image settings */
+  /** Image adjustments are calibration, so they belong to the surface */
+  imageSettings: ImageSettings;
+  /** Edge feather belongs to the surface too */
   edgeMask: EdgeMaskSettings;
   /** Absent means this surface has no polygon mask */
   polygonMask?: PolygonMaskSyncState;
@@ -117,7 +119,7 @@ export interface ProjectionEventPayloads {
   [ProjectionEventType.PROJECTOR_READY]: {};
   [ProjectionEventType.REQUEST_FULL_STATE]: {};
   [ProjectionEventType.FULL_STATE_SYNC]: { state: FullProjectionState };
-  [ProjectionEventType.IMAGE_SETTINGS_CHANGED]: { settings: ImageSettings };
+  [ProjectionEventType.IMAGE_SETTINGS_CHANGED]: { settings: ImageSettings; surfaceId?: string };
   [ProjectionEventType.EDGE_MASK_CHANGED]: { enabled: boolean; feather: number; surfaceId?: string };
   [ProjectionEventType.POLYGON_MASK_NODES_CHANGED]: { nodes: { u: number; v: number }[]; surfaceId?: string };
   [ProjectionEventType.POLYGON_MASK_SETTINGS_CHANGED]: {

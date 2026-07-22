@@ -21,7 +21,7 @@ import {
   DEFAULT_EDGE_MASK,
   DEFAULT_POLYGON_MASK_SETTINGS,
 } from '../core/defaults';
-import type { UvRect, EdgeMaskSettings, PolygonMaskSettings } from '../core/defaults';
+import type { UvRect, EdgeMaskSettings, PolygonMaskSettings, ImageSettings } from '../core/defaults';
 
 export interface WarpSurfaceMaskConfig {
   worldWidth: number;
@@ -37,6 +37,7 @@ export interface WarpSurfaceConfig {
   uvRect?: UvRect;
   edgeMask?: EdgeMaskSettings;
   polygonMask?: PolygonMaskSettings;
+  imageSettings?: ImageSettings;
   warper: Omit<MeshWarperConfig, 'storageNamespace'>;
   mask: WarpSurfaceMaskConfig;
 }
@@ -74,6 +75,7 @@ export class WarpSurface {
 
     this.warper = new MeshWarper({
       ...config.warper,
+      imageSettings: config.imageSettings,
       storageNamespace: WarpSurface.storageNamespace(config.id),
     });
     this.warper.setUvRect(this.uvRect.offsetX, this.uvRect.offsetY, this.uvRect.scaleX, this.uvRect.scaleY);
@@ -121,6 +123,18 @@ export class WarpSurface {
   /** Move the surface's centroid to an absolute world-space position, preserving its warp */
   setPosition(x: number, y: number): void {
     this.warper.setPosition(x, y);
+  }
+
+  // --- image adjustments ----------------------------------------------------
+  // Per surface: two surfaces lit by different projectors need different gamma
+  // and black/white points to match.
+
+  setImageSettings(settings: Partial<ImageSettings>): void {
+    this.warper.setImageSettings(settings);
+  }
+
+  getImageSettings(): ImageSettings {
+    return this.warper.getImageSettings();
   }
 
   // --- edge feather ---------------------------------------------------------

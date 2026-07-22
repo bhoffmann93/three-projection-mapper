@@ -30,6 +30,7 @@ interface StoredSurface {
   uvRect: UvRect;
   edgeMask?: EdgeMaskSettings;
   polygonMask?: PolygonMaskSettings;
+  imageSettings?: ImageSettings;
 }
 
 interface StoredSurfaces {
@@ -94,23 +95,16 @@ export class ProjectionMapper {
   /** Called whenever any surface's polygon mask nodes change (drag, insert, delete, reset). */
   public onPolygonNodesChanged: (surfaceId: string) => void = () => {};
 
+  /** Genuinely output-wide uniforms, shared by reference across every surface material */
   private uniforms: {
     uBuffer: { value: THREE.Texture };
     uBufferResolution: { value: THREE.Vector2 };
     uTime: { value: number };
     uShowTestCard: { value: boolean };
     uShowControlLines: { value: boolean };
-    uTonemap: { value: boolean };
-    uShadows: { value: number };
-    uHighlights: { value: number };
-    uGamma: { value: number };
-    uContrast: { value: number };
-    uSaturation: { value: number };
-    uHue: { value: number };
   };
 
   private whiteOut = false;
-  private imageSettings: ImageSettings;
 
   /** Resolution in pixels, passed through to shaders */
   private resolution: { width: number; height: number };
@@ -162,16 +156,7 @@ export class ProjectionMapper {
       uTime: { value: 0 },
       uShowTestCard: { value: false },
       uShowControlLines: { value: true },
-      uTonemap: { value: DEFAULT_IMAGE_SETTINGS.tonemap },
-      uShadows: { value: DEFAULT_IMAGE_SETTINGS.shadows },
-      uHighlights: { value: DEFAULT_IMAGE_SETTINGS.highlights },
-      uGamma: { value: DEFAULT_IMAGE_SETTINGS.gamma },
-      uContrast: { value: DEFAULT_IMAGE_SETTINGS.contrast },
-      uSaturation: { value: DEFAULT_IMAGE_SETTINGS.saturation },
-      uHue: { value: DEFAULT_IMAGE_SETTINGS.hue },
     };
-
-    this.imageSettings = { ...DEFAULT_IMAGE_SETTINGS };
 
     const stored = this.loadStoredSurfaces();
     const initialSurfaces: StoredSurface[] = stored?.surfaces?.length
@@ -232,7 +217,7 @@ export class ProjectionMapper {
   // A surface's own persisted grid size wins so calibration restores exactly;
   // the mapper config value only seeds the default surface
   private createSurface(record: StoredSurface): WarpSurface {
-    const { id, uvRect, edgeMask, polygonMask } = record;
+    const { id, uvRect, edgeMask, polygonMask, imageSettings } = record;
     const storedGridSize = MeshWarper.getStoredGridSize(WarpSurface.storageNamespace(id));
     const gridControlPoints =
       storedGridSize ??
@@ -245,6 +230,7 @@ export class ProjectionMapper {
       uvRect,
       edgeMask,
       polygonMask,
+      imageSettings,
       warper: {
         width: this.worldWidth,
         height: this.worldHeight,
@@ -402,6 +388,7 @@ export class ProjectionMapper {
         uvRect: s.getUvRect(),
         edgeMask: s.getEdgeMask(),
         polygonMask: s.getPolygonSettings(),
+        imageSettings: s.getImageSettings(),
       })),
     };
     try {
@@ -476,49 +463,28 @@ export class ProjectionMapper {
   }
 
   /**
-   * Global image adjustments, shared by every surface.
+   * Image adjustments for one surface — the active one unless given an id.
+   * These are calibration controls: surfaces lit by different projectors need
+   * different gamma and black/white points to match.
    *
-   * @deprecated `maskEnabled` and `feather` are per-surface since edge feather
-   * moved onto WarpSurface; passing them here routes to the active surface.
-   * Prefer {@link setEdgeMask}.
+   * @deprecated `maskEnabled` and `feather` are edge-mask settings, not image
+   * ones; passing them here still works but prefer {@link setEdgeMask}.
    */
-  setImageSettings(settings: Partial<ImageSettings & EdgeMaskSettings>): void {
+  setImageSettings(settings: Partial<ImageSettings & EdgeMaskSettings>, surfaceId?: string): void {
     if (settings.maskEnabled !== undefined || settings.feather !== undefined) {
-      const current = this.getEdgeMask();
-      this.setEdgeMask(settings.maskEnabled ?? current.maskEnabled, settings.feather ?? current.feather);
+      const current = this.getEdgeMask(surfaceId);
+      this.setEdgeMask(
+        settings.maskEnabled ?? current.maskEnabled,
+        settings.feather ?? current.feather,
+        surfaceId,
+      );
     }
-    if (settings.tonemap !== undefined) {
-      this.imageSettings.tonemap = settings.tonemap;
-      this.uniforms.uTonemap.value = settings.tonemap;
-    }
-    if (settings.shadows !== undefined) {
-      this.imageSettings.shadows = settings.shadows;
-      this.uniforms.uShadows.value = settings.shadows;
-    }
-    if (settings.highlights !== undefined) {
-      this.imageSettings.highlights = settings.highlights;
-      this.uniforms.uHighlights.value = settings.highlights;
-    }
-    if (settings.gamma !== undefined) {
-      this.imageSettings.gamma = settings.gamma;
-      this.uniforms.uGamma.value = settings.gamma;
-    }
-    if (settings.contrast !== undefined) {
-      this.imageSettings.contrast = settings.contrast;
-      this.uniforms.uContrast.value = settings.contrast;
-    }
-    if (settings.saturation !== undefined) {
-      this.imageSettings.saturation = settings.saturation;
-      this.uniforms.uSaturation.value = settings.saturation;
-    }
-    if (settings.hue !== undefined) {
-      this.imageSettings.hue = settings.hue;
-      this.uniforms.uHue.value = settings.hue;
-    }
+    this.resolveSurface(surfaceId).setImageSettings(settings);
+    this.saveSurfaces();
   }
 
-  getImageSettings(): ImageSettings {
-    return { ...this.imageSettings };
+  getImageSettings(surfaceId?: string): ImageSettings {
+    return this.resolveSurface(surfaceId).getImageSettings();
   }
 
   // --- per-surface edge feather ---------------------------------------------

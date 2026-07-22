@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { FolderApi, Pane, TpChangeEvent } from 'tweakpane';
+import { FolderApi, Pane, TabPageApi, TpChangeEvent } from 'tweakpane';
 import * as EssentialsPlugin from '@tweakpane/plugin-essentials';
 import { ProjectionMapper } from './ProjectionMapper';
 import {
@@ -27,6 +27,8 @@ import {
   TOGGLE_ENABLED_OPACITY,
   TOGGLE_DISABLED_OPACITY,
   TWEAKPANE_TRANSPARENCY,
+  GUI_TAB,
+  IMAGE_CONTROLS,
 } from './gui.config';
 import { createTweakpaneButton, replaceLabelWithButton } from './tweakpaneUtils';
 
@@ -45,7 +47,12 @@ export interface ProjectionMapperGUIConfig {
   enableWhiteOut?: boolean; // Optional: adds a full-screen white-out toggle button
 }
 
-export interface ProjectionMapperGUISettings extends ImageSettings {
+/**
+ * Persisted pane state. Per-surface values (image, masks, uv rect) are
+ * deliberately absent — those live in the surface record the mapper owns, and
+ * are mirrored into local state that follows the selection.
+ */
+export interface ProjectionMapperGUISettings {
   shouldWarp: boolean;
   showTestcard: boolean;
   showWhiteOut: boolean;
@@ -71,7 +78,8 @@ export class ProjectionMapperGUI {
     'showWarpGrid' | 'showCornerPoints' | 'showOutline'
   > | null = null;
   private warpFolder!: FolderApi;
-  private surfacesFolder!: FolderApi;
+  private surfacePage!: TabPageApi;
+  private surfacesFolder!: TabPageApi;
   private surfaceListBlade: { dispose(): void; value?: unknown } | null = null;
   private warpModeBlade!: { value: unknown };
   private uvRectState = { offset: { x: 0, y: 0 }, scale: { x: 1, y: 1 } };
@@ -80,7 +88,8 @@ export class ProjectionMapperGUI {
   private syncWarpButtons: () => void = () => {};
   private onControlsVisibilityChange: (visible: boolean) => void = () => {};
 
-  /** Mask state mirrors the active surface — masks are per surface, not global */
+  /** These mirror the active surface — image and masks are per surface, not global */
+  private imageState = { ...DEFAULT_IMAGE_SETTINGS };
   private edgeMaskState = { ...DEFAULT_EDGE_MASK };
   private polygonState = { ...DEFAULT_POLYGON_MASK_SETTINGS, showHandles: true };
   private syncMasksFolder: () => void = () => {};
@@ -110,13 +119,13 @@ export class ProjectionMapperGUI {
       showOutline: true,
       imageExpanded: true,
       masksExpanded: true,
-      ...DEFAULT_IMAGE_SETTINGS,
     };
 
     this.loadSettings();
     this.applySettings();
 
-    // Masks live on the surface, so the pane seeds from whichever one is active
+    // Image and masks live on the surface, so the pane seeds from the active one
+    Object.assign(this.imageState, mapper.getImageSettings());
     Object.assign(this.edgeMaskState, mapper.getEdgeMask());
     Object.assign(this.polygonState, mapper.getActiveSurface().getPolygonSettings());
 
@@ -156,9 +165,19 @@ export class ProjectionMapperGUI {
   }
 
   private initPane(): void {
-    // Conditional: Add projector window button in multi-window mode
+    const tab = this.pane.addTab({
+      pages: [{ title: GUI_TAB.output }, { title: GUI_TAB.surface }],
+    });
+    this.surfacePage = tab.pages[1];
+
+    this.initOutputTab(tab.pages[0]);
+    this.initSurfaceTab(this.surfacePage);
+  }
+
+  /** Output-wide controls: nothing here belongs to an individual surface */
+  private initOutputTab(page: TabPageApi): void {
     if (this.config.windowManager) {
-      const openProjectorBtn = this.pane.addButton({ title: 'Open Projector' });
+      const openProjectorBtn = page.addButton({ title: 'Open Projector' });
       const btnEl = openProjectorBtn.element.querySelector('button') as HTMLButtonElement;
       const projectorIcon = createElement(Projector, {
         width: OPEN_PROJECTOR_BUTTON_ICON.sizePx,
@@ -172,7 +191,7 @@ export class ProjectionMapperGUI {
       });
     }
 
-    this.pane.addBlade({
+    page.addBlade({
       view: 'text',
       label: 'Buffer Resolution',
       value: `${this.mapper.getResolution().width}x${this.mapper.getResolution().height}`,
@@ -180,14 +199,10 @@ export class ProjectionMapperGUI {
       disabled: true,
     });
 
-    const settingsFolder = this.pane.addFolder({ title: 'Settings', expanded: true });
-
     const hasWhiteOut = !!this.config.enableWhiteOut;
-    const settingsButtonCount = hasWhiteOut ? 2 : 1;
-
-    const settingsBtnGrid = settingsFolder.addBlade({
+    const settingsBtnGrid = page.addBlade({
       view: 'buttongrid',
-      size: [settingsButtonCount, 1],
+      size: [hasWhiteOut ? 2 : 1, 1],
       cells: (x: number) => ({ title: hasWhiteOut ? ['Testcard', 'White'][x] : 'Testcard' }),
     }) as unknown as ButtonGridBladeApi;
 
@@ -215,7 +230,7 @@ export class ProjectionMapperGUI {
       this.syncSettingButtons();
     });
 
-    settingsFolder
+    page
       .addBinding(this.settings, 'zoom', { label: 'Zoom', min: 0.125, max: 1.0, step: 0.01 })
       .on('change', (e: TpChangeEvent<unknown>) => {
         this.mapper.setZoom(e.value as number);
@@ -223,87 +238,15 @@ export class ProjectionMapperGUI {
         // NOTE: Zoom is controller-local only, not broadcast to projector
       });
 
-    // Image settings folder
-    const imageFolder = this.pane.addFolder({ title: 'Image', expanded: this.settings.imageExpanded });
+    this.initWarpDisplayControls(page);
+  }
 
-    imageFolder.on('fold', () => {
-      this.settings.imageExpanded = imageFolder.expanded;
-      this.saveSettings();
-    });
-
-    if (SHOW_ACES_TOGGLE) {
-      imageFolder
-        .addBinding(this.settings, 'tonemap', { label: 'ACES Tonemap' })
-        .on('change', (e: TpChangeEvent<unknown>) => {
-          this.mapper.setImageSettings({ tonemap: e.value as boolean });
-          this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
-          this.saveSettings();
-        });
-    }
-
-    imageFolder
-      .addBinding(this.settings, 'shadows', { label: 'Blacks', min: 0, max: 0.99, step: 0.001 })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        this.mapper.setImageSettings({ shadows: e.value as number });
-        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
-        this.saveSettings();
-      });
-
-    imageFolder
-      .addBinding(this.settings, 'gamma', { label: 'Gamma', min: 0.1, max: 4.0, step: 0.01 })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        this.mapper.setImageSettings({ gamma: e.value as number });
-        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
-        this.saveSettings();
-      });
-
-    imageFolder
-      .addBinding(this.settings, 'highlights', { label: 'Whites', min: 0.01, max: 1, step: 0.001 })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        this.mapper.setImageSettings({ highlights: e.value as number });
-        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
-        this.saveSettings();
-      });
-
-    imageFolder
-      .addBinding(this.settings, 'contrast', { label: 'Contrast', min: 1.0, max: 2.0, step: 0.01 })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        this.mapper.setImageSettings({ contrast: e.value as number });
-        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
-        this.saveSettings();
-      });
-
-    imageFolder
-      .addBinding(this.settings, 'saturation', { label: 'Sat', min: 0, max: 2.0, step: 0.01 })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        this.mapper.setImageSettings({ saturation: e.value as number });
-        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
-        this.saveSettings();
-      });
-
-    imageFolder
-      .addBinding(this.settings, 'hue', { label: 'Hue', min: -0.5, max: 0.5, step: 0.01 })
-      .on('change', (e: TpChangeEvent<unknown>) => {
-        this.mapper.setImageSettings({ hue: e.value as number });
-        this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
-        this.saveSettings();
-      });
-
-    this.addResetButton(imageFolder, 'Reset Image', () => {
-      Object.assign(this.settings, DEFAULT_IMAGE_SETTINGS);
-      this.mapper.setImageSettings(DEFAULT_IMAGE_SETTINGS);
-      this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, { settings: this.mapper.getImageSettings() });
-      this.pane.refresh();
-      this.saveSettings();
-    });
-
-    // Masks folder
-    this.initMasksFolder();
-
-    // Warp UI
-    this.warpFolder = this.pane.addFolder({ title: 'Warping', expanded: true });
-
-    const warpBtnGrid = this.warpFolder.addBlade({
+  /**
+   * Warp on/off and handle visibility apply to the whole output, not to one
+   * surface, so they sit on the Output tab next to the other view toggles.
+   */
+  private initWarpDisplayControls(page: TabPageApi): void {
+    const warpBtnGrid = page.addBlade({
       view: 'buttongrid',
       size: [3, 1],
       cells: (x: number) => ({ title: ['Warp', 'Persp', 'Grid'][x] }),
@@ -344,8 +287,7 @@ export class ProjectionMapperGUI {
         const enabled = !this.settings.shouldWarp;
         this.settings.shouldWarp = enabled;
         this.mapper.setShouldWarp(enabled);
-        if (!enabled) this.toggleWarpUI(false);
-        else this.toggleWarpUI(true);
+        this.toggleWarpUI(enabled);
         this.saveSettings();
         this.broadcast(ProjectionEventType.SHOULD_WARP_CHANGED, { shouldWarp: enabled });
       } else if (col === 1) {
@@ -365,37 +307,49 @@ export class ProjectionMapperGUI {
       }
       this.syncWarpButtons();
     });
+  }
 
-    this.initSurfacesUI();
+  /**
+   * Everything owned by one surface. The selector sits at the top because it
+   * scopes every folder below it; canvas clicks drive it too.
+   */
+  private initSurfaceTab(page: TabPageApi): void {
+    this.surfacesFolder = page;
 
-    const onGridSizeChange = () => {
-      this.mapper.setGridSize(this.settings.gridSize.x, this.settings.gridSize.y);
-      this.saveSettings();
-      const surfaceId = this.activeSurfaceId();
-      this.broadcast(ProjectionEventType.GRID_SIZE_CHANGED, {
-        gridSize: { x: this.settings.gridSize.x, y: this.settings.gridSize.y },
-        surfaceId,
-      });
-      if (this.isMultiWindowMode()) {
-        const warper = this.mapper.getWarper();
-        const config = (warper as any).config;
-        const gridPoints = warper.getGridControlPoints();
-        const referenceGridPoints = (warper as any).referenceGridControlPoints as THREE.Vector3[];
-        this.broadcast(ProjectionEventType.GRID_POINTS_UPDATED, {
-          points: gridPoints.map((p: THREE.Vector3) => ({
-            x: (p.x + config.width / 2) / config.width,
-            y: (p.y + config.height / 2) / config.height,
-            z: p.z,
-          })),
-          referencePoints: referenceGridPoints.map((p: THREE.Vector3) => ({
-            x: (p.x + config.width / 2) / config.width,
-            y: (p.y + config.height / 2) / config.height,
-            z: p.z,
-          })),
-          surfaceId,
+    const surfaceBtnGrid = page.addBlade({
+      view: 'buttongrid',
+      size: [2, 1],
+      cells: (x: number) => ({ title: ['Add', 'Remove'][x] }),
+    }) as unknown as ButtonGridBladeApi;
+
+    surfaceBtnGrid.on('click', (ev) => {
+      if (ev.index[0] === 0) {
+        const surface = this.mapper.addSurface();
+        this.broadcast(ProjectionEventType.SURFACE_ADDED, {
+          surfaceId: surface.id,
+          uvRect: surface.getUvRect(),
         });
+      } else {
+        if (this.mapper.getSurfaces().length <= 1) return;
+        const surfaceId = this.activeSurfaceId();
+        this.mapper.removeSurface(surfaceId);
+        this.broadcast(ProjectionEventType.SURFACE_REMOVED, { surfaceId });
       }
-    };
+      this.rebuildSurfaceList();
+      this.syncFromActiveSurface();
+    });
+
+    this.initWarpFolder(page);
+    this.initImageFolder(page);
+    this.initMasksFolder(page);
+    this.initInputFolder(page);
+
+    this.rebuildSurfaceList();
+    this.syncFromActiveSurface();
+  }
+
+  private initWarpFolder(page: TabPageApi): void {
+    this.warpFolder = page.addFolder({ title: 'Warp', expanded: true });
 
     const warpModeBlade = this.warpFolder.addBlade({
       view: 'list',
@@ -428,7 +382,7 @@ export class ProjectionMapperGUI {
         const val = e.value as { x: number; y: number };
         this.settings.gridSize.x = Math.floor(val.x);
         this.settings.gridSize.y = Math.floor(val.y);
-        onGridSizeChange();
+        this.onGridSizeChange();
       });
 
     this.addResetButton(this.warpFolder, 'Reset Warp', () => {
@@ -438,47 +392,93 @@ export class ProjectionMapperGUI {
     });
   }
 
+  private onGridSizeChange(): void {
+    this.mapper.setGridSize(this.settings.gridSize.x, this.settings.gridSize.y);
+    this.saveSettings();
+    const surfaceId = this.activeSurfaceId();
+    this.broadcast(ProjectionEventType.GRID_SIZE_CHANGED, {
+      gridSize: { x: this.settings.gridSize.x, y: this.settings.gridSize.y },
+      surfaceId,
+    });
+    if (this.isMultiWindowMode()) {
+      const warper = this.mapper.getWarper();
+      const config = (warper as any).config;
+      const gridPoints = warper.getGridControlPoints();
+      const referenceGridPoints = (warper as any).referenceGridControlPoints as THREE.Vector3[];
+      this.broadcast(ProjectionEventType.GRID_POINTS_UPDATED, {
+        points: gridPoints.map((p: THREE.Vector3) => ({
+          x: (p.x + config.width / 2) / config.width,
+          y: (p.y + config.height / 2) / config.height,
+          z: p.z,
+        })),
+        referencePoints: referenceGridPoints.map((p: THREE.Vector3) => ({
+          x: (p.x + config.width / 2) / config.width,
+          y: (p.y + config.height / 2) / config.height,
+          z: p.z,
+        })),
+        surfaceId,
+      });
+    }
+  }
+
+  /** Image adjustments are calibration, so they belong to the selected surface */
+  private initImageFolder(page: TabPageApi): void {
+    const imageFolder = page.addFolder({ title: 'Image', expanded: this.settings.imageExpanded });
+
+    imageFolder.on('fold', () => {
+      this.settings.imageExpanded = imageFolder.expanded;
+      this.saveSettings();
+    });
+
+    const applyImage = (settings: Partial<ImageSettings>) => {
+      this.mapper.setImageSettings(settings);
+      this.broadcast(ProjectionEventType.IMAGE_SETTINGS_CHANGED, {
+        settings: this.mapper.getImageSettings(),
+        surfaceId: this.activeSurfaceId(),
+      });
+    };
+
+    if (SHOW_ACES_TOGGLE) {
+      imageFolder
+        .addBinding(this.imageState, 'tonemap', { label: 'ACES Tonemap' })
+        .on('change', (e: TpChangeEvent<unknown>) => applyImage({ tonemap: e.value as boolean }));
+    }
+
+    for (const control of IMAGE_CONTROLS) {
+      imageFolder
+        .addBinding(this.imageState, control.key, {
+          label: control.label,
+          min: control.min,
+          max: control.max,
+          step: control.step,
+        })
+        .on('change', (e: TpChangeEvent<unknown>) => applyImage({ [control.key]: e.value as number }));
+    }
+
+    this.addResetButton(imageFolder, 'Reset Image', () => {
+      Object.assign(this.imageState, DEFAULT_IMAGE_SETTINGS);
+      applyImage(DEFAULT_IMAGE_SETTINGS);
+      this.pane.refresh();
+    });
+  }
+
+  /** The crop rectangle of the shared input texture this surface samples */
+  private initInputFolder(page: TabPageApi): void {
+    const inputFolder = page.addFolder({ title: 'Input', expanded: true });
+    const uvRange = { min: 0, max: 1, step: 0.001 };
+
+    inputFolder
+      .addBinding(this.uvRectState, 'offset', { label: 'UV Offset', x: uvRange, y: uvRange })
+      .on('change', () => this.onUvRectChange());
+    inputFolder
+      .addBinding(this.uvRectState, 'scale', { label: 'UV Scale', x: uvRange, y: uvRange })
+      .on('change', () => this.onUvRectChange());
+  }
+
   private activeSurfaceId(): string {
     return this.mapper.getActiveSurface().id;
   }
 
-  private initSurfacesUI(): void {
-    this.surfacesFolder = this.warpFolder.addFolder({ title: 'Surfaces', expanded: true });
-
-    const surfaceBtnGrid = this.surfacesFolder.addBlade({
-      view: 'buttongrid',
-      size: [2, 1],
-      cells: (x: number) => ({ title: ['Add', 'Remove'][x] }),
-    }) as unknown as ButtonGridBladeApi;
-
-    surfaceBtnGrid.on('click', (ev) => {
-      if (ev.index[0] === 0) {
-        const surface = this.mapper.addSurface();
-        this.broadcast(ProjectionEventType.SURFACE_ADDED, {
-          surfaceId: surface.id,
-          uvRect: surface.getUvRect(),
-        });
-      } else {
-        if (this.mapper.getSurfaces().length <= 1) return;
-        const surfaceId = this.activeSurfaceId();
-        this.mapper.removeSurface(surfaceId);
-        this.broadcast(ProjectionEventType.SURFACE_REMOVED, { surfaceId });
-      }
-      this.rebuildSurfaceList();
-      this.syncFromActiveSurface();
-    });
-
-    const uvRange = { min: 0, max: 1, step: 0.001 };
-    this.surfacesFolder
-      .addBinding(this.uvRectState, 'offset', { label: 'UV Offset', x: uvRange, y: uvRange })
-      .on('change', () => this.onUvRectChange());
-    this.surfacesFolder
-      .addBinding(this.uvRectState, 'scale', { label: 'UV Scale', x: uvRange, y: uvRange })
-      .on('change', () => this.onUvRectChange());
-
-    this.rebuildSurfaceList();
-    this.syncFromActiveSurface();
-  }
 
   private onUvRectChange(): void {
     const { offset, scale } = this.uvRectState;
@@ -522,17 +522,21 @@ export class ProjectionMapperGUI {
     this.uvRectState.scale.x = uvRect.scaleX;
     this.uvRectState.scale.y = uvRect.scaleY;
 
+    Object.assign(this.imageState, this.mapper.getImageSettings());
     Object.assign(this.edgeMaskState, this.mapper.getEdgeMask());
     Object.assign(this.polygonState, this.mapper.getActiveSurface().getPolygonSettings());
     this.syncMasksFolder();
+
+    // Name the tab after what it edits, so the scope is never in doubt
+    if (this.surfacePage) this.surfacePage.title = `${GUI_TAB.surface} ${this.activeSurfaceId()}`;
 
     this.pane.refresh();
     this.saveSettings();
   }
 
   /** Masks belong to the active surface; every write here is scoped to it */
-  private initMasksFolder(): void {
-    const masksFolder = this.pane.addFolder({ title: 'Masks', expanded: this.settings.masksExpanded });
+  private initMasksFolder(page: TabPageApi): void {
+    const masksFolder = page.addFolder({ title: 'Masks', expanded: this.settings.masksExpanded });
 
     masksFolder.on('fold', () => {
       this.settings.masksExpanded = masksFolder.expanded;
@@ -793,14 +797,8 @@ export class ProjectionMapperGUI {
     this.mapper.getWarper().setWarpMode(this.settings.warpMode);
     this.mapper.setZoom(this.settings.zoom);
     this.applyVisibility();
-    this.mapper.setImageSettings({
-      shadows: this.settings.shadows,
-      gamma: this.settings.gamma,
-      highlights: this.settings.highlights,
-      contrast: this.settings.contrast,
-      saturation: this.settings.saturation,
-      hue: this.settings.hue,
-    });
+    // Image and mask settings are restored per surface by ProjectionMapper from
+    // the surface record — the pane mirrors them rather than owning them.
   }
 
   toggleTestCard(): void {

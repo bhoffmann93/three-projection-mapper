@@ -445,6 +445,8 @@ npm test           # Run tests with Vitest
 ## Roadmap
 
 - [ ] Bezier mask — SDF-based interactive Bezier mask in fragment shader
+- [ ] Mask Shapes
+- [ ] Surface Shapes
 - [ ] Save and Load Warp Settings (JSON Export Import)
 - [ ] Tutorial: Optical Alignment of Virtual Threejs Camera with the Physical Projector
 - [ ] Test React Three Fiber Compatibility

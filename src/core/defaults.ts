@@ -1,6 +1,6 @@
 export const GUI_STORAGE_KEY = 'projection-mapper-gui-settings';
 export const SHOW_ACES_TOGGLE = false;
-export const STORAGE_VERSION = 4; //when making breaking changes just increment so old data gets wiped
+export const STORAGE_VERSION = 5; //when making breaking changes just increment so old data gets wiped
 
 //Default initialized values if nothing from local storage is loaded
 export const DEFAULTS = {

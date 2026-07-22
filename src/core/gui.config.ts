@@ -1,4 +1,28 @@
+import type { ImageSettings } from './defaults';
+
 export const TWEAKPANE_TRANSPARENCY = '0.9';
+
+/** The two scopes the pane is split into: output-wide vs. the selected surface */
+export const GUI_TAB = {
+  output: 'Output',
+  surface: 'Surface',
+} as const;
+
+/** Slider definitions for the per-surface image folder, in display order */
+export const IMAGE_CONTROLS = [
+  { key: 'shadows', label: 'Blacks', min: 0, max: 0.99, step: 0.001 },
+  { key: 'gamma', label: 'Gamma', min: 0.1, max: 4.0, step: 0.01 },
+  { key: 'highlights', label: 'Whites', min: 0.01, max: 1, step: 0.001 },
+  { key: 'contrast', label: 'Contrast', min: 1.0, max: 2.0, step: 0.01 },
+  { key: 'saturation', label: 'Sat', min: 0, max: 2.0, step: 0.01 },
+  { key: 'hue', label: 'Hue', min: -0.5, max: 0.5, step: 0.01 },
+] as const satisfies readonly {
+  key: keyof ImageSettings;
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+}[];
 export const RESET_BUTTON_COLOR = 'oklch(60% 0.05 30)';
 
 export const TOGGLE_ENABLED_OPACITY = '1';
