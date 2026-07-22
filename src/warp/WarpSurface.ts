@@ -21,7 +21,7 @@ import {
   DEFAULT_EDGE_MASK,
   DEFAULT_POLYGON_MASK_SETTINGS,
 } from '../core/defaults';
-import type { UvRect, EdgeMaskSettings, PolygonMaskSettings, ImageSettings } from '../core/defaults';
+import type { UvRect, EdgeMaskSettings, PolygonMaskSettings, ImageSettings, Resolution } from '../core/defaults';
 
 export interface WarpSurfaceMaskConfig {
   worldWidth: number;
@@ -36,11 +36,14 @@ export interface WarpSurfaceConfig {
   id: string;
   /** Scopes this surface's storage to one app — see WarpSurface.storageNamespace */
   appId?: string;
+  /** This surface's own pixel resolution, which decides its plane aspect */
+  resolution: Resolution;
   uvRect?: UvRect;
   edgeMask?: EdgeMaskSettings;
   polygonMask?: PolygonMaskSettings;
   imageSettings?: ImageSettings;
-  warper: Omit<MeshWarperConfig, 'storageNamespace'>;
+  /** The surface supplies storage scope, resolution and image settings itself */
+  warper: Omit<MeshWarperConfig, 'storageNamespace' | 'resolution' | 'imageSettings'>;
   mask: WarpSurfaceMaskConfig;
 }
 
@@ -86,6 +89,7 @@ export class WarpSurface {
     this.warper = new MeshWarper({
       ...config.warper,
       imageSettings: config.imageSettings,
+      resolution: config.resolution,
       storageNamespace: WarpSurface.storageNamespace(config.id, config.appId),
     });
     this.warper.setUvRect(this.uvRect.offsetX, this.uvRect.offsetY, this.uvRect.scaleX, this.uvRect.scaleY);
@@ -102,6 +106,11 @@ export class WarpSurface {
 
   getWarper(): MeshWarper {
     return this.warper;
+  }
+
+  /** This surface's own pixel resolution — independent of the input buffer's */
+  getResolution(): Resolution {
+    return this.warper.getResolution();
   }
 
   getMaskPlane(): MaskPlane {

@@ -21,7 +21,7 @@ import * as THREE from 'three';
 import { ProjectionMapper } from '../core/ProjectionMapper';
 import type { MeshWarper } from '../warp/MeshWarper';
 import type { WarpSurface } from '../warp/WarpSurface';
-import type { ImageSettings, UvRect } from '../core/defaults';
+import type { ImageSettings, UvRect, Resolution } from '../core/defaults';
 import { EventChannel } from '../ipc/EventChannel';
 import { WindowManager } from '../windows/WindowManager';
 import { ProjectionEventType } from '../ipc/EventTypes';
@@ -157,8 +157,8 @@ export class WindowSync {
       this.resolveWarper(surfaceId)?.setWarpMode(mode);
     });
 
-    this.eventChannel.on(ProjectionEventType.SURFACE_ADDED, ({ surfaceId, uvRect }) => {
-      this.ensureSurface(surfaceId, uvRect);
+    this.eventChannel.on(ProjectionEventType.SURFACE_ADDED, ({ surfaceId, uvRect, resolution }) => {
+      this.ensureSurface(surfaceId, uvRect, resolution);
     });
 
     this.eventChannel.on(ProjectionEventType.SURFACE_REMOVED, ({ surfaceId }) => {
@@ -248,10 +248,10 @@ export class WindowSync {
   }
 
   /** Get or create a surface on the projector, always non-interactive */
-  private ensureSurface(surfaceId: string, uvRect?: UvRect): WarpSurface {
+  private ensureSurface(surfaceId: string, uvRect?: UvRect, resolution?: Resolution): WarpSurface {
     const existing = this.mapper.getSurface(surfaceId);
     if (existing) return existing;
-    const surface = this.mapper.addSurface({ id: surfaceId, uvRect });
+    const surface = this.mapper.addSurface({ id: surfaceId, uvRect, resolution });
     surface.getWarper().setAllControlsVisible(false);
     surface.getWarper().setDragEnabled(false);
     return surface;
@@ -315,6 +315,7 @@ export class WindowSync {
     return {
       id: surface.id,
       uvRect: surface.getUvRect(),
+      resolution: surface.getResolution(),
       cornerPoints: warper.getCornerControlPoints().map((p: THREE.Vector3) => this.normalizePoint(p, config.width, config.height)),
       gridPoints: warper.getGridControlPoints().map((p: THREE.Vector3) => this.normalizePoint(p, config.width, config.height)),
       referenceGridPoints: referenceGridPoints.map((p: THREE.Vector3) => this.normalizePoint(p, config.width, config.height)),
@@ -330,7 +331,7 @@ export class WindowSync {
   }
 
   private applySurfaceState(state: SurfaceSyncState): void {
-    const surface = this.ensureSurface(state.id, state.uvRect);
+    const surface = this.ensureSurface(state.id, state.uvRect, state.resolution);
     const warper = surface.getWarper();
 
     surface.setUvRect(state.uvRect.offsetX, state.uvRect.offsetY, state.uvRect.scaleX, state.uvRect.scaleY);
@@ -400,6 +401,7 @@ export class WindowSync {
         referenceGridPoints: state.referenceGridPoints,
         gridSize: state.gridSize,
         warpMode: state.warpMode,
+        resolution: firstSurface.getResolution(),
         imageSettings: state.imageSettings,
         edgeMask: firstSurface.getEdgeMask(),
         polygonMask: state.polygonMask,

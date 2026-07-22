@@ -286,6 +286,7 @@ export class ProjectionMapperGUI {
         this.broadcast(ProjectionEventType.SURFACE_ADDED, {
           surfaceId: surface.id,
           uvRect: surface.getUvRect(),
+          resolution: surface.getResolution(),
         });
       } else {
         if (this.mapper.getSurfaces().length <= 1) return;

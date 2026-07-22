@@ -25,7 +25,7 @@ import { clamp } from '../utils/math';
 import meshWarpVertexShader from '../shaders/warp.vert';
 import { RenderOrder } from '../core/RenderOrder';
 import { DEFAULT_UV_RECT, DEFAULT_IMAGE_SETTINGS, MESH_WARP_GRID_SIZE, WARP_HANDLE_STYLE } from '../core/defaults';
-import type { UvRect, ImageSettings } from '../core/defaults';
+import type { UvRect, ImageSettings, Resolution } from '../core/defaults';
 
 const STORAGE_KEY = 'warp-grid-control-points';
 
@@ -50,6 +50,8 @@ export interface MeshWarperConfig {
   globalUniforms: Record<string, { value: unknown }>;
   globalDefines: Record<string, unknown>;
   bufferTexture: THREE.Texture;
+  /** This surface's own pixel resolution; width/height above are its world-space plane */
+  resolution: Resolution;
   /** Image adjustments are per surface — each warper owns its own uniforms */
   imageSettings?: ImageSettings;
   /** Suffixes the localStorage key so multiple warpers persist independently */
@@ -164,6 +166,9 @@ export class MeshWarper {
       uShouldWarp: { value: true },
       uWarpPlaneSize: {
         value: new THREE.Vector2(this.config.width, this.config.height),
+      },
+      uSurfaceResolution: {
+        value: new THREE.Vector2(this.config.resolution.width, this.config.resolution.height),
       },
       uUvRectOffset: {
         value: new THREE.Vector2(DEFAULT_UV_RECT.offsetX, DEFAULT_UV_RECT.offsetY),
@@ -925,6 +930,12 @@ export class MeshWarper {
   public setUvRect(offsetX: number, offsetY: number, scaleX: number, scaleY: number): void {
     this.material.uniforms.uUvRectOffset.value.set(offsetX, offsetY);
     this.material.uniforms.uUvRectScale.value.set(scaleX, scaleY);
+  }
+
+  /** This surface's own pixel resolution, the source of its plane aspect */
+  public getResolution(): Resolution {
+    const value = this.material.uniforms.uSurfaceResolution.value as THREE.Vector2;
+    return { width: value.x, height: value.y };
   }
 
   public getUvRect(): UvRect {

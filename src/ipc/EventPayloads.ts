@@ -1,5 +1,5 @@
 import { ProjectionEventType } from './EventTypes';
-import type { ImageSettings, EdgeMaskSettings, UvRect } from '../core/defaults';
+import type { ImageSettings, EdgeMaskSettings, UvRect, Resolution } from '../core/defaults';
 
 /**
  * Normalized point format (0-1 range) for resolution-independent serialization
@@ -42,6 +42,8 @@ export interface PolygonMaskSyncState {
 export interface SurfaceSyncState {
   id: string;
   uvRect: UvRect;
+  /** This surface's own pixel resolution, which decides its plane aspect */
+  resolution: Resolution;
   cornerPoints: NormalizedPoint[];
   gridPoints: NormalizedPoint[];
   referenceGridPoints: NormalizedPoint[];
@@ -105,7 +107,7 @@ export interface ProjectionEventPayloads {
   };
   [ProjectionEventType.GRID_SIZE_CHANGED]: { gridSize: GridSize; surfaceId?: string };
   [ProjectionEventType.WARP_MODE_CHANGED]: { mode: number; surfaceId?: string };
-  [ProjectionEventType.SURFACE_ADDED]: { surfaceId: string; uvRect: UvRect };
+  [ProjectionEventType.SURFACE_ADDED]: { surfaceId: string; uvRect: UvRect; resolution?: Resolution };
   [ProjectionEventType.SURFACE_REMOVED]: { surfaceId: string };
   [ProjectionEventType.UV_RECT_CHANGED]: { uvRect: UvRect; surfaceId?: string };
   [ProjectionEventType.SHOULD_WARP_CHANGED]: { shouldWarp: boolean };

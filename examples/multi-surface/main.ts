@@ -156,8 +156,10 @@ const renderTarget = new THREE.WebGLRenderTarget(bufferRes.width, bufferRes.heig
   generateMipmaps: false,
 });
 
-// resolution = one region's resolution so each surface's plane aspect
-// matches the half of the atlas it samples
+// The mapper's resolution is the view aspect and the default for surfaces that
+// do not declare their own. Each surface below sets its own regionRes, so its
+// plane matches the square half of the atlas it samples rather than the
+// 2:1 shape of the whole buffer.
 const mapper = new ProjectionMapper(renderer, renderTarget.texture, {
   resolution: regionRes,
   zoom: 0.4,
@@ -172,7 +174,11 @@ const LAYOUT_KEY = 'multi-surface-example-layout-v1';
 if (!localStorage.getItem(LAYOUT_KEY)) {
   const cubeSurface = mapper.getSurfaces()[0];
   const shaderSurface =
-    mapper.getSurfaces()[1] ?? mapper.addSurface({ uvRect: { offsetX: 0.5, offsetY: 0, scaleX: 0.5, scaleY: 1 } });
+    mapper.getSurfaces()[1] ??
+    mapper.addSurface({
+      uvRect: { offsetX: 0.5, offsetY: 0, scaleX: 0.5, scaleY: 1 },
+      resolution: regionRes,
+    });
   mapper.setUvRect(0, 0, 0.5, 1, cubeSurface.id);
   mapper.setUvRect(0.5, 0, 0.5, 1, shaderSurface.id);
   mapper.reset(); // clear any stored warp before placing

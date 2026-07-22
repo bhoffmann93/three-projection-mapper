@@ -18,12 +18,14 @@ import {
   SURFACES_STORAGE_KEY,
   STORAGE_VERSION,
   scopedStorageKey,
+  planeSizeFor,
 } from './defaults';
 import type {
   ImageSettings,
   EdgeMaskSettings,
   PolygonMaskSettings,
   UvRect,
+  Resolution,
 } from './defaults';
 import { PolygonMask, type UVPoint } from '../mask/PolygonMask';
 
@@ -34,6 +36,8 @@ export type { ImageSettings };
 interface StoredSurface {
   id: string;
   uvRect: UvRect;
+  /** Absent means inherit the mapper's resolution, which is what every surface did before */
+  resolution?: Resolution;
   edgeMask?: EdgeMaskSettings;
   polygonMask?: PolygonMaskSettings;
   imageSettings?: ImageSettings;
@@ -246,22 +250,29 @@ export class ProjectionMapper {
   private createSurface(record: StoredSurface): WarpSurface {
     const { id, uvRect, edgeMask, polygonMask, imageSettings } = record;
     const storedGridSize = MeshWarper.getStoredGridSize(WarpSurface.storageNamespace(id, this.config.appId));
+
+    // A surface without its own resolution takes the mapper's, which is what
+    // every surface did before per-surface resolutions existed
+    const resolution = record.resolution ?? this.resolution;
+    const plane = planeSizeFor(resolution);
+
     const gridControlPoints =
       storedGridSize ??
       (id === DEFAULT_SURFACE_ID
         ? { ...this.config.gridControlPoints }
-        : calculateGridPoints(this.worldWidth / this.worldHeight, DEFAULTS.minGridWarpPoints));
+        : calculateGridPoints(plane.width / plane.height, DEFAULTS.minGridWarpPoints));
 
     const surface = new WarpSurface({
       id,
       appId: this.config.appId,
+      resolution,
       uvRect,
       edgeMask,
       polygonMask,
       imageSettings,
       warper: {
-        width: this.worldWidth,
-        height: this.worldHeight,
+        width: plane.width,
+        height: plane.height,
         widthSegments: this.config.segments,
         heightSegments: this.config.segments,
         gridControlPoints,
@@ -274,8 +285,8 @@ export class ProjectionMapper {
         bufferTexture: this.uniforms.uBuffer.value,
       },
       mask: {
-        worldWidth: this.worldWidth,
-        worldHeight: this.worldHeight,
+        worldWidth: plane.width,
+        worldHeight: plane.height,
         segments: this.config.segments,
         scene: this.scene,
         camera: this.camera,
@@ -328,7 +339,7 @@ export class ProjectionMapper {
     return this.config.multiSurface;
   }
 
-  addSurface(options: { id?: string; uvRect?: UvRect } = {}): WarpSurface {
+  addSurface(options: { id?: string; uvRect?: UvRect; resolution?: Resolution } = {}): WarpSurface {
     if (!this.config.multiSurface) {
       console.warn('ProjectionMapper: addSurface() ignored because multiSurface is disabled');
       return this.surfaces[0];
@@ -337,7 +348,11 @@ export class ProjectionMapper {
     const existing = this.getSurface(id);
     if (existing) return existing;
 
-    const surface = this.createSurface({ id, uvRect: { ...DEFAULT_UV_RECT, ...options.uvRect } });
+    const surface = this.createSurface({
+      id,
+      uvRect: { ...DEFAULT_UV_RECT, ...options.uvRect },
+      resolution: options.resolution,
+    });
     this.surfaces.push(surface);
     this.activeSurfaceId = id;
     this.applyActiveSurface();
@@ -438,6 +453,7 @@ export class ProjectionMapper {
       surfaces: this.surfaces.map((s) => ({
         id: s.id,
         uvRect: s.getUvRect(),
+        resolution: s.getResolution(),
         edgeMask: s.getEdgeMask(),
         polygonMask: s.getPolygonSettings(),
         imageSettings: s.getImageSettings(),
@@ -644,7 +660,13 @@ export class ProjectionMapper {
     return { x: this.camera.position.x, y: this.camera.position.y };
   }
 
-  getResolution(): { width: number; height: number } {
+  /**
+   * The mapper's resolution: the output/view aspect the camera frames, and the
+   * default for surfaces that do not declare their own. A surface's resolution
+   * is its shape in the output and is independent of the input buffer's pixels
+   * — see planeSizeFor.
+   */
+  getResolution(): Resolution {
     return { ...this.resolution };
   }
 

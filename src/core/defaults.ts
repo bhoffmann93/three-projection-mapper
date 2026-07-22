@@ -48,6 +48,33 @@ export const DEFAULT_IMAGE_SETTINGS: Readonly<ImageSettings> = {
   hue: 0.0,
 };
 
+export interface Resolution {
+  width: number;
+  height: number;
+}
+
+/**
+ * Internal world height every surface plane shares. Widths follow each
+ * surface's own aspect, so surfaces of different shapes are the same height
+ * rather than the same area — predictable when laying several out side by side.
+ */
+export const WORLD_PLANE_HEIGHT = 10;
+
+/**
+ * A surface's plane size in world units.
+ *
+ * This is the surface's own shape in the output and is deliberately independent
+ * of the input buffer's resolution: the buffer is the source pixels, `uvRect`
+ * picks the slice of it this surface samples, and this decides the shape that
+ * slice is drawn into. They coincide only when one surface samples the whole
+ * buffer. Content appears undistorted when a surface's resolution matches the
+ * region it samples, i.e. bufferResolution * uvRect scale.
+ */
+export const planeSizeFor = (resolution: Resolution): { width: number; height: number } => ({
+  width: WORLD_PLANE_HEIGHT * (resolution.width / resolution.height),
+  height: WORLD_PLANE_HEIGHT,
+});
+
 /** Crop rectangle of the input texture a surface samples (normalized 0-1) */
 export interface UvRect {
   offsetX: number;
