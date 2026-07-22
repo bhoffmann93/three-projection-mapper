@@ -37,6 +37,31 @@ export const isPointInQuad = (perimeter: { x: number; y: number }[], x: number, 
   return true;
 };
 
+/** Centroid of a quad's corner points */
+export const quadCenter = (corners: readonly { x: number; y: number }[]): { x: number; y: number } => {
+  const sum = corners.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }), { x: 0, y: 0 });
+  return { x: sum.x / corners.length, y: sum.y / corners.length };
+};
+
+/**
+ * Scale a quad about its own centroid.
+ *
+ * Every corner's offset from the centre is multiplied, so the quad keeps its
+ * shape — a calibrated perspective survives being resized, which replacing the
+ * quad with a rectangle would not.
+ */
+export const scaleQuadAboutCenter = (
+  corners: readonly { x: number; y: number }[],
+  factorX: number,
+  factorY: number,
+): { x: number; y: number }[] => {
+  const center = quadCenter(corners);
+  return corners.map((point) => ({
+    x: center.x + (point.x - center.x) * factorX,
+    y: center.y + (point.y - center.y) * factorY,
+  }));
+};
+
 export const calculateGridPoints = (aspectRatio: number, minPoints: number): { x: number; y: number } => {
   if (aspectRatio >= 1) {
     return { x: Math.max(minPoints, Math.round(minPoints * aspectRatio)), y: minPoints };

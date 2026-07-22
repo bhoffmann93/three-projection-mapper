@@ -20,7 +20,7 @@ import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 //@ts-ignore
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import PerspT from '../utils/perspective';
-import { isQuadConcave, isPointInQuad } from './geometry';
+import { isQuadConcave, isPointInQuad, scaleQuadAboutCenter } from './geometry';
 import { clamp } from '../utils/math';
 import meshWarpVertexShader from '../shaders/warp.vert';
 import { RenderOrder } from '../core/RenderOrder';
@@ -1002,6 +1002,31 @@ export class MeshWarper {
   public setPosition(x: number, y: number): void {
     const center = this.getCenter();
     this.translate(x - center.x, y - center.y);
+  }
+
+  /**
+   * Resize the surface about its centroid, keeping its warp.
+   *
+   * Every corner's offset from the centre is multiplied, so a calibrated
+   * perspective survives — unlike setBounds, which replaces the quad with a
+   * rectangle. Non-uniform factors squash the quad; pass one value for both to
+   * keep its shape.
+   */
+  public scale(factorX: number, factorY: number = factorX): void {
+    if (factorX === 0 || factorY === 0) return;
+
+    const scaled = scaleQuadAboutCenter(this.dragCornerControlPoints, factorX, factorY);
+    this.dragCornerControlPoints.forEach((point, i) => point.set(scaled[i].x, scaled[i].y, point.z));
+    this.cornerObjects.forEach((obj) => obj.userData.lastValidPosition?.copy(obj.position));
+
+    // Re-derive the grid from the resized corners, as a corner drag would
+    const corners = this.dragCornerControlPoints.flatMap((p) => [p.x, p.y]);
+    this.perspectiveTransformControlPoints(corners, new THREE.Vector3(), 'corner');
+
+    this.updateLine();
+    this.averageDimensions = this.getAverageDimensions();
+    this.material.uniforms.uWarpPlaneSize.value.set(this.averageDimensions.width, this.averageDimensions.height);
+    this.saveToStorage();
   }
 
   /** Move the whole surface by a world-space delta, preserving its warp */

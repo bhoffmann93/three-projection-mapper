@@ -186,6 +186,32 @@ Set `resolution` alone and surfaces inherit it, which is right when a surface
 fills the output. Set `surfaceResolution` too when they should not — an atlas
 layout wants the region's shape, not the canvas's.
 
+### Moving and resizing surfaces
+
+Dragging the corners does placement and perspective in one gesture, which is what
+calibration wants. These cover what dragging cannot express — exact sizes, equal
+sizes, programmatic layout:
+
+| Method | Warp | Use |
+| --- | --- | --- |
+| `translate(dx, dy)` / `setPosition(x, y)` | kept | move the quad |
+| `scale(factorX, factorY?)` | **kept** | resize about the centroid |
+| `setWarpedSize(width, height)` | **kept** | resize to an exact world size |
+| `setBounds(x, y, width, height)` | **discarded** | lay out as a rectangle, before calibrating |
+
+`scale` and `setWarpedSize` multiply each corner's offset from the centre, so a
+calibrated perspective survives being resized. `setBounds` replaces the quad
+outright — reach for it when arranging surfaces inside the output canvas, not
+after aligning one to a physical object.
+
+```typescript
+// give two surfaces exactly the same size
+const { width, height } = surfaceA.getWarpedSize();
+surfaceB.setWarpedSize(width, height);
+
+surface.scale(1.05); // 5% larger, perspective intact
+```
+
 ### Size-independent content
 
 A surface can be scaled to any shape, which stretches whatever it samples. When

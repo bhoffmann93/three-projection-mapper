@@ -183,6 +183,25 @@ export class WarpSurface {
   }
 
   /**
+   * Resize about the centroid, keeping the warp. The adjustment to reach for once
+   * a surface is calibrated — setBounds would throw that calibration away.
+   */
+  scale(factorX: number, factorY: number = factorX): void {
+    this.warper.scale(factorX, factorY);
+    this.onTransformed();
+  }
+
+  /**
+   * Resize to an exact size in world units, keeping the warp. Measured against
+   * the quad as drawn, so two surfaces given the same size end up the same size.
+   */
+  setWarpedSize(width: number, height: number): void {
+    const current = this.warper.getWarpedSize();
+    if (current.width === 0 || current.height === 0) return;
+    this.scale(width / current.width, height / current.height);
+  }
+
+  /**
    * Place the surface as an axis-aligned rectangle, for arranging surfaces inside
    * the output canvas. Replaces the corner quad, so any perspective is discarded.
    */

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isQuadConcave, isPointInQuad } from '../warp/geometry';
+import { isQuadConcave, isPointInQuad, quadCenter, scaleQuadAboutCenter } from '../warp/geometry';
 
 describe('Geometry Checks', () => {
   it('should return false for a valid square', () => {
@@ -48,5 +48,48 @@ describe('isPointInQuad (surface picking)', () => {
     ];
     expect(isPointInQuad(warped, 0, 0)).toBe(true);
     expect(isPointInQuad(warped, 6, 5)).toBe(false);
+  });
+});
+
+describe('scaleQuadAboutCenter', () => {
+  // A keystoned quad — the case that matters, since a calibrated surface is never
+  // a rectangle and scaling must not quietly straighten it
+  const warped = [
+    { x: -4, y: 5 },
+    { x: 6, y: 3 },
+    { x: 5, y: -5 },
+    { x: -5, y: -4 },
+  ];
+
+  it('leaves the centroid where it was', () => {
+    const before = quadCenter(warped);
+    const after = quadCenter(scaleQuadAboutCenter(warped, 2, 2));
+    expect(after.x).toBeCloseTo(before.x);
+    expect(after.y).toBeCloseTo(before.y);
+  });
+
+  it('scales every edge by the factor, so the warp is preserved', () => {
+    const scaled = scaleQuadAboutCenter(warped, 2, 2);
+    for (let i = 0; i < warped.length; i++) {
+      const j = (i + 1) % warped.length;
+      const before = Math.hypot(warped[j].x - warped[i].x, warped[j].y - warped[i].y);
+      const after = Math.hypot(scaled[j].x - scaled[i].x, scaled[j].y - scaled[i].y);
+      expect(after).toBeCloseTo(before * 2);
+    }
+  });
+
+  it('scales each axis independently', () => {
+    const scaled = scaleQuadAboutCenter(warped, 2, 1);
+    const center = quadCenter(warped);
+    expect(scaled[0].x - center.x).toBeCloseTo((warped[0].x - center.x) * 2);
+    expect(scaled[0].y - center.y).toBeCloseTo(warped[0].y - center.y);
+  });
+
+  it('round-trips, so scaling back restores the original quad', () => {
+    const restored = scaleQuadAboutCenter(scaleQuadAboutCenter(warped, 3, 3), 1 / 3, 1 / 3);
+    restored.forEach((point, i) => {
+      expect(point.x).toBeCloseTo(warped[i].x);
+      expect(point.y).toBeCloseTo(warped[i].y);
+    });
   });
 });
