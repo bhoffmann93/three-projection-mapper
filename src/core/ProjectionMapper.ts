@@ -98,6 +98,19 @@ export interface ProjectionMapperConfig {
    * layout needs `surfaceResolution` as well.
    */
   multiSurface?: boolean;
+  //
+  // Interaction capabilities
+  // ------------------------
+  // Which on-screen editing affordances are live. Each is an independent
+  // `boolean | undefined`: leave it unset and it derives from the mode flags
+  // above (`multiSurface`, `outputWindow`); pass a value and that value wins.
+  // The derivations encode real defaults — a lone surface previewed in a
+  // controller has nothing to scale against, so scaling is off there — but a
+  // host app embedding the mapper can override any of them without disturbing
+  // the rest. Each also has a runtime setter (`setSurfaceScaleEnabled`, ...).
+  // A new capability added here gets its own derived default, so it can never
+  // change what existing configs resolve to.
+  //
   /**
    * Draw the dashed boundary of the output canvas on a controller
    * (default: follows `multiSurface`).
@@ -108,17 +121,36 @@ export interface ProjectionMapperConfig {
    * app, so it is off, and a host that wants its own framing gets no argument
    * from the library.
    *
-   * Set it explicitly either way. `true` with one surface is worth it while
-   * calibrating, because a corner warped inwards leaves the quad no longer
-   * marking the canvas edge, and at zoom 0.5 nothing else says where the
-   * projector stops. `false` with several surfaces suppresses it entirely.
+   * `true` with one surface is worth it while calibrating, because a corner
+   * warped inwards leaves the quad no longer marking the canvas edge, and at
+   * zoom 0.5 nothing else says where the projector stops. `false` with several
+   * surfaces suppresses it entirely.
    *
    * This hides only the frame. Surface outlines, handles and selection are
    * untouched, unlike `setOutlineVisible(false)`, which turns off the outlines
    * with it. Ignored on an output window, which never draws the frame anyway.
    */
   canvasBoundary?: boolean;
-  /** Click a surface to select it, drag its body to move it (default: true) */
+  /**
+   * Select a surface by clicking it and move it by dragging its body
+   * (default: follows `multiSurface || outputWindow`).
+   *
+   * On is for arranging surfaces, either against each other or against a
+   * physical object in an output window. The odd case out is a lone surface
+   * previewed in a controller: it fills the output and the window only looks at
+   * it, so there is nothing to arrange and off is the default.
+   */
+  surfaceMove?: boolean;
+  /**
+   * Show the scale handle on the active surface
+   * (default: follows `multiSurface || outputWindow`).
+   *
+   * Same reasoning as `surfaceMove`: a lone surface in a controller has nothing
+   * to be a different size than, and shrinking it only loses projector pixels,
+   * so it is off there. Zoom is the control that belongs to that case.
+   */
+  surfaceScale?: boolean;
+  /** @deprecated Alias of `surfaceMove`, kept for back-compat. Prefer `surfaceMove`. */
   canvasSelection?: boolean;
   /** Zoom the preview with the wheel or a trackpad pinch (default: true) */
   wheelZoom?: boolean;
@@ -163,8 +195,15 @@ export class ProjectionMapper {
   /** Handle visibility applied to whichever surface is active */
   private controlsVisibility = { grid: true, corners: true, outline: true };
   private dragEnabled = true;
-  /** Held apart from the outline flag so hiding the frame leaves outlines alone */
-  private canvasBoundary = true;
+  /**
+   * Resolved interaction capabilities: the single source of truth for which
+   * editing affordances are live. Seeded once from config over the derived
+   * defaults, mutated only through the setters, and reapplied to every surface
+   * including ones added later — so a runtime override is never clobbered by a
+   * new surface. Held apart from `controlsVisibility` so, for instance, hiding
+   * the frame leaves the surface outlines alone.
+   */
+  private interaction!: { canvasBoundary: boolean; surfaceMove: boolean; surfaceScale: boolean };
   private shouldWarp = true;
   private polygonHandlesEnabled = true;
 
@@ -225,7 +264,12 @@ export class ProjectionMapper {
   private worldWidth: number;
   private worldHeight: number;
 
-  private config: Required<Omit<ProjectionMapperConfig, 'resolution' | 'appId'>> & { appId?: string };
+  private config: Required<
+    Omit<
+      ProjectionMapperConfig,
+      'resolution' | 'appId' | 'canvasBoundary' | 'surfaceMove' | 'surfaceScale' | 'canvasSelection'
+    >
+  > & { appId?: string };
 
   private get camera(): THREE.OrthographicCamera {
     return this.view.camera;
@@ -261,16 +305,21 @@ export class ProjectionMapper {
       zoom: config.zoom ?? (outputWindow ? DEFAULTS.outputZoom : DEFAULTS.zoom),
       surfaceResolution: config.surfaceResolution ?? this.resolution,
       multiSurface,
-      // Follows multiSurface unless asked otherwise: the frame reads as chrome
-      // in a host app showing one surface, and earns its place once there are
-      // several to tell apart inside the canvas
-      canvasBoundary: config.canvasBoundary ?? multiSurface,
-      canvasSelection: config.canvasSelection ?? true,
       wheelZoom: config.wheelZoom ?? true,
       appId: config.appId,
     };
 
-    this.canvasBoundary = this.config.canvasBoundary;
+    // Interaction capabilities: an explicit value wins, otherwise derive. The
+    // frame follows multiSurface (chrome in a one-surface host, useful once
+    // there are several to tell apart); move and scale follow placement, which
+    // is off only for a lone surface previewed in a controller. canvasSelection
+    // is the old name for surfaceMove and still honoured.
+    const placement = this.surfacePlacementAllowed();
+    this.interaction = {
+      canvasBoundary: config.canvasBoundary ?? multiSurface,
+      surfaceMove: config.surfaceMove ?? config.canvasSelection ?? placement,
+      surfaceScale: config.surfaceScale ?? placement,
+    };
 
     this.scene = new THREE.Scene();
 
@@ -312,21 +361,18 @@ export class ProjectionMapper {
     this.applyRenderOrder();
     this.applyActiveSurface();
 
-    // Selecting and dragging bodies is for arranging surfaces — either against
-    // each other, or against something physical. A lone surface in a controller
-    // has neither job: it fills the output by definition and the window only
-    // previews it, so there is nothing to arrange and nothing to arrange it in.
-    if (this.config.canvasSelection && this.surfacePlacementAllowed()) {
-      this.picker = new SurfacePicker({
-        domElement: this.renderer.domElement,
-        camera: this.camera,
-        getSurfaces: () => this.surfaces,
-        setActiveSurface: (id) => this.setActiveSurface(id),
-        onSurfaceMoved: () => this.saveSurfaces(),
-        onPressedAwayFromHandles: () => this.getActiveSurface().getWarper().clearSelectedHandle(),
-      });
-      this.applyPickerEnabled();
-    }
+    // Always built, gated at runtime by the `surfaceMove` capability rather than
+    // by whether it exists. A disabled picker is inert (its pointer handlers bail
+    // on the enabled flag), so building it unconditionally costs nothing and lets
+    // a host app turn body-drag on later without reconstructing anything.
+    this.picker = new SurfacePicker({
+      domElement: this.renderer.domElement,
+      camera: this.camera,
+      getSurfaces: () => this.surfaces,
+      setActiveSurface: (id) => this.setActiveSurface(id),
+      onSurfaceMoved: () => this.saveSurfaces(),
+      onPressedAwayFromHandles: () => this.getActiveSurface().getWarper().clearSelectedHandle(),
+    });
 
     // Arrow-key nudging, and markers for the handles it can push off screen.
     // Both are calibration tools rather than multi-surface ones: a single surface
@@ -362,7 +408,6 @@ export class ProjectionMapper {
       // Built even when switched off, so the setter can bring it back without
       // rebuilding the line. A hidden Line2 costs nothing to keep around.
       this.outputFrame = new OutputFrame(this.scene, this.worldWidth, this.worldHeight);
-      this.outputFrame.setVisible(this.canvasBoundary && this.controlsVisibility.outline);
     }
 
     this.composer = new EffectComposer(this.renderer);
@@ -371,6 +416,10 @@ export class ProjectionMapper {
     if (this.config.antialias) {
       this.composer.addPass(new SMAAPass());
     }
+
+    // Converge every capability now that the picker, frame and surfaces all
+    // exist. One call, one source of truth.
+    this.applyInteraction();
   }
 
   // Use saved grid size from GUI settings if available, so MeshWarper
@@ -441,7 +490,9 @@ export class ProjectionMapper {
       },
     });
 
-    surface.getWarper().setScaleHandleEnabled(this.surfacePlacementAllowed());
+    // The scale handle is set from the resolved capability by applyInteraction,
+    // which every creation path calls through applyActiveSurface. Setting it here
+    // too would just be undone, and used to clobber a runtime override on add.
 
     surface.onPolygonNodesChanged = () => this.polygonNodesChanged.emit(surface.id);
     surface.onTransformed = () => this.surfaceTransformed.emit(surface.id);
@@ -528,22 +579,34 @@ export class ProjectionMapper {
       surface.setActive(isActive);
       surface.setHandlesVisible(this.polygonHandlesEnabled && this.shouldWarp);
     }
-    this.applyPickerEnabled();
+    this.applyInteraction();
   }
 
   /**
-   * Canvas selection is pointless once everything is hidden or drags are off.
-   * Gated on *any* control being visible rather than the outline alone —
-   * hiding one handle type is a styling choice, not a request to stop editing.
+   * Push the resolved interaction capabilities onto the picker, the frame and
+   * every surface. The one place any of them is applied, so a setter is just a
+   * field write followed by this, and a surface added later is covered the same
+   * as the rest.
+   *
+   * Each capability is still ANDed with the state that would make it pointless:
+   * body-drag and the frame need something visible and drags on, and the scale
+   * handle is ANDed inside the warper with its corner points, so an inactive
+   * surface (corners hidden) shows none.
    */
-  private applyPickerEnabled(): void {
+  private applyInteraction(): void {
     const anyControlVisible =
       this.controlsVisibility.grid || this.controlsVisibility.corners || this.controlsVisibility.outline;
-    this.picker?.setEnabled(this.dragEnabled && anyControlVisible);
+
+    this.picker?.setEnabled(this.interaction.surfaceMove && this.dragEnabled && anyControlVisible);
+
     // The frame is a calibration aid, never part of the projected output
     this.outputFrame?.setVisible(
-      this.canvasBoundary && this.controlsVisibility.outline && this.dragEnabled,
+      this.interaction.canvasBoundary && this.controlsVisibility.outline && this.dragEnabled,
     );
+
+    for (const surface of this.surfaces) {
+      surface.getWarper().setScaleHandleEnabled(this.interaction.surfaceScale);
+    }
   }
 
   /**
@@ -835,20 +898,20 @@ export class ProjectionMapper {
   setGridPointsVisible(visible: boolean): void {
     this.controlsVisibility.grid = visible;
     this.getWarper().setGridPointsVisible(visible);
-    this.applyPickerEnabled();
+    this.applyInteraction();
   }
 
   setCornerPointsVisible(visible: boolean): void {
     this.controlsVisibility.corners = visible;
     this.getWarper().setCornerPointsVisible(visible);
-    this.applyPickerEnabled();
+    this.applyInteraction();
   }
 
   /** Outlines are shared by all surfaces — they double as selection targets */
   setOutlineVisible(visible: boolean): void {
     this.controlsVisibility.outline = visible;
     this.surfaces.forEach((surface) => surface.getWarper().setOutlineVisible(visible));
-    this.applyPickerEnabled();
+    this.applyInteraction();
   }
 
   /**
@@ -856,8 +919,20 @@ export class ProjectionMapper {
    * No effect on an output window, which never draws it.
    */
   setCanvasBoundaryVisible(visible: boolean): void {
-    this.canvasBoundary = visible;
-    this.applyPickerEnabled();
+    this.interaction.canvasBoundary = visible;
+    this.applyInteraction();
+  }
+
+  /** Select and body-drag surfaces, or not. Leaves warp handles and outlines alone. */
+  setSurfaceMoveEnabled(enabled: boolean): void {
+    this.interaction.surfaceMove = enabled;
+    this.applyInteraction();
+  }
+
+  /** Show or hide the scale handle on the active surface. */
+  setSurfaceScaleEnabled(enabled: boolean): void {
+    this.interaction.surfaceScale = enabled;
+    this.applyInteraction();
   }
 
   setDragEnabled(enabled: boolean): void {
