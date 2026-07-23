@@ -98,6 +98,26 @@ export interface ProjectionMapperConfig {
    * layout needs `surfaceResolution` as well.
    */
   multiSurface?: boolean;
+  /**
+   * Draw the dashed boundary of the output canvas on a controller
+   * (default: follows `multiSurface`).
+   *
+   * It answers "which of my surfaces actually get projected" while the view is
+   * pulled back past the output. With several surfaces that question is the
+   * whole job, so the frame is on. With one it mostly reads as chrome in a host
+   * app, so it is off, and a host that wants its own framing gets no argument
+   * from the library.
+   *
+   * Set it explicitly either way. `true` with one surface is worth it while
+   * calibrating, because a corner warped inwards leaves the quad no longer
+   * marking the canvas edge, and at zoom 0.5 nothing else says where the
+   * projector stops. `false` with several surfaces suppresses it entirely.
+   *
+   * This hides only the frame. Surface outlines, handles and selection are
+   * untouched, unlike `setOutlineVisible(false)`, which turns off the outlines
+   * with it. Ignored on an output window, which never draws the frame anyway.
+   */
+  canvasBoundary?: boolean;
   /** Click a surface to select it, drag its body to move it (default: true) */
   canvasSelection?: boolean;
   /** Zoom the preview with the wheel or a trackpad pinch (default: true) */
@@ -143,6 +163,8 @@ export class ProjectionMapper {
   /** Handle visibility applied to whichever surface is active */
   private controlsVisibility = { grid: true, corners: true, outline: true };
   private dragEnabled = true;
+  /** Held apart from the outline flag so hiding the frame leaves outlines alone */
+  private canvasBoundary = true;
   private shouldWarp = true;
   private polygonHandlesEnabled = true;
 
@@ -227,6 +249,7 @@ export class ProjectionMapper {
     // Declared before the rest of the config because several of them derive
     // from it — an output window and a controller want different defaults
     const outputWindow = config.outputWindow ?? false;
+    const multiSurface = config.multiSurface ?? false;
 
     this.config = {
       segments: config.segments ?? DEFAULTS.segments,
@@ -237,11 +260,17 @@ export class ProjectionMapper {
       // has nothing to pull back to, so it starts filling the frame exactly
       zoom: config.zoom ?? (outputWindow ? DEFAULTS.outputZoom : DEFAULTS.zoom),
       surfaceResolution: config.surfaceResolution ?? this.resolution,
-      multiSurface: config.multiSurface ?? false,
+      multiSurface,
+      // Follows multiSurface unless asked otherwise: the frame reads as chrome
+      // in a host app showing one surface, and earns its place once there are
+      // several to tell apart inside the canvas
+      canvasBoundary: config.canvasBoundary ?? multiSurface,
       canvasSelection: config.canvasSelection ?? true,
       wheelZoom: config.wheelZoom ?? true,
       appId: config.appId,
     };
+
+    this.canvasBoundary = this.config.canvasBoundary;
 
     this.scene = new THREE.Scene();
 
@@ -316,18 +345,24 @@ export class ProjectionMapper {
       isEnabled: () => this.handleControlsInteractive(),
     });
 
-    // Only a preview needs the canvas boundary drawn: it shows world beyond the
+    // Only a preview can need the canvas boundary: it shows world beyond the
     // output, so the edge has to be marked. An output window's own edge already
-    // is that boundary.
+    // is that boundary, so it never builds one.
     //
-    // This does not also depend on the surface count. A lone surface starts out
-    // coinciding with the canvas, which makes the frame look redundant — but
-    // warping is the whole point of the window, and the moment a corner is
-    // pulled in, the boundary is the only thing left saying where the projector
-    // actually stops.
+    // Whether a preview *shows* it is a second question, answered by
+    // canvasBoundary, which follows multiSurface by default. With one surface
+    // the frame reads as chrome in a host app that has its own framing.
+    //
+    // The cost of that default is real and worth stating: a lone surface starts
+    // out coinciding with the canvas, but pull a corner in and the quad stops
+    // marking the edge, leaving nothing at zoom 0.5 to say how far it moved.
+    // Single-surface apps doing serious calibration should pass
+    // canvasBoundary: true.
     if (!this.config.outputWindow) {
+      // Built even when switched off, so the setter can bring it back without
+      // rebuilding the line. A hidden Line2 costs nothing to keep around.
       this.outputFrame = new OutputFrame(this.scene, this.worldWidth, this.worldHeight);
-      this.outputFrame.setVisible(this.controlsVisibility.outline);
+      this.outputFrame.setVisible(this.canvasBoundary && this.controlsVisibility.outline);
     }
 
     this.composer = new EffectComposer(this.renderer);
@@ -506,7 +541,9 @@ export class ProjectionMapper {
       this.controlsVisibility.grid || this.controlsVisibility.corners || this.controlsVisibility.outline;
     this.picker?.setEnabled(this.dragEnabled && anyControlVisible);
     // The frame is a calibration aid, never part of the projected output
-    this.outputFrame?.setVisible(this.controlsVisibility.outline && this.dragEnabled);
+    this.outputFrame?.setVisible(
+      this.canvasBoundary && this.controlsVisibility.outline && this.dragEnabled,
+    );
   }
 
   /**
@@ -811,6 +848,15 @@ export class ProjectionMapper {
   setOutlineVisible(visible: boolean): void {
     this.controlsVisibility.outline = visible;
     this.surfaces.forEach((surface) => surface.getWarper().setOutlineVisible(visible));
+    this.applyPickerEnabled();
+  }
+
+  /**
+   * Show or hide the dashed output boundary, leaving surface outlines alone.
+   * No effect on an output window, which never draws it.
+   */
+  setCanvasBoundaryVisible(visible: boolean): void {
+    this.canvasBoundary = visible;
     this.applyPickerEnabled();
   }
 

@@ -150,9 +150,17 @@ mapper.addSurface({ resolution: { width: 1080, height: 1920 } });
 mapper.setOutputResolution(1080, 1920);
 ```
 
-The controller draws the canvas as a dashed boundary so you can see what is
-actually projected. It previews at `zoom < 1`, deliberately showing more than the
-output. Anything outside the dashed frame is not projected.
+With several surfaces the controller draws the canvas as a dashed boundary so
+you can see what is actually projected. It previews at `zoom < 1`, deliberately
+showing more than the output. Anything outside the dashed frame is not
+projected.
+
+The frame follows `multiSurface`, because with one surface it mostly reads as
+chrome in a host app that frames its own output. Pass `canvasBoundary: true` to
+get it back, which is worth doing while calibrating a single surface. Warp a
+corner inwards and the quad stops marking the canvas edge, leaving nothing to
+say where the projector stops. `canvasBoundary: false` suppresses it with
+several surfaces. It hides only the frame, never the surface outlines.
 
 ### The three resolutions
 
@@ -352,7 +360,7 @@ canvas boundary.
 |                              | `outputWindow: true`                    | controller (default)          |
 | ---------------------------- | --------------------------------------- | ----------------------------- |
 | default `zoom`               | `1`, the view is the projection        | `0.5`, pulled back to preview |
-| dashed canvas boundary       | not drawn, the window edge is it       | drawn                         |
+| dashed canvas boundary       | not drawn, the window edge is it       | with `multiSurface`, or forced |
 | move / resize a lone surface | yes, that is how you align to an object | no, it fills the output       |
 | move / resize with several   | yes                                     | yes                           |
 
@@ -366,7 +374,7 @@ projector, probably the setup you want first, still has to ask for it:
 new ProjectionMapper(renderer, texture, { outputWindow: true });
 
 // bare default: one surface, but a controller previewing a projector window.
-// Pulled back to zoom 0.5 with the canvas drawn dashed, not an output.
+// Pulled back to zoom 0.5, not an output. No dashed canvas with one surface.
 new ProjectionMapper(renderer, texture, {});
 
 // controller arranging several surfaces
@@ -597,6 +605,7 @@ interface ProjectionMapperConfig {
   zoom?: number; // Fill factor 0 to 1 (default: 0.5, or 1 when outputWindow)
   outputWindow?: boolean; // This window is the projector, not a preview (default: false)
   multiSurface?: boolean; // Allow more than one surface (default: false)
+  canvasBoundary?: boolean; // Dashed output boundary on a controller (default: follows multiSurface)
   canvasSelection?: boolean; // Click/drag surfaces on the canvas (default: true)
   appId?: string; // Scopes saved calibration, required if several apps share an origin
 }
@@ -618,6 +627,7 @@ interface ProjectionMapperConfig {
 | `setGridPointsVisible(visible)`   | Show/hide grid points                                |
 | `setCornerPointsVisible(visible)` | Show/hide corner points                              |
 | `setOutlineVisible(visible)`      | Show/hide outline                                    |
+| `setCanvasBoundaryVisible(v)`     | Show/hide the dashed frame, outlines untouched       |
 | `setGridSize(x, y)`               | Change grid density (2 to 10)                           |
 | `setZoom(scale)`                  | Set fill factor (0 to 1)                                |
 | `setShouldWarp(enabled)`          | Bypass warping (no GUI button, for host apps)        |
