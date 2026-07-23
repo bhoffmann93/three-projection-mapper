@@ -5,10 +5,8 @@ export const STORAGE_VERSION = 8; //when making breaking changes just increment 
 //Default initialized values if nothing from local storage is loaded
 export const DEFAULTS = {
   segments: 50,
-  /** A controller previews, so it starts pulled back from the output canvas */
-  zoom: 0.5,
-  /** An output window is the projection, so it starts filling the canvas exactly */
-  outputZoom: 1,
+  /** Starting fill factor for any window: pulled back a little from the canvas */
+  zoom: 0.75,
   antialias: true,
   minGridWarpPoints: 4, // default other axis gets calculated from aspect ratio
 } as const;
@@ -217,9 +215,9 @@ export const OFFSCREEN_MARKER = {
    *
    * Roughly half a corner handle, because a point sitting exactly on the edge
    * still has half of itself inside the window and can be grabbed there — and
-   * that is the *normal* state of an output window at zoom 1, where the canvas
-   * fills the frame and all four corners land on it. Without this every such
-   * window would open under a full set of markers reporting nothing wrong.
+   * that is the *normal* state of a synced projector window at zoom 1, where the
+   * canvas fills the frame and all four corners land on it. Without this every
+   * such window would open under a full set of markers reporting nothing wrong.
    */
   edgeTolerancePixels: 11,
   /** Matches Tweakpane's --tp-container-unit-size, so the chips read as the same UI */

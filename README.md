@@ -359,7 +359,7 @@ canvas boundary.
 
 |                              | `outputWindow: true`                    | controller (default)          |
 | ---------------------------- | --------------------------------------- | ----------------------------- |
-| default `zoom`               | `1`, the view is the projection        | `0.5`, pulled back to preview |
+| default `zoom`               | `0.75` standalone, `1` when synced by `WindowSync` | `0.75`, pulled back to preview |
 | dashed canvas boundary       | not drawn, the window edge is it       | with `multiSurface`, or forced |
 | move / resize a lone surface | off, opt in with `surfaceMove`/`surfaceScale` | off, it fills the output |
 | move / resize with several   | on                                      | on                            |
@@ -374,7 +374,7 @@ projector, probably the setup you want first, still has to ask for it:
 new ProjectionMapper(renderer, texture, { outputWindow: true });
 
 // bare default: one surface, but a controller previewing a projector window.
-// Pulled back to zoom 0.5, not an output. No dashed canvas with one surface.
+// Pulled back to zoom 0.75, not an output. No dashed canvas with one surface.
 new ProjectionMapper(renderer, texture, {});
 
 // controller arranging several surfaces
@@ -615,7 +615,7 @@ interface ProjectionMapperConfig {
   segments?: number; // Mesh density (default: 50)
   gridControlPoints?: { x: number; y: number }; // Grid size (auto-calculated if omitted)
   antialias?: boolean; // Enable SMAA (default: true)
-  zoom?: number; // Fill factor 0 to 1 (default: 0.5, or 1 when outputWindow)
+  zoom?: number; // Fill factor 0 to 1 (default: 0.75, synced projectors use 1)
   outputWindow?: boolean; // This window is the projector, not a preview (default: false)
   multiSurface?: boolean; // Allow more than one surface (default: false)
   // Interaction affordances. Each follows multiSurface unless set, and has a runtime setter.

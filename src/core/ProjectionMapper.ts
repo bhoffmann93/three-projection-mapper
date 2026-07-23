@@ -62,10 +62,11 @@ export interface ProjectionMapperConfig {
   /** Enable anti-aliasing (default: true) */
   antialias?: boolean;
   /**
-   * How much of the window the output canvas fills. Below 1 pulls back to show
-   * world beyond the canvas, which is what a controller wants and why the
-   * default is 0.5 — but an output window defaults to 1, where the view is the
-   * projection rather than a preview of it. See `outputWindow`.
+   * How much of the window the output canvas fills (default: 0.75). Below 1
+   * pulls back to show world beyond the canvas, which is what a controller wants
+   * and what a standalone output window gets too. A synced projector window does
+   * not keep this: `WindowSync` forces 1 in PROJECTOR mode, where the view is
+   * the projection and must fill the canvas exactly.
    */
   zoom?: number;
   /**
@@ -76,12 +77,8 @@ export interface ProjectionMapperConfig {
    * back to show world beyond the output canvas, draws the canvas boundary so
    * you know where the edge is, and scales that view to whatever size its window
    * happens to be. An output window cannot do any of that — what it draws is
-   * what the projector emits, so zooming out to make room would shrink the
-   * projection, and the window edge already is the canvas boundary.
-   *
-   * That single fact settles several defaults: zoom starts at 1, the boundary is
-   * not drawn, and a surface can be moved and resized inside the frame even when
-   * it is the only one — which is how it gets aligned to something physical.
+   * what the projector emits, so the window edge already is the canvas boundary,
+   * which is why it never draws one.
    */
   outputWindow?: boolean;
   /**
@@ -300,9 +297,11 @@ export class ProjectionMapper {
       gridControlPoints,
       antialias: config.antialias ?? DEFAULTS.antialias,
       outputWindow,
-      // A preview pulls back to show world beyond the canvas; an output window
-      // has nothing to pull back to, so it starts filling the frame exactly
-      zoom: config.zoom ?? (outputWindow ? DEFAULTS.outputZoom : DEFAULTS.zoom),
+      // One default for both roles. A real projector window does not keep it:
+      // WindowSync forces zoom 1 in PROJECTOR mode so the output fills the canvas
+      // exactly. This value is what a controller, or a standalone output window,
+      // starts at.
+      zoom: config.zoom ?? DEFAULTS.zoom,
       surfaceResolution: config.surfaceResolution ?? this.resolution,
       multiSurface,
       wheelZoom: config.wheelZoom ?? true,
