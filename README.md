@@ -361,8 +361,8 @@ canvas boundary.
 | ---------------------------- | --------------------------------------- | ----------------------------- |
 | default `zoom`               | `1`, the view is the projection        | `0.5`, pulled back to preview |
 | dashed canvas boundary       | not drawn, the window edge is it       | with `multiSurface`, or forced |
-| move / resize a lone surface | yes, that is how you align to an object | no, it fills the output       |
-| move / resize with several   | yes                                     | yes                           |
+| move / resize a lone surface | off, opt in with `surfaceMove`/`surfaceScale` | off, it fills the output |
+| move / resize with several   | on                                      | on                            |
 
 The four useful combinations. Note that only `multiSurface` defaults to the
 common case. `outputWindow` does not, so the single window that is itself the
@@ -390,16 +390,29 @@ receive-only, and the addon already sets their zoom and hides every control.
 ### Single-surface mode
 
 This is the default, so most apps need to say nothing. `addSurface()` is refused,
-extra surfaces left in storage are ignored rather than restored, canvas selection
-is not installed, and the GUI drops its surface and crop controls. In a
-controller the surface also loses its scale handle, since it fills the output by
-definition. Set `outputWindow: true` to get placement back, which is the case
-where moving the quad moves light on a wall:
+extra surfaces left in storage are ignored rather than restored, and the GUI
+drops its surface and crop controls. A single surface also cannot be moved or
+scaled: it fills the output, so there is nothing to arrange it against and
+resizing only loses pixels. The dashed boundary is off for the same reason.
 
 ```typescript
 const mapper = new ProjectionMapper(renderer, texture, {
   appId: 'my-app',
   outputWindow: true,
+});
+```
+
+The one case that wants a single surface *placed* is aligning it to a physical
+object, where moving the quad moves light on a wall. That is not implied by
+`outputWindow`, since a full-frame output does not need it either. Ask for it:
+
+```typescript
+const mapper = new ProjectionMapper(renderer, texture, {
+  appId: 'my-app',
+  outputWindow: true,
+  surfaceMove: true, // drag the surface
+  surfaceScale: true, // and resize it
+  canvasBoundary: true, // and mark where the projector stops
 });
 ```
 
@@ -605,8 +618,11 @@ interface ProjectionMapperConfig {
   zoom?: number; // Fill factor 0 to 1 (default: 0.5, or 1 when outputWindow)
   outputWindow?: boolean; // This window is the projector, not a preview (default: false)
   multiSurface?: boolean; // Allow more than one surface (default: false)
+  // Interaction affordances. Each follows multiSurface unless set, and has a runtime setter.
   canvasBoundary?: boolean; // Dashed output boundary on a controller (default: follows multiSurface)
-  canvasSelection?: boolean; // Click/drag surfaces on the canvas (default: true)
+  surfaceMove?: boolean; // Select and body-drag a surface (default: follows multiSurface)
+  surfaceScale?: boolean; // Scale handle on the active surface (default: follows multiSurface)
+  canvasSelection?: boolean; // Deprecated alias of surfaceMove
   appId?: string; // Scopes saved calibration, required if several apps share an origin
 }
 ```
@@ -628,6 +644,8 @@ interface ProjectionMapperConfig {
 | `setCornerPointsVisible(visible)` | Show/hide corner points                              |
 | `setOutlineVisible(visible)`      | Show/hide outline                                    |
 | `setCanvasBoundaryVisible(v)`     | Show/hide the dashed frame, outlines untouched       |
+| `setSurfaceMoveEnabled(v)`        | Enable/disable select and body-drag                  |
+| `setSurfaceScaleEnabled(v)`       | Show/hide the scale handle                           |
 | `setGridSize(x, y)`               | Change grid density (2 to 10)                           |
 | `setZoom(scale)`                  | Set fill factor (0 to 1)                                |
 | `setShouldWarp(enabled)`          | Bypass warping (no GUI button, for host apps)        |

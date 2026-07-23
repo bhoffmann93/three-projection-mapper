@@ -133,21 +133,21 @@ export interface ProjectionMapperConfig {
   canvasBoundary?: boolean;
   /**
    * Select a surface by clicking it and move it by dragging its body
-   * (default: follows `multiSurface || outputWindow`).
+   * (default: follows `multiSurface`).
    *
-   * On is for arranging surfaces, either against each other or against a
-   * physical object in an output window. The odd case out is a lone surface
-   * previewed in a controller: it fills the output and the window only looks at
-   * it, so there is nothing to arrange and off is the default.
+   * On is for arranging surfaces against each other. A single surface has
+   * nothing to arrange, so it is off by default even in an output window. The
+   * exception is aligning one surface to a physical object, where moving the
+   * quad moves light on a wall — that app passes `surfaceMove: true` to opt in.
    */
   surfaceMove?: boolean;
   /**
-   * Show the scale handle on the active surface
-   * (default: follows `multiSurface || outputWindow`).
+   * Show the scale handle on the active surface (default: follows `multiSurface`).
    *
-   * Same reasoning as `surfaceMove`: a lone surface in a controller has nothing
-   * to be a different size than, and shrinking it only loses projector pixels,
-   * so it is off there. Zoom is the control that belongs to that case.
+   * Same reasoning as `surfaceMove`: a single surface fills the output and has
+   * nothing to be a different size than, so shrinking it only loses projector
+   * pixels. Zoom is the control for that. An output window aligning to a
+   * physical object opts in with `surfaceScale: true`.
    */
   surfaceScale?: boolean;
   /** @deprecated Alias of `surfaceMove`, kept for back-compat. Prefer `surfaceMove`. */
@@ -309,16 +309,17 @@ export class ProjectionMapper {
       appId: config.appId,
     };
 
-    // Interaction capabilities: an explicit value wins, otherwise derive. The
-    // frame follows multiSurface (chrome in a one-surface host, useful once
-    // there are several to tell apart); move and scale follow placement, which
-    // is off only for a lone surface previewed in a controller. canvasSelection
-    // is the old name for surfaceMove and still honoured.
-    const placement = this.surfacePlacementAllowed();
+    // Interaction capabilities: an explicit value wins, otherwise derive. All
+    // three follow multiSurface. Arranging surfaces against each other is what
+    // move and scale are for, and a lone surface has nothing to arrange or to be
+    // a different size than. An output window aligning one surface to a physical
+    // object is the exception, and it opts in with surfaceMove/surfaceScale
+    // rather than getting them by being an output window. canvasSelection is the
+    // old name for surfaceMove and still honoured.
     this.interaction = {
       canvasBoundary: config.canvasBoundary ?? multiSurface,
-      surfaceMove: config.surfaceMove ?? config.canvasSelection ?? placement,
-      surfaceScale: config.surfaceScale ?? placement,
+      surfaceMove: config.surfaceMove ?? config.canvasSelection ?? multiSurface,
+      surfaceScale: config.surfaceScale ?? multiSurface,
     };
 
     this.scene = new THREE.Scene();
@@ -620,24 +621,6 @@ export class ProjectionMapper {
     return this.dragEnabled && (this.controlsVisibility.corners || this.controlsVisibility.grid);
   }
 
-  /**
-   * May a surface be moved and resized within the output — body drag, scale
-   * handle, canvas selection?
-   *
-   * Two different reasons say yes, and they are why this reads both flags rather
-   * than either alone. With one surface in an output window it is how the
-   * projection is aligned to something physical: the window is the projector, so
-   * moving the quad moves light on a wall. With several surfaces it is instead
-   * how they are fitted against each other.
-   *
-   * The remaining case is one surface previewed in a controller. There it fills
-   * the output by definition and the window is only looking at it, so resizing
-   * could do nothing but throw projector pixels away — zoom is the control that
-   * belongs to that case, and it is the view's rather than the surface's.
-   */
-  private surfacePlacementAllowed(): boolean {
-    return this.config.multiSurface || this.config.outputWindow;
-  }
 
   /** One screen pixel in world units, for anything that must hold a pixel size */
   private pixelToWorld(): number {
@@ -1024,18 +1007,18 @@ export class ProjectionMapper {
   /**
    * Reset one surface's warp, or all surfaces when no id is given.
    *
-   * Placement is kept only where it was deliberate — wherever the surface could
-   * be moved in the first place. Surfaces arranged against each other, or one
-   * aligned to a physical object from an output window, must not be piled back
-   * into the middle by a warp reset.
+   * Placement is kept only where moving was on in the first place — the same
+   * `surfaceMove` capability, so the two stay in step. A surface that can be
+   * dragged (several of them, or one an output window opted in to align to a
+   * physical object) must not be piled back into the middle by a warp reset.
    *
-   * A lone surface previewed in a controller was never placed at all, and
-   * keeping its position there is worse than useless: a warped quad's centroid
-   * drifts away from the centre as corners are pulled about, so the reset
-   * rectangle lands off-centre — a reset that visibly moves the surface.
+   * Where moving is off, keeping position is worse than useless: a warped quad's
+   * centroid drifts from the centre as corners are pulled about, so the reset
+   * rectangle would land off-centre — a reset that visibly moves the surface.
+   * So there it recenters.
    */
   reset(surfaceId?: string): void {
-    const keepPosition = this.surfacePlacementAllowed();
+    const keepPosition = this.interaction.surfaceMove;
 
     if (surfaceId) {
       this.getSurface(surfaceId)?.getWarper().resetToDefault(keepPosition);
