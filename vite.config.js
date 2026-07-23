@@ -18,6 +18,10 @@ export default defineConfig({
     'import.meta.env.VITE_BRANCH': JSON.stringify(process.env.BRANCH_NAME || undefined), //eslint-disable-line
   },
   build: {
+    // The demo site, kept out of dist/ because that belongs to the library build.
+    // Both empty their output folder first, so sharing one would mean whichever
+    // ran last is the only one that still exists.
+    outDir: 'dist-demo',
     rollupOptions: {
       input: {
         'index': resolve(__dirname, 'index.html'),

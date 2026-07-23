@@ -40,7 +40,7 @@ jobs:
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: dist-demo
 
       - uses: actions/deploy-pages@v4
         id: deployment
