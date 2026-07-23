@@ -86,6 +86,7 @@ export class ProjectionMapperGUI {
   private warpFolder!: FolderApi;
   private surfacesFolder!: FolderApi;
   private surfaceListBlade: { dispose(): void; value?: unknown } | null = null;
+  private bufferBlade!: { value: unknown };
   private warpModeBlade!: { value: unknown };
   private config: ProjectionMapperGUIConfig;
   private syncSettingButtons: () => void = () => {};
@@ -227,13 +228,13 @@ export class ProjectionMapperGUI {
     }
 
     const bufferResolution = this.mapper.getBufferResolution();
-    page.addBlade({
+    this.bufferBlade = page.addBlade({
       view: 'text',
       label: 'Buffer',
       value: `${bufferResolution.width}x${bufferResolution.height}`,
       parse: (v: unknown) => v,
       disabled: true,
-    });
+    }) as unknown as { value: unknown };
 
     if (this.mapper.isMultiSurface()) this.initOutputResolution(page);
 
@@ -867,6 +868,13 @@ export class ProjectionMapperGUI {
 
   collapse(): void {
     this.pane.expanded = false;
+  }
+
+  /** The readout is built once, so a host that resizes its buffer has to ask for a refresh */
+  refreshBufferResolution(): void {
+    if (!this.bufferBlade) return;
+    const { width, height } = this.mapper.getBufferResolution();
+    this.bufferBlade.value = `${width}x${height}`;
   }
 
   private saveSettings(): void {
