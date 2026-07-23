@@ -99,14 +99,9 @@ export interface ProjectionMapperConfig {
   // Interaction capabilities
   // ------------------------
   // Which on-screen editing affordances are live. Each is an independent
-  // `boolean | undefined`: leave it unset and it derives from the mode flags
-  // above (`multiSurface`, `outputWindow`); pass a value and that value wins.
-  // The derivations encode real defaults — a lone surface previewed in a
-  // controller has nothing to scale against, so scaling is off there — but a
-  // host app embedding the mapper can override any of them without disturbing
-  // the rest. Each also has a runtime setter (`setSurfaceScaleEnabled`, ...).
-  // A new capability added here gets its own derived default, so it can never
-  // change what existing configs resolve to.
+  // `boolean | undefined`: unset derives from `multiSurface`, a value wins.
+  // Each has a runtime setter too. A capability added here brings its own
+  // derived default, so it cannot change what existing configs resolve to.
   //
   /**
    * Draw the dashed boundary of the output canvas on a controller
@@ -119,9 +114,9 @@ export interface ProjectionMapperConfig {
    * from the library.
    *
    * `true` with one surface is worth it while calibrating, because a corner
-   * warped inwards leaves the quad no longer marking the canvas edge, and at
-   * zoom 0.5 nothing else says where the projector stops. `false` with several
-   * surfaces suppresses it entirely.
+   * warped inwards leaves the quad no longer marking the canvas edge, and with
+   * the view pulled back nothing else says where the projector stops. `false`
+   * with several surfaces suppresses it entirely.
    *
    * This hides only the frame. Surface outlines, handles and selection are
    * untouched, unlike `setOutlineVisible(false)`, which turns off the outlines
@@ -147,8 +142,6 @@ export interface ProjectionMapperConfig {
    * physical object opts in with `surfaceScale: true`.
    */
   surfaceScale?: boolean;
-  /** @deprecated Alias of `surfaceMove`, kept for back-compat. Prefer `surfaceMove`. */
-  canvasSelection?: boolean;
   /** Zoom the preview with the wheel or a trackpad pinch (default: true) */
   wheelZoom?: boolean;
   /**
@@ -264,7 +257,7 @@ export class ProjectionMapper {
   private config: Required<
     Omit<
       ProjectionMapperConfig,
-      'resolution' | 'appId' | 'canvasBoundary' | 'surfaceMove' | 'surfaceScale' | 'canvasSelection'
+      'resolution' | 'appId' | 'canvasBoundary' | 'surfaceMove' | 'surfaceScale'
     >
   > & { appId?: string };
 
@@ -308,16 +301,14 @@ export class ProjectionMapper {
       appId: config.appId,
     };
 
-    // Interaction capabilities: an explicit value wins, otherwise derive. All
-    // three follow multiSurface. Arranging surfaces against each other is what
-    // move and scale are for, and a lone surface has nothing to arrange or to be
-    // a different size than. An output window aligning one surface to a physical
-    // object is the exception, and it opts in with surfaceMove/surfaceScale
-    // rather than getting them by being an output window. canvasSelection is the
-    // old name for surfaceMove and still honoured.
+    // An explicit value wins, otherwise derive. All three follow multiSurface:
+    // move and scale are for arranging surfaces against each other, and a lone
+    // surface has nothing to arrange or to be a different size than. Aligning one
+    // surface to a physical object is the exception, and opts in by name rather
+    // than by being an output window.
     this.interaction = {
       canvasBoundary: config.canvasBoundary ?? multiSurface,
-      surfaceMove: config.surfaceMove ?? config.canvasSelection ?? multiSurface,
+      surfaceMove: config.surfaceMove ?? multiSurface,
       surfaceScale: config.surfaceScale ?? multiSurface,
     };
 
@@ -391,19 +382,10 @@ export class ProjectionMapper {
       isEnabled: () => this.handleControlsInteractive(),
     });
 
-    // Only a preview can need the canvas boundary: it shows world beyond the
-    // output, so the edge has to be marked. An output window's own edge already
-    // is that boundary, so it never builds one.
-    //
-    // Whether a preview *shows* it is a second question, answered by
-    // canvasBoundary, which follows multiSurface by default. With one surface
-    // the frame reads as chrome in a host app that has its own framing.
-    //
-    // The cost of that default is real and worth stating: a lone surface starts
-    // out coinciding with the canvas, but pull a corner in and the quad stops
-    // marking the edge, leaving nothing at zoom 0.5 to say how far it moved.
-    // Single-surface apps doing serious calibration should pass
-    // canvasBoundary: true.
+    // Only a preview can need the boundary: it shows world beyond the output, so
+    // the edge has to be marked. An output window's own edge already is that
+    // boundary, so it never builds one. Whether a preview *shows* it is the
+    // separate `canvasBoundary` question, documented on the option.
     if (!this.config.outputWindow) {
       // Built even when switched off, so the setter can bring it back without
       // rebuilding the line. A hidden Line2 costs nothing to keep around.

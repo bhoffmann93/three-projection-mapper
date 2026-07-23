@@ -359,7 +359,7 @@ canvas boundary.
 
 |                              | `outputWindow: true`                    | controller (default)          |
 | ---------------------------- | --------------------------------------- | ----------------------------- |
-| default `zoom`               | `0.75` standalone, `1` when synced by `WindowSync` | `0.75`, pulled back to preview |
+| default `zoom`               | pulled back, or exactly `1` when synced by `WindowSync` | pulled back to preview |
 | dashed canvas boundary       | not drawn, the window edge is it       | with `multiSurface`, or forced |
 | move / resize a lone surface | off, opt in with `surfaceMove`/`surfaceScale` | off, it fills the output |
 | move / resize with several   | on                                      | on                            |
@@ -374,7 +374,7 @@ projector, probably the setup you want first, still has to ask for it:
 new ProjectionMapper(renderer, texture, { outputWindow: true });
 
 // bare default: one surface, but a controller previewing a projector window.
-// Pulled back to zoom 0.75, not an output. No dashed canvas with one surface.
+// Pulled back from the canvas, not an output. No dashed canvas with one surface.
 new ProjectionMapper(renderer, texture, {});
 
 // controller arranging several surfaces
@@ -612,17 +612,16 @@ new ProjectionMapper(
 ```typescript
 interface ProjectionMapperConfig {
   resolution?: { width: number; height: number }; // View aspect + default surface resolution
-  segments?: number; // Mesh density (default: 50)
+  segments?: number; // Mesh density
   gridControlPoints?: { x: number; y: number }; // Grid size (auto-calculated if omitted)
   antialias?: boolean; // Enable SMAA (default: true)
-  zoom?: number; // Fill factor 0 to 1 (default: 0.75, synced projectors use 1)
+  zoom?: number; // Fill factor, below 1 pulls back to show world beyond the canvas
   outputWindow?: boolean; // This window is the projector, not a preview (default: false)
   multiSurface?: boolean; // Allow more than one surface (default: false)
   // Interaction affordances. Each follows multiSurface unless set, and has a runtime setter.
   canvasBoundary?: boolean; // Dashed output boundary on a controller (default: follows multiSurface)
   surfaceMove?: boolean; // Select and body-drag a surface (default: follows multiSurface)
   surfaceScale?: boolean; // Scale handle on the active surface (default: follows multiSurface)
-  canvasSelection?: boolean; // Deprecated alias of surfaceMove
   appId?: string; // Scopes saved calibration, required if several apps share an origin
 }
 ```
@@ -738,7 +737,7 @@ camera.position.set(0, 0.5, 2.0); // The Y position is the lens center
 | `throwRatio`  | Distance-to-width ratio (typical range: 0.8 to 2.5) |
 | `lensShiftY`  | Vertical lens shift as multiplier (1.0 = 100%)     |
 | `aspect`      | Width / height                                     |
-| `near`, `far` | Clipping planes (default: 0.1, 1000)               |
+| `near`, `far` | Clipping planes                                    |
 
 ---
 

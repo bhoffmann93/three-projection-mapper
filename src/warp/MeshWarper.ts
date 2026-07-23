@@ -664,12 +664,9 @@ export class MeshWarper {
   }
 
   /**
-   * Whether the surface can be resized by its handle at all.
-   *
-   * A lone surface fills the output by definition — there is nothing for it to
-   * be a different size *than*, and shrinking it just loses projector pixels.
-   * Zoom is the control that belongs to that case, and it is the view's, not the
-   * surface's.
+   * Whether the surface can be resized by its handle at all. Driven by the
+   * mapper's `surfaceScale` capability, which is where the reasoning lives.
+   * ANDed with the corner points, so an inactive surface shows no handle.
    */
   public setScaleHandleEnabled(enabled: boolean): void {
     this.scaleHandleEnabled = enabled;
