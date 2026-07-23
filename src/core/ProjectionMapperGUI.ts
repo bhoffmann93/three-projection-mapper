@@ -86,7 +86,7 @@ export class ProjectionMapperGUI {
   private warpFolder!: FolderApi;
   private surfacesFolder!: FolderApi;
   private surfaceListBlade: { dispose(): void; value?: unknown } | null = null;
-  private bufferBlade!: { value: unknown };
+  private bufferBlade: { value: unknown } | null = null;
   private warpModeBlade!: { value: unknown };
   private config: ProjectionMapperGUIConfig;
   private syncSettingButtons: () => void = () => {};
@@ -153,6 +153,10 @@ export class ProjectionMapperGUI {
       this.rebuildSurfaceList();
       this.syncFromActiveSurface();
     });
+
+    // The host can resize its own buffer without telling anyone, so the mapper
+    // watches for it and the readout follows rather than waiting to be asked
+    mapper.onBufferResolutionChanged(() => this.refreshBufferResolution());
 
     this.pane = new Pane({ title });
     this.pane.element.style.opacity = TWEAKPANE_TRANSPARENCY;
@@ -870,7 +874,11 @@ export class ProjectionMapperGUI {
     this.pane.expanded = false;
   }
 
-  /** The readout is built once, so a host that resizes its buffer has to ask for a refresh */
+  /**
+   * Re-read the buffer size into the readout. Wired to the mapper's own
+   * detection, so it keeps up on its own — kept public as an escape hatch for a
+   * host that wants to force it.
+   */
   refreshBufferResolution(): void {
     if (!this.bufferBlade) return;
     const { width, height } = this.mapper.getBufferResolution();

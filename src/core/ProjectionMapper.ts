@@ -201,6 +201,9 @@ export class ProjectionMapper {
   private activeSurfaceChanged = new ListenerSet<[surfaceId: string]>();
   private polygonNodesChanged = new ListenerSet<[surfaceId: string]>();
   private surfaceTransformed = new ListenerSet<[surfaceId: string]>();
+  private bufferResolutionChanged = new ListenerSet<[resolution: Resolution]>();
+  /** Last seen buffer size, so the change can be noticed without anyone reporting it */
+  private lastBufferResolution: Resolution = { width: 0, height: 0 };
 
   /**
    * Notifications take listeners rather than a single assigned handler: the GUI
@@ -235,6 +238,18 @@ export class ProjectionMapper {
   /** The preview zoom changed, including by wheel — so a pane can follow it */
   onZoomChanged(listener: (zoom: number) => void): () => void {
     return this.view.onZoomChanged(listener);
+  }
+
+  /**
+   * The source buffer changed size, or was swapped for one of a different size.
+   *
+   * Polled per frame rather than reported, because the common case has nothing to
+   * report it: a host resizing its own render target mutates the texture the
+   * mapper already holds, so no setter here is called and the object identity
+   * never changes. Two number comparisons a frame is the price of noticing.
+   */
+  onBufferResolutionChanged(listener: (resolution: Resolution) => void): () => void {
+    return this.bufferResolutionChanged.add(listener);
   }
 
   /** Genuinely output-wide uniforms, shared by reference across every surface material */
@@ -736,6 +751,7 @@ export class ProjectionMapper {
     }
 
     this.uniforms.uTime.value = this.clock.getElapsedTime();
+    this.detectBufferResolutionChange();
 
     // Constant screen-pixel size: convert 1 pixel to world units
     const pixelToWorld = this.pixelToWorld();
@@ -781,6 +797,16 @@ export class ProjectionMapper {
    */
   getBufferResolution(surfaceId?: string): Resolution {
     return textureResolution(this.getTexture(surfaceId));
+  }
+
+  /** Emit when the shared buffer's size has moved since the last frame */
+  private detectBufferResolutionChange(): void {
+    const { width, height } = this.getBufferResolution();
+    if (width === this.lastBufferResolution.width && height === this.lastBufferResolution.height) {
+      return;
+    }
+    this.lastBufferResolution = { width, height };
+    this.bufferResolutionChanged.emit({ width, height });
   }
 
   setShowTestCard(show: boolean): void {
