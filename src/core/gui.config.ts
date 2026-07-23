@@ -45,8 +45,8 @@ export const OPEN_PROJECTOR_BUTTON_ICON = {
   verticalShiftPx: 2,
 } as const;
 
-/** Chevrons on the surface order buttons, matching the effect stack's move controls */
-export const SURFACE_ORDER_ICON = {
+/** Icon-only buttons in the surfaces row: remove, send back, bring forward */
+export const SURFACE_BUTTON_ICON = {
   sizePx: ICON_SIZE_PX,
   strokeWidth: ICON_STROKE_WIDTH,
   verticalShiftPx: 2,

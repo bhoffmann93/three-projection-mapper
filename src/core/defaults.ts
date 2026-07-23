@@ -5,7 +5,10 @@ export const STORAGE_VERSION = 8; //when making breaking changes just increment 
 //Default initialized values if nothing from local storage is loaded
 export const DEFAULTS = {
   segments: 50,
+  /** A controller previews, so it starts pulled back from the output canvas */
   zoom: 0.5,
+  /** An output window is the projection, so it starts filling the canvas exactly */
+  outputZoom: 1,
   antialias: true,
   minGridWarpPoints: 4, // default other axis gets calculated from aspect ratio
 } as const;
@@ -181,6 +184,76 @@ export const WARP_HANDLE_STYLE = {
   inactiveOutlineLineWidth: 2,
   hoverOutlineColor: 'hsl(38, 100%, 72%)',
   hoverOutlineOpacity: 1.0,
+  /** The handle the arrow keys move: brighter and larger, so it reads at a glance */
+  selectedColor: 'hsl(48, 100%, 62%)',
+  selectedScale: 1.4,
+} as const;
+
+/**
+ * Keyboard nudging of the selected warp handle.
+ *
+ * Steps are in screen pixels rather than world units, so a nudge covers the same
+ * visible distance whatever the surface's size or the view's zoom.
+ */
+export const HANDLE_NUDGE = {
+  stepPixels: 1,
+  /** Held Shift, for crossing distance rather than settling on a pixel */
+  coarseStepPixels: 10,
+} as const;
+
+/**
+ * Markers for handles nudged outside the window.
+ *
+ * Needed because the way a corner leaves the window is the same way it has to
+ * come back: when the controller is the output there is no zooming out to find
+ * it, since the view is what the projector shows. Clicking a marker selects its
+ * handle, so the arrow keys can walk it home without ever seeing it.
+ */
+export const OFFSCREEN_MARKER = {
+  /** Distance from the window edge the marker sits at */
+  edgeInsetPixels: 32,
+  /**
+   * How far past the edge a warp point must be before it counts as lost.
+   *
+   * Roughly half a corner handle, because a point sitting exactly on the edge
+   * still has half of itself inside the window and can be grabbed there — and
+   * that is the *normal* state of an output window at zoom 1, where the canvas
+   * fills the frame and all four corners land on it. Without this every such
+   * window would open under a full set of markers reporting nothing wrong.
+   */
+  edgeTolerancePixels: 11,
+  /** Matches Tweakpane's --tp-container-unit-size, so the chips read as the same UI */
+  heightPixels: 20,
+  horizontalPaddingPixels: 7,
+  borderRadiusPixels: 6,
+  /** Gap between the chip's edge and the arrow that points past it */
+  arrowGapPixels: 7,
+  /**
+   * Markers landing closer together than this collapse to the first one placed.
+   * A corner leaving the window usually takes a whole row of grid points with it,
+   * and unchecked they stack into an unreadable pile in the same window corner.
+   */
+  minSeparationPixels: 26,
+  fontSize: '11px',
+  fontWeight: '500',
+} as const;
+
+/**
+ * Tweakpane's own default theme values, so chrome drawn outside the pane still
+ * reads as part of it.
+ *
+ * Mirrored rather than referenced: Tweakpane declares its custom properties on
+ * the pane element itself, so `var(--tp-base-background-color)` resolves to
+ * nothing anywhere else in the document. Anything inside the pane should still
+ * use the variables, with these as the fallback — see tweakpaneUtils.
+ */
+export const PANE_THEME = {
+  background: 'hsl(230, 7%, 17%)',
+  foreground: 'hsl(230, 7%, 75%)',
+  buttonBackground: 'hsl(230, 7%, 30%)',
+  buttonForeground: 'hsl(230, 7%, 17%)',
+  shadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+  fontFamily: "'Roboto Mono', 'Source Code Pro', Menlo, Courier, monospace",
 } as const;
 
 /** The dashed boundary showing what the projector frames. Controller only. */

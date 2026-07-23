@@ -8,6 +8,8 @@ import projectionFragmentShader from '../shaders/projection.frag';
 import { calculateGridPoints } from '../warp/geometry';
 import { SurfacePicker } from './SurfacePicker';
 import { OutputFrame } from './OutputFrame';
+import { HandleKeyboard } from './HandleKeyboard';
+import { OffscreenHandleMarkers } from './OffscreenHandleMarkers';
 import { RenderOrder } from './RenderOrder';
 import { SurfaceStore } from './SurfaceStore';
 import { ProjectorView } from './ProjectorView';
@@ -55,19 +57,45 @@ export interface ProjectionMapperConfig {
   surfaceResolution?: Resolution;
   /** Number of mesh segments for smooth warping (default: 50) */
   segments?: number;
-  /** Grid control points for fine warping (default: 5x5) */
+  /** Grid control points for fine warping (default: derived from the aspect ratio) */
   gridControlPoints?: { x: number; y: number };
   /** Enable anti-aliasing (default: true) */
   antialias?: boolean;
-  /** Scale factor for how much of the window the plane fills (default: 0.9 = 90%) */
+  /**
+   * How much of the window the output canvas fills. Below 1 pulls back to show
+   * world beyond the canvas, which is what a controller wants and why the
+   * default is 0.5 — but an output window defaults to 1, where the view is the
+   * projection rather than a preview of it. See `outputWindow`.
+   */
   zoom?: number;
   /**
-   * Whether this mapper can hold more than one surface (default: true).
+   * Is this window the projector itself, rather than a preview of it?
+   * (default: false)
    *
-   * With `false` the mapper is a single-surface projection mapper: addSurface()
+   * The difference is whether the view can lie. A controller previews: it pulls
+   * back to show world beyond the output canvas, draws the canvas boundary so
+   * you know where the edge is, and scales that view to whatever size its window
+   * happens to be. An output window cannot do any of that — what it draws is
+   * what the projector emits, so zooming out to make room would shrink the
+   * projection, and the window edge already is the canvas boundary.
+   *
+   * That single fact settles several defaults: zoom starts at 1, the boundary is
+   * not drawn, and a surface can be moved and resized inside the frame even when
+   * it is the only one — which is how it gets aligned to something physical.
+   */
+  outputWindow?: boolean;
+  /**
+   * Whether this mapper can hold more than one surface (default: false).
+   *
+   * The default is the single-surface mapper: one mesh showing one scene, which
+   * is what most apps want and what needs the least said about it. addSurface()
    * is refused, extra surfaces in storage are ignored rather than restored, and
    * canvas selection is not installed. The built-in GUI drops its surface and
    * input-crop controls to match.
+   *
+   * `true` opts into several surfaces arranged inside one output, which is the
+   * atlas case: each surface takes its pixels from a region of the input, so a
+   * layout needs `surfaceResolution` as well.
    */
   multiSurface?: boolean;
   /** Click a surface to select it, drag its body to move it (default: true) */
@@ -109,6 +137,8 @@ export class ProjectionMapper {
   private picker: SurfacePicker | null = null;
   private surfaceStore: SurfaceStore;
   private outputFrame: OutputFrame | null = null;
+  private handleKeyboard: HandleKeyboard;
+  private offscreenMarkers: OffscreenHandleMarkers;
 
   /** Handle visibility applied to whichever surface is active */
   private controlsVisibility = { grid: true, corners: true, outline: true };
@@ -194,13 +224,20 @@ export class ProjectionMapper {
 
     const gridControlPoints = this.getGridControlPoints(config, aspectRatio, DEFAULTS.minGridWarpPoints);
 
+    // Declared before the rest of the config because several of them derive
+    // from it — an output window and a controller want different defaults
+    const outputWindow = config.outputWindow ?? false;
+
     this.config = {
       segments: config.segments ?? DEFAULTS.segments,
       gridControlPoints,
       antialias: config.antialias ?? DEFAULTS.antialias,
-      zoom: config.zoom ?? DEFAULTS.zoom,
+      outputWindow,
+      // A preview pulls back to show world beyond the canvas; an output window
+      // has nothing to pull back to, so it starts filling the frame exactly
+      zoom: config.zoom ?? (outputWindow ? DEFAULTS.outputZoom : DEFAULTS.zoom),
       surfaceResolution: config.surfaceResolution ?? this.resolution,
-      multiSurface: config.multiSurface ?? true,
+      multiSurface: config.multiSurface ?? false,
       canvasSelection: config.canvasSelection ?? true,
       wheelZoom: config.wheelZoom ?? true,
       appId: config.appId,
@@ -246,20 +283,49 @@ export class ProjectionMapper {
     this.applyRenderOrder();
     this.applyActiveSurface();
 
-    // Nothing to select or arrange when there can only ever be one surface
-    if (this.config.canvasSelection && this.config.multiSurface) {
+    // Selecting and dragging bodies is for arranging surfaces — either against
+    // each other, or against something physical. A lone surface in a controller
+    // has neither job: it fills the output by definition and the window only
+    // previews it, so there is nothing to arrange and nothing to arrange it in.
+    if (this.config.canvasSelection && this.surfacePlacementAllowed()) {
       this.picker = new SurfacePicker({
         domElement: this.renderer.domElement,
         camera: this.camera,
         getSurfaces: () => this.surfaces,
         setActiveSurface: (id) => this.setActiveSurface(id),
         onSurfaceMoved: () => this.saveSurfaces(),
+        onPressedAwayFromHandles: () => this.getActiveSurface().getWarper().clearSelectedHandle(),
       });
       this.applyPickerEnabled();
     }
 
-    // Only meaningful with several surfaces to arrange inside the output
-    if (this.config.multiSurface) {
+    // Arrow-key nudging, and markers for the handles it can push off screen.
+    // Both are calibration tools rather than multi-surface ones: a single surface
+    // in a single window is exactly the case that cannot drag a corner past the
+    // window edge, and cannot zoom out to go looking for it either.
+    this.handleKeyboard = new HandleKeyboard({
+      getSurface: () => this.getActiveSurface(),
+      getPixelToWorld: () => this.pixelToWorld(),
+      isEnabled: () => this.handleControlsInteractive(),
+    });
+
+    this.offscreenMarkers = new OffscreenHandleMarkers({
+      canvas: this.renderer.domElement,
+      camera: this.camera,
+      getSurface: () => this.getActiveSurface(),
+      isEnabled: () => this.handleControlsInteractive(),
+    });
+
+    // Only a preview needs the canvas boundary drawn: it shows world beyond the
+    // output, so the edge has to be marked. An output window's own edge already
+    // is that boundary.
+    //
+    // This does not also depend on the surface count. A lone surface starts out
+    // coinciding with the canvas, which makes the frame look redundant — but
+    // warping is the whole point of the window, and the moment a corner is
+    // pulled in, the boundary is the only thing left saying where the projector
+    // actually stops.
+    if (!this.config.outputWindow) {
       this.outputFrame = new OutputFrame(this.scene, this.worldWidth, this.worldHeight);
       this.outputFrame.setVisible(this.controlsVisibility.outline);
     }
@@ -339,6 +405,8 @@ export class ProjectionMapper {
         renderer: this.renderer,
       },
     });
+
+    surface.getWarper().setScaleHandleEnabled(this.surfacePlacementAllowed());
 
     surface.onPolygonNodesChanged = () => this.polygonNodesChanged.emit(surface.id);
     surface.onTransformed = () => this.surfaceTransformed.emit(surface.id);
@@ -441,6 +509,42 @@ export class ProjectionMapper {
     this.outputFrame?.setVisible(this.controlsVisibility.outline && this.dragEnabled);
   }
 
+  /**
+   * Are warp handles something the user can act on right now? False on a
+   * projector window, and once the handles are hidden — the keyboard must not
+   * move a corner nobody can see, and an off-screen marker for a hidden handle
+   * would be the only control left on a cleared screen.
+   */
+  private handleControlsInteractive(): boolean {
+    if (this.whiteOut) return false;
+    return this.dragEnabled && (this.controlsVisibility.corners || this.controlsVisibility.grid);
+  }
+
+  /**
+   * May a surface be moved and resized within the output — body drag, scale
+   * handle, canvas selection?
+   *
+   * Two different reasons say yes, and they are why this reads both flags rather
+   * than either alone. With one surface in an output window it is how the
+   * projection is aligned to something physical: the window is the projector, so
+   * moving the quad moves light on a wall. With several surfaces it is instead
+   * how they are fitted against each other.
+   *
+   * The remaining case is one surface previewed in a controller. There it fills
+   * the output by definition and the window is only looking at it, so resizing
+   * could do nothing but throw projector pixels away — zoom is the control that
+   * belongs to that case, and it is the view's rather than the surface's.
+   */
+  private surfacePlacementAllowed(): boolean {
+    return this.config.multiSurface || this.config.outputWindow;
+  }
+
+  /** One screen pixel in world units, for anything that must hold a pixel size */
+  private pixelToWorld(): number {
+    const frustumWidth = this.camera.right - this.camera.left;
+    return frustumWidth / this.renderer.domElement.clientWidth;
+  }
+
   /** Can this mapper hold more than one surface? */
   isMultiSurface(): boolean {
     return this.config.multiSurface;
@@ -504,6 +608,9 @@ export class ProjectionMapper {
 
   setActiveSurface(id: string): void {
     if (!this.getSurface(id) || this.activeSurfaceId === id) return;
+    // The old surface's handles are about to be hidden; leaving one armed would
+    // point the arrow keys at a surface the user has moved on from
+    this.getActiveSurface().getWarper().clearSelectedHandle();
     this.activeSurfaceId = id;
     this.applyActiveSurface();
     this.saveSurfaces();
@@ -551,6 +658,9 @@ export class ProjectionMapper {
 
   render(): void {
     if (this.whiteOut) {
+      // Nothing but white belongs on screen, markers included
+      this.offscreenMarkers.update();
+
       const savedColor = new THREE.Color();
       const savedAlpha = this.renderer.getClearAlpha();
       this.renderer.getClearColor(savedColor);
@@ -564,12 +674,13 @@ export class ProjectionMapper {
     this.uniforms.uTime.value = this.clock.getElapsedTime();
 
     // Constant screen-pixel size: convert 1 pixel to world units
-    const frustumWidth = this.camera.right - this.camera.left;
-    const viewportWidth = this.renderer.domElement.clientWidth;
-    const pixelToWorld = frustumWidth / viewportWidth;
+    const pixelToWorld = this.pixelToWorld();
 
     // Each surface's masks follow that surface's own perspective
     this.surfaces.forEach((surface) => surface.syncMasks(pixelToWorld));
+
+    // After the handles have their final positions for this frame
+    this.offscreenMarkers.update();
 
     if (this.config.antialias == false) {
       this.renderer.setRenderTarget(null);
@@ -709,6 +820,24 @@ export class ProjectionMapper {
     this.applyActiveSurface();
   }
 
+  /**
+   * Hand the arrow keys, Tab and Esc back to the host app.
+   *
+   * The warp point keys are built in because they act on state only the mapper
+   * has — which point is selected, and how far a screen pixel reaches at the
+   * current zoom. That is right for a calibration tool that owns the window, and
+   * wrong for a mapper embedded in a larger UI: Tab is claimed page-wide while
+   * warp controls are visible, because stepping to a point that is off screen is
+   * the one way to reach it.
+   *
+   * Turning them off leaves the handles draggable. Rebinding is `getWarper()` —
+   * `selectNextHandle`, `nudgeSelectedHandle` and `clearSelectedHandle` are the
+   * same methods these keys call.
+   */
+  setKeyboardEnabled(enabled: boolean): void {
+    this.handleKeyboard.setEnabled(enabled);
+  }
+
   setGridSize(x: number, y: number): void {
     this.getWarper().setGridSize(x, y);
   }
@@ -771,13 +900,27 @@ export class ProjectionMapper {
     this.view.setPlaneSize(this.worldWidth, this.worldHeight);
   }
 
-  /** Reset one surface's warp, or all surfaces when no id is given */
+  /**
+   * Reset one surface's warp, or all surfaces when no id is given.
+   *
+   * Placement is kept only where it was deliberate — wherever the surface could
+   * be moved in the first place. Surfaces arranged against each other, or one
+   * aligned to a physical object from an output window, must not be piled back
+   * into the middle by a warp reset.
+   *
+   * A lone surface previewed in a controller was never placed at all, and
+   * keeping its position there is worse than useless: a warped quad's centroid
+   * drifts away from the centre as corners are pulled about, so the reset
+   * rectangle lands off-centre — a reset that visibly moves the surface.
+   */
   reset(surfaceId?: string): void {
+    const keepPosition = this.surfacePlacementAllowed();
+
     if (surfaceId) {
-      this.getSurface(surfaceId)?.getWarper().resetToDefault();
+      this.getSurface(surfaceId)?.getWarper().resetToDefault(keepPosition);
       return;
     }
-    this.surfaces.forEach((surface) => surface.getWarper().resetToDefault());
+    this.surfaces.forEach((surface) => surface.getWarper().resetToDefault(keepPosition));
   }
 
   getScene(): THREE.Scene {
@@ -840,6 +983,8 @@ export class ProjectionMapper {
   dispose(): void {
     this.view.dispose();
     this.picker?.dispose();
+    this.handleKeyboard.dispose();
+    this.offscreenMarkers.dispose();
     this.outputFrame?.dispose();
     this.surfaces.forEach((surface) => surface.dispose());
     this.composer.dispose();

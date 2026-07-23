@@ -44,7 +44,8 @@ import { ProjectionMapper, ProjectionMapperGUI } from './lib';
 const renderer = new THREE.WebGLRenderer();
 const renderTarget = new THREE.WebGLRenderTarget(width, height);
 
-// 2. Create mapper with your render target texture
+// 2. Create mapper with your render target texture.
+// Defaults to a single surface — pass multiSurface: true for the atlas case.
 const mapper = new ProjectionMapper(renderer, renderTarget.texture);
 
 // 3. Optional GUI
@@ -65,7 +66,39 @@ The library exports from `src/lib.ts`:
 
 ## Runtime Shortcuts (Example App)
 
-- `G` / `P` - Toggle GUI panel
-- `T` - Toggle testcard
-- `W` - Hide all controls
-- `S` - Show all controls
+Wired by the examples, not the library — each is one call to a public method, so
+the letter keys stay free for the host app:
+
+- `G` / `P` - Toggle GUI panel (`gui.toggle()`)
+- `T` - Toggle testcard (`gui.toggleTestCard()`)
+- `W` - Toggle warp controls (`gui.toggleWarpUI()`)
+- `O` - Open projector window (`sync.openProjectorWindow()`) — multi-window, multi-surface
+- `I` - Toggle UV rect editor (`uvRectEditor.toggle()`) — multi-surface only
+
+## Warp Point Keyboard Control
+
+"Warp point" is the user-facing name for a corner or grid control point. Click one
+to select it (it brightens and grows), then:
+
+- `Arrows` - Nudge the selected warp point 1 screen pixel
+- `Shift+Arrows` - Nudge 10 pixels
+- `Tab` / `Shift+Tab` - Step to the next warp point, within the selected one's group
+- `Esc` - Deselect the warp point
+
+This is how a warp point gets outside the window, which dragging cannot do — the
+pointer runs out of screen, and in single-window mode the view is the output, so
+there is no zooming out to make room. Warp points pushed off screen get a
+clickable marker on the window edge (`OffscreenHandleMarkers`) pointing at where
+they went.
+
+These keys are built into the library (`HandleKeyboard`, constructed by
+`ProjectionMapper`) because they act on state only the mapper has: which point is
+selected, and how far a screen pixel reaches at the current zoom. They stand down
+while a Tweakpane input has focus, when Meta/Ctrl/Alt is held, on projector
+windows, and while warp controls are hidden. Arrows stay free until a warp point
+is selected; Tab does not — it is claimed page-wide whenever handles are visible,
+since stepping to an off-screen point is the one way to reach it.
+
+`mapper.setKeyboardEnabled(false)` hands all of them back to the host app. Handles
+stay draggable; rebind through `getWarper()` (`selectNextHandle`,
+`nudgeSelectedHandle`, `clearSelectedHandle`).

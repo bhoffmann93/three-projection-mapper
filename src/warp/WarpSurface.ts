@@ -179,6 +179,18 @@ export class WarpSurface {
     this.onTransformed();
   }
 
+  /**
+   * Move the keyboard-selected handle by a world-space delta.
+   *
+   * Reported as a transform because DragControls never sees it, and a projector
+   * window that is not told would keep the old warp.
+   */
+  nudgeSelectedHandle(dx: number, dy: number): boolean {
+    const moved = this.warper.nudgeSelectedHandle(dx, dy);
+    if (moved) this.onTransformed();
+    return moved;
+  }
+
   /** Move the surface's centroid to an absolute world-space position, preserving its warp */
   setPosition(x: number, y: number): void {
     this.warper.setPosition(x, y);

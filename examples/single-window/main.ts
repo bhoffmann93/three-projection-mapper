@@ -90,7 +90,10 @@ const renderTarget = new THREE.WebGLRenderTarget(projectionResolution.x, project
   generateMipmaps: false,
 });
 
-const mapper = new ProjectionMapper(renderer, renderTarget.texture, { appId: 'single-window', multiSurface: false });
+const mapper = new ProjectionMapper(renderer, renderTarget.texture, {
+  appId: 'single-window',
+  outputWindow: true,
+});
 const gui = new ProjectionMapperGUI(mapper, {
   title: 'Projection Mapper',
   anchor: 'left',
@@ -98,7 +101,9 @@ const gui = new ProjectionMapperGUI(mapper, {
 
 const hint = document.createElement('div');
 hint.style.cssText = 'position:fixed;bottom:16px;left:16px;color:rgba(255,255,255,0.5);font:12px/1.6 monospace;pointer-events:none;transition:opacity 0.3s';
-hint.innerHTML = '<span>G</span> toggle UI<br><span>T</span> test card<br><span>W</span> warp controls';
+hint.innerHTML =
+  '<span>G</span> toggle UI<br><span>T</span> test card<br><span>W</span> warp controls<br>' +
+  '<span>Tab</span> select warp point<br><span>&larr;&uarr;&darr;&rarr;</span> move warp point (<span>Shift</span> &times;10)<br><span>Esc</span> deselect warp point';
 document.body.appendChild(hint);
 
 let uiVisible = true;

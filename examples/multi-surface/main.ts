@@ -46,6 +46,7 @@ const atlas = new AtlasScene();
 // the first surface reset to 16:9. The controller previews at zoom 0.4 to leave
 // room around the canvas, whose dashed boundary shows what is actually projected.
 const mapper = new ProjectionMapper(renderer, atlas.getTexture(), {
+  multiSurface: true,
   resolution: MULTI_SURFACE_CONFIG.outputResolution,
   surfaceResolution: MULTI_SURFACE_CONFIG.cubeSurfaceResolution,
   zoom: 0.4,
@@ -149,7 +150,8 @@ const hint = document.createElement('div');
 hint.style.cssText =
   'position:fixed;bottom:16px;left:16px;color:rgba(255,255,255,0.5);font:12px/1.6 monospace;pointer-events:none;transition:opacity 0.3s';
 hint.innerHTML =
-  '<span>G</span> toggle UI<br><span>T</span> test card<br><span>W</span> warp controls<br><span>I</span> input view<br><span>O</span> open projector<br>Click a surface to select it, drag its body to move it';
+  '<span>G</span> toggle UI<br><span>T</span> test card<br><span>W</span> warp controls<br><span>I</span> input view<br><span>O</span> open projector<br><span>Tab</span> select warp point<br><span>&larr;&uarr;&darr;&rarr;</span> move warp point (<span>Shift</span> &times;10)<br><span>Esc</span> deselect warp point' +
+  '<br>Click a surface to select it, drag its body to move it';
 document.body.appendChild(hint);
 
 let uiVisible = true;

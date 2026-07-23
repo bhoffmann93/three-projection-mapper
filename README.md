@@ -17,7 +17,7 @@ A projection mapping library for [Three.js](https://threejs.org/).
 
 **[Live Examples](https://bhoffmann93.github.io/three-projection-mapper/)**
 
-The main use case is to match your Three.js camera to the physical projector's real-world position and optics using ProjectorCamera, so the virtual scene aligns with the physical surface — which can then be fine-tuned with warping. It accepts any THREE.WebGLRenderTarget or THREE.Texture, so it works with 3D scenes, canvas textures, videos, or any other source. See the examples for 2D content usage.
+The main use case is to match your Three.js camera to the physical projector's real-world position and optics using ProjectorCamera, so the virtual scene aligns with the physical surface, which can then be fine-tuned with warping. It accepts any THREE.WebGLRenderTarget or THREE.Texture, so it works with 3D scenes, canvas textures, videos, or any other source. See the examples for 2D content usage.
 
 ---
 
@@ -38,18 +38,19 @@ The texture source can be a **3D scene** rendered into a `WebGLRenderTarget`, a 
 
 ## Features
 
-- **Corner control points** — 4 outer points for broad perspective correction
-- **Grid control points** — configurable inner grid for fine-grained surface warping (Bilinear or Bicubic Warping)
-- **Multiple surfaces** — several independently warped surfaces in one output; click a surface on the canvas to select it, drag its body to move it
-- **Per-surface everything** — each surface owns its warp, resolution, source texture, crop, image adjustments and masks
-- **Polygon mask** — interactive closed polygon evaluated as an SDF in the fragment shader; click edges to insert nodes, double-click to remove, with feather and invert support
-- **Image adjustments** — contrast, hue, gamma, saturation, blacks/whites, ACES tonemapping (per surface, for matching projectors)
-- **Edge feather** — per-surface feather mask for blending overlapping projections
-- **Testcard overlay** — procedural pattern (resolution- and aspect-independent)
-- **GUI** — Tweakpane based UI included
-- **Auto-save** — all settings saved to `localStorage`, restored on reload
-- **Multi-window mode** — separate controller and projector windows, synced in real time (no server needed)
-- **Hardware optics support** — camera class for physical throw ratio and lens shift correction
+- **Corner control points**: 4 outer points for broad perspective correction
+- **Grid control points**: configurable inner grid for fine-grained surface warping (Bilinear or Bicubic Warping)
+- **Keyboard warp point control**: select a warp point and nudge it with the arrow keys, including past the window edge, where the pointer cannot follow. Off-screen warp points keep a marker on the edge that points at them
+- **Multiple surfaces**: several independently warped surfaces in one output. Click a surface on the canvas to select it, then drag its body to move it
+- **Per-surface everything**: each surface owns its warp, resolution, source texture, crop, image adjustments and masks
+- **Polygon mask**: interactive closed polygon evaluated as an SDF in the fragment shader. Click edges to insert nodes, double-click to remove, with feather and invert support
+- **Image adjustments**: contrast, hue, gamma, saturation, blacks/whites, ACES tonemapping (per surface, for matching projectors)
+- **Edge feather**: per-surface feather mask for blending overlapping projections
+- **Testcard overlay**: procedural pattern (resolution- and aspect-independent)
+- **GUI**: Tweakpane based UI included
+- **Auto-save**: all settings saved to `localStorage`, restored on reload
+- **Multi-window mode**: separate controller and projector windows, synced in real time (no server needed)
+- **Hardware optics support**: camera class for physical throw ratio and lens shift correction
 
 ## Installation
 
@@ -103,7 +104,8 @@ function animate() {
 
 animate();
 
-// Hotkeys are not built into the library — wire them yourself:
+// Panel hotkeys are not built into the library, so wire them yourself. The warp
+// point keys (arrows, Tab, Esc) are built in and need no wiring.
 const hint = document.createElement('div');
 hint.style.cssText =
   'position:fixed;bottom:16px;left:16px;color:rgba(255,255,255,0.5);font:12px/1.6 monospace;pointer-events:none';
@@ -117,19 +119,26 @@ window.addEventListener('keydown', (e) => {
 });
 ```
 
-> **Canvas / p5.js:** If you're drawing with p5.js or a plain 2D canvas instead of a 3D scene, skip the render target — wrap the canvas element directly with `new THREE.CanvasTexture(canvasEl)` and set `canvasTexture.needsUpdate = true` each frame. See [`/examples/p5-canvas`](./examples/p5-canvas/) for a working example.
+> **Canvas / p5.js:** If you're drawing with p5.js or a plain 2D canvas instead of a 3D scene, skip the render target and wrap the canvas element directly with `new THREE.CanvasTexture(canvasEl)` and set `canvasTexture.needsUpdate = true` each frame. See [`/examples/p5-canvas`](./examples/p5-canvas/) for a working example.
 
 ## Multiple Surfaces
 
 A mapper can hold several independently warped surfaces. Each one owns its warp,
 resolution, source texture, crop, image adjustments and masks.
 
-Click a surface on the canvas to select it; drag its body to move it. Only the
-active surface shows drag handles, the others stay as dimmed outlines.
+Click a surface on the canvas to select it, then drag its body to move it. Only
+the active surface shows warp points, the others stay as dimmed outlines.
+
+> **Breaking change.** `multiSurface` now defaults to `false`, because one mesh
+> showing one scene is what most apps want. An app that calls `addSurface()`
+> without passing `multiSurface: true` will have the call refused, and extra
+> surfaces already in storage ignored rather than restored. The calibration is
+> not deleted, so adding the flag brings it back.
 
 ```typescript
 const mapper = new ProjectionMapper(renderer, texture, {
   appId: 'my-app',
+  multiSurface: true, // off by default, so this is what opts in
   resolution: { width: 1920, height: 1080 }, // the output canvas
   surfaceResolution: { width: 1080, height: 1080 }, // default surface shape
 });
@@ -137,13 +146,13 @@ const mapper = new ProjectionMapper(renderer, texture, {
 // A surface that overrides the default shape
 mapper.addSurface({ resolution: { width: 1080, height: 1920 } });
 
-// Change the canvas later — surfaces keep their own shapes and warps
+// Change the canvas later. Surfaces keep their own shapes and warps
 mapper.setOutputResolution(1080, 1920);
 ```
 
 The controller draws the canvas as a dashed boundary so you can see what is
 actually projected. It previews at `zoom < 1`, deliberately showing more than the
-output; anything outside the dashed frame is not projected.
+output. Anything outside the dashed frame is not projected.
 
 ### The three resolutions
 
@@ -160,19 +169,19 @@ ProjectionMapper
 
 |                         | is                                                          | multi-surface example |
 | ----------------------- | ----------------------------------------------------------- | --------------------- |
-| **`resolution`**        | the output canvas — what the projector frames               | 1920×1080             |
+| **`resolution`**        | the output canvas, what the projector frames               | 1920×1080             |
 | **`surfaceResolution`** | default shape of a surface                                  | 1080×1080             |
 | **buffer**              | pixel size of the source texture, set by your render target | 2160×1080             |
 | **`uvRect`**            | which slice of the buffer a surface samples                 | `0.5, 0 → 0.5, 1`     |
 
-The library never creates the buffer — you do, at whatever size your pipeline
+The library never creates the buffer. You do, at whatever size your pipeline
 needs, and it is unrelated to either resolution above.
 
 **`resolution` is really an aspect declaration.** Only the ratio is used: a plane
 is `WORLD_PLANE_HEIGHT` tall with an aspect-correct width, so `1920×1080` and
 `3840×2160` behave identically. The absolute numbers matter in exactly one place,
 the size the projector window first opens at. Resizing that window scales the
-output; giving it a different aspect letterboxes rather than distorting, because
+output. Giving it a different aspect letterboxes rather than distorting, because
 the camera contains the canvas on whichever axis is tighter.
 
 **A surface shows undistorted content** when its resolution matches the region it
@@ -183,13 +192,64 @@ uvRect.scaleX / uvRect.scaleY  =  surfaceAspect / bufferAspect
 ```
 
 Set `resolution` alone and surfaces inherit it, which is right when a surface
-fills the output. Set `surfaceResolution` too when they should not — an atlas
+fills the output. Set `surfaceResolution` too when they should not, because an atlas
 layout wants the region's shape, not the canvas's.
+
+### Keyboard control of warp points
+
+Click a corner or grid warp point to select it. It brightens and grows. Then
+move it with the keyboard:
+
+| Key                   | Action                                            |
+| --------------------- | ------------------------------------------------- |
+| `←` `↑` `↓` `→`       | nudge the selected warp point by one screen pixel |
+| `Shift` + arrow       | nudge by ten                                      |
+| `Tab` / `Shift`+`Tab` | step to the next warp point, within its own group |
+| `Esc`                 | deselect the warp point                           |
+
+Steps are measured in screen pixels, so a nudge covers the same visible distance
+at any zoom.
+
+This exists because a corner sometimes has to end up *outside* the window, and
+dragging cannot put it there, because the pointer runs out of screen first. Where the
+controller window is also the output, zooming out to make room is not an option
+either, since the view is exactly what the projector shows.
+
+Warp points pushed past the edge keep a marker pinned to the window edge pointing
+at where they went. Clicking one selects that warp point, so the arrow keys can
+walk it back without it ever being visible. Grid points get markers too, since
+dragging a corner pulls the grid through the homography with it.
+
+These four are the only keys the library claims. The panel hotkeys are yours to
+wire. They stand down while a GUI input has focus, when `Meta`, `Ctrl` or `Alt`
+is held, on projector windows, and while warp controls are hidden. Arrows also
+stay free until a warp point is selected, so they reach your scene until the user
+clicks a handle.
+
+`Tab` is the exception. While handles are visible it is swallowed page-wide, even
+with nothing selected, because stepping to a point that is off screen is the one
+way to reach it. If the mapper is embedded in a larger UI with its own focus
+order, hand the keys back:
+
+```typescript
+mapper.setKeyboardEnabled(false); // handles stay draggable
+
+// Rebind to your own keys. These are the same calls the built-ins make.
+// Nudge through the surface rather than the warper, because the surface
+// reports the move, and a projector window that is not told keeps the old warp.
+const surface = mapper.getActiveSurface();
+surface.nudgeSelectedHandle(dx, dy); // world units
+
+const warper = surface.getWarper();
+warper.selectNextHandle(1); // or -1 to step backwards
+warper.clearSelectedHandle();
+warper.commitHandlePositions(); // persist once the key burst ends, not per press
+```
 
 ### Moving and resizing surfaces
 
 Dragging the corners does placement and perspective in one gesture, which is what
-calibration wants. These cover what dragging cannot express — exact sizes, equal
+calibration wants. These cover what dragging cannot express: exact sizes, equal
 sizes, programmatic layout:
 
 | Method                                    | Warp          | Use                                        |
@@ -201,7 +261,7 @@ sizes, programmatic layout:
 
 `scale` and `setWarpedSize` multiply each corner's offset from the centre, so a
 calibrated perspective survives being resized. `setBounds` replaces the quad
-outright — reach for it when arranging surfaces inside the output canvas, not
+outright. Reach for it when arranging surfaces inside the output canvas, not
 after aligning one to a physical object.
 
 ```typescript
@@ -215,7 +275,7 @@ surface.scale(1.05); // 5% larger, perspective intact
 ### Overlapping surfaces
 
 Surfaces are drawn in list order, last on top, and clicking picks whatever is
-visible — the picker follows the same order. Overlap matters for edge blending,
+visible, and the picker follows the same order. Overlap matters for edge blending,
 so it is set explicitly rather than left to depth sorting between coplanar
 surfaces:
 
@@ -225,13 +285,14 @@ mapper.moveSurface(id, -1); // towards the back
 mapper.getSurfaceIndex(id); // where it currently sits
 ```
 
-The order persists with the surface list, and the built-in pane exposes it as
-Back/Front buttons beside Add/Remove.
+The order persists with the surface list, and the built-in pane exposes it as the
+chevron buttons in the surfaces row: Add, back, forward, then remove at the far
+end.
 
 ### Size-independent content
 
 A surface can be scaled to any shape, which stretches whatever it samples. When
-the content is generated — a shader drawing into your buffer — it can compensate
+the content is generated, say a shader drawing into your buffer, it can compensate
 instead, if it knows the shape it will land on:
 
 ```typescript
@@ -246,7 +307,7 @@ float circle = step(length(p), 0.4);
 ```
 
 `getWarpedSize()` returns the same measurement in world units. Both describe the
-surface **as drawn** — scaling and warping included — averaged over opposite
+surface **as drawn**, scaling and warping included, averaged over opposite
 edges of the quad, unlike `getResolution()`, which is its undeformed shape.
 
 Read it per frame rather than on a callback: dragging a corner changes the size
@@ -269,20 +330,75 @@ mapper.setTexture(myImageTexture, squareSurface.id);
 [`/examples/multi-surface`](./examples/multi-surface/) does both at once: two
 surfaces slicing one atlas, and a third sampling its own image and taking that
 image's shape. It also ships a projector window, showing that only calibration
-crosses the channel — both windows build their own textures.
+crosses the channel. Both windows build their own textures.
+
+### Output window vs controller
+
+Two independent questions decide how a mapper behaves, and it is worth answering
+both deliberately:
+
+```typescript
+outputWindow?: boolean   // is this window the projector, or a preview of it?
+multiSurface?: boolean   // can it hold more than one surface?
+```
+
+`outputWindow` is about whether the view can lie. A controller previews: it pulls
+back to show world beyond the output canvas, draws that canvas as a dashed
+boundary, and scales the view to whatever size its window happens to be. An
+output window cannot do any of that. What it draws is what the projector emits,
+so zooming out would shrink the projection, and the window edge already *is* the
+canvas boundary.
+
+|                              | `outputWindow: true`                    | controller (default)          |
+| ---------------------------- | --------------------------------------- | ----------------------------- |
+| default `zoom`               | `1`, the view is the projection        | `0.5`, pulled back to preview |
+| dashed canvas boundary       | not drawn, the window edge is it       | drawn                         |
+| move / resize a lone surface | yes, that is how you align to an object | no, it fills the output       |
+| move / resize with several   | yes                                     | yes                           |
+
+The four useful combinations. Note that only `multiSurface` defaults to the
+common case. `outputWindow` does not, so the single window that is itself the
+projector, probably the setup you want first, still has to ask for it:
+
+```typescript
+// this window IS the projector, one surface. Align it to a physical object.
+// One flag, because outputWindow still defaults to false.
+new ProjectionMapper(renderer, texture, { outputWindow: true });
+
+// bare default: one surface, but a controller previewing a projector window.
+// Pulled back to zoom 0.5 with the canvas drawn dashed, not an output.
+new ProjectionMapper(renderer, texture, {});
+
+// controller arranging several surfaces
+new ProjectionMapper(renderer, texture, { multiSurface: true });
+
+// this window is the projector, several surfaces in it
+new ProjectionMapper(renderer, texture, { outputWindow: true, multiSurface: true });
+```
+
+Projector windows opened through `WindowSync` need nothing here. They are
+receive-only, and the addon already sets their zoom and hides every control.
 
 ### Single-surface mode
 
-If your app only ever wants one surface, say so. `addSurface()` is then refused,
+This is the default, so most apps need to say nothing. `addSurface()` is refused,
 extra surfaces left in storage are ignored rather than restored, canvas selection
-is not installed, and the GUI drops its surface and crop controls:
+is not installed, and the GUI drops its surface and crop controls. In a
+controller the surface also loses its scale handle, since it fills the output by
+definition. Set `outputWindow: true` to get placement back, which is the case
+where moving the quad moves light on a wall:
 
 ```typescript
 const mapper = new ProjectionMapper(renderer, texture, {
   appId: 'my-app',
-  multiSurface: false,
+  outputWindow: true,
 });
 ```
+
+Pass `multiSurface: true` for the atlas case, where several surfaces are arranged
+inside one output and each takes its pixels from a region of the input. Those
+apps usually want `surfaceResolution` as well, since a surface no longer fills
+the canvas.
 
 ---
 
@@ -290,10 +406,10 @@ const mapper = new ProjectionMapper(renderer, texture, {
 
 For real installations, you'll typically want two separate browser windows:
 
-- **Controller window** — your laptop: GUI, drag controls, preview
-- **Projector window** — your projector display: output only, no controls
+- **Controller window** (your laptop): GUI, drag controls, preview
+- **Projector window** (your projector display): output only, no controls
 
-State syncs automatically between them via the browser's `BroadcastChannel` API — no server or network needed.
+State syncs automatically between them via the browser's `BroadcastChannel` API, with no server or network needed.
 
 ```
 ┌─────────────────────────┐                    ┌─────────────────────────┐
@@ -307,19 +423,28 @@ State syncs automatically between them via the browser's `BroadcastChannel` API 
 └─────────────────────────┘                    └─────────────────────────┘
 ```
 
-**Only calibration crosses the channel — never pixels.** A `THREE.Texture` cannot
+**Only calibration crosses the channel, never pixels.** A `THREE.Texture` cannot
 be sent over a `BroadcastChannel`, so both windows build their own: they run the
 same scene class, and an app showing media loads its own copy in each window and
 binds it to the agreed surface id.
 
 **Give both windows the same resolutions and the same `appId`.** They share
-`localStorage`, so the projector restores calibration on boot; if the two
+`localStorage`, so the projector restores calibration on boot. If the two
 disagree about the output canvas or the default surface shape, their planes
-differ and the projector's output will not match the controller's preview. Put
-them in one config module both import:
+differ and the projector's output will not match the controller's preview.
+
+Note what `appId` is scoping here. It is not a multi-window setting. It names the
+**app**, and every app on an origin needs its own, single window or not, because
+`localStorage` is shared by all of them. Two windows of one installation are
+still one app, which is why they pass the *same* id. Two different sketches
+served from one origin are two apps, so they need *different* ids even though
+neither has a second window. You can omit it only when yours is the sole app on
+that origin.
+
+Put the shared values in one config module both windows import:
 
 ```typescript
-// projection.config.ts — imported by controller and projector
+// projection.config.ts, imported by controller and projector
 export const PROJECTION_CONFIG = {
   appId: 'my-installation',
   resolution: { width: 1920, height: 1080 }, // output canvas
@@ -328,12 +453,12 @@ export const PROJECTION_CONFIG = {
 ```
 
 The projector window opens at the output `resolution`'s aspect, scaled to fit the
-screen — so a 9:16 output opens a portrait window rather than a landscape one.
+screen, so a 9:16 output opens a portrait window rather than a landscape one.
 
 See [`/examples/multi-surface`](./examples/multi-surface/) for this with several
 surfaces, including one that samples its own image instead of the shared buffer.
 
-**Step 1 — Shared scene class** (used in both windows):
+**Step 1: Shared scene class** (used in both windows):
 
 ```typescript
 // ProjectionScene.ts
@@ -368,7 +493,7 @@ export class ProjectionScene {
 }
 ```
 
-**Step 2 — Controller window:**
+**Step 2: Controller window**
 
 ```typescript
 // controller.ts
@@ -392,7 +517,7 @@ const gui = new ProjectionMapperGUI(mapper, {
   windowManager: sync.getWindowManager(),
 });
 
-// Hotkeys are not built into the library — wire them yourself:
+// Hotkeys are not built into the library, so wire them yourself:
 const hint = document.createElement('div');
 hint.style.cssText =
   'position:fixed;bottom:16px;left:16px;color:rgba(255,255,255,0.5);font:12px/1.6 monospace;pointer-events:none';
@@ -417,7 +542,7 @@ function animate() {
 animate();
 ```
 
-**Step 3 — Projector window:**
+**Step 3: Projector window**
 
 ```typescript
 // projector.ts
@@ -469,14 +594,15 @@ interface ProjectionMapperConfig {
   segments?: number; // Mesh density (default: 50)
   gridControlPoints?: { x: number; y: number }; // Grid size (auto-calculated if omitted)
   antialias?: boolean; // Enable SMAA (default: true)
-  zoom?: number; // Fill factor 0–1 (default: 0.5)
-  multiSurface?: boolean; // Allow more than one surface (default: true)
+  zoom?: number; // Fill factor 0 to 1 (default: 0.5, or 1 when outputWindow)
+  outputWindow?: boolean; // This window is the projector, not a preview (default: false)
+  multiSurface?: boolean; // Allow more than one surface (default: false)
   canvasSelection?: boolean; // Click/drag surfaces on the canvas (default: true)
-  appId?: string; // Scopes saved calibration — required if several apps share an origin
+  appId?: string; // Scopes saved calibration, required if several apps share an origin
 }
 ```
 
-> **`appId` matters more than it looks.** Everything is saved to `localStorage`, which is shared by every app on an origin. Without an `appId` two apps overwrite each other's surfaces and warp points.
+> **`appId` matters more than it looks.** Everything is saved to `localStorage`, which is shared by every app on an origin. Without an `appId` two apps overwrite each other's surfaces and warp points. This has nothing to do with how many windows you open. One app needs one id however many windows show it, and two apps on one origin need two ids even if each is a single window.
 
 **Methods:**
 
@@ -492,9 +618,9 @@ interface ProjectionMapperConfig {
 | `setGridPointsVisible(visible)`   | Show/hide grid points                                |
 | `setCornerPointsVisible(visible)` | Show/hide corner points                              |
 | `setOutlineVisible(visible)`      | Show/hide outline                                    |
-| `setGridSize(x, y)`               | Change grid density (2–10)                           |
-| `setZoom(scale)`                  | Set fill factor (0–1)                                |
-| `setShouldWarp(enabled)`          | Bypass warping (no GUI button; for host apps)        |
+| `setGridSize(x, y)`               | Change grid density (2 to 10)                           |
+| `setZoom(scale)`                  | Set fill factor (0 to 1)                                |
+| `setShouldWarp(enabled)`          | Bypass warping (no GUI button, for host apps)        |
 | `setCameraOffset(x, y)`           | Offset the orthographic camera                       |
 | `getCameraOffset()`               | Get current camera offset                            |
 | `reset(surfaceId?)`               | Reset one surface's warp, or all                     |
@@ -505,7 +631,7 @@ interface ProjectionMapperConfig {
 
 | Method                                         | Description                                 |
 | ---------------------------------------------- | ------------------------------------------- |
-| `addSurface({ id?, resolution?, uvRect? })`    | Add a surface; returns it                   |
+| `addSurface({ id?, resolution?, uvRect? })`    | Add a surface, returns it. Needs `multiSurface: true` |
 | `removeSurface(id)`                            | Remove a surface and its saved calibration  |
 | `getSurfaces()` / `getSurface(id)`             | The surface list, or one by id              |
 | `getActiveSurface()` / `setActiveSurface(id)`  | The selected surface                        |
@@ -532,15 +658,15 @@ const gui = new ProjectionMapperGUI(mapper, {
 ```
 
 The panel is a flat folder list. Output-wide controls come first, then the
-surface selector, then the folders it scopes — Image, Masks and Warp. Everything
+surface selector, then the folders it scopes: Image, Masks and Warp. Everything
 below the selector acts on the **active surface**, and follows canvas selection.
-With `multiSurface: false` the surface folder is omitted.
+The surface folder appears only with `multiSurface: true`.
 
 This pane is a **calibration harness**, not an app panel. It deliberately has no
 uv-crop section: choosing which slice of a buffer a surface samples is app work,
-and four 0–1 sliders express it poorly. The mechanism stays on the mapper
+and four 0 to 1 sliders express it poorly. The mechanism stays on the mapper
 (`setUvRect`), and [`UvRectEditor`](./src/addons/UvRectEditor.ts) provides a
-visual one — or build your own.
+visual one, or build your own.
 
 ```typescript
 gui.toggle(); // show/hide the GUI panel
@@ -552,7 +678,7 @@ gui.toggleWarpUI(); // toggle warp control points
 gui.collapse();
 gui.dispose();
 
-// Hotkeys are not built in — wire keydown to the public methods yourself:
+// Hotkeys are not built in, so wire keydown to the public methods yourself:
 window.addEventListener('keydown', (e) => {
   if (e.key === 'g' || e.key === 'p') gui.toggle();
   if (e.key === 't') gui.toggleTestCard();
@@ -564,7 +690,7 @@ window.addEventListener('keydown', (e) => {
 
 ### `ProjectorCamera`
 
-A camera class that mirrors real projector optics — useful when your 3D scene should match what a physical projector would render.
+A camera class that mirrors real projector optics, useful when your 3D scene should match what a physical projector would render.
 
 ```typescript
 import { ProjectorCamera } from 'three-projection-mapping';
@@ -581,7 +707,7 @@ camera.position.set(0, 0.5, 2.0); // The Y position is the lens center
 
 | Parameter     | Description                                        |
 | ------------- | -------------------------------------------------- |
-| `throwRatio`  | Distance-to-width ratio (typical range: 0.8 – 2.5) |
+| `throwRatio`  | Distance-to-width ratio (typical range: 0.8 to 2.5) |
 | `lensShiftY`  | Vertical lens shift as multiplier (1.0 = 100%)     |
 | `aspect`      | Width / height                                     |
 | `near`, `far` | Clipping planes (default: 0.1, 1000)               |
@@ -676,8 +802,8 @@ npm test           # Run tests with Vitest
 ## Roadmap
 
 - [ ] Change a surface's aspect ratio after it exists
-- [ ] Fit media to a surface — contain / cover, without hand-computing a crop
-- [ ] Bezier mask — SDF-based interactive Bezier mask in fragment shader
+- [ ] Fit media to a surface: contain / cover, without hand-computing a crop
+- [ ] Bezier mask: SDF-based interactive Bezier mask in fragment shader
 - [ ] Scale UI utility
 - [ ] Mask Shapes
 - [ ] Surface Shapes

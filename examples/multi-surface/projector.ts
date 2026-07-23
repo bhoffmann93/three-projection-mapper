@@ -25,6 +25,7 @@ document.body.appendChild(renderer.domElement);
 
 const atlas = new AtlasScene();
 const mapper = new ProjectionMapper(renderer, atlas.getTexture(), {
+  multiSurface: true,
   resolution: MULTI_SURFACE_CONFIG.outputResolution,
   surfaceResolution: MULTI_SURFACE_CONFIG.cubeSurfaceResolution,
   appId: MULTI_SURFACE_CONFIG.appId,

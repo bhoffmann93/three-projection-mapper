@@ -34,6 +34,29 @@ export { WARP_MODE };
 
 export type OutlineState = 'active' | 'inactive' | 'hover';
 
+/**
+ * Which set a control point belongs to, kept on its object's userData. The three
+ * behave differently under a drag: corners drive the homography, grid points are
+ * pushed through it, and the scale handle is not a position at all.
+ */
+export const HANDLE_GROUP = {
+  corner: 'corner',
+  grid: 'grid',
+  scale: 'scale',
+} as const satisfies Record<string, string>;
+
+export type HandleGroup = (typeof HANDLE_GROUP)[keyof typeof HANDLE_GROUP];
+
+/**
+ * Corner handles are created in the order the homography expects
+ * (TL, TR, BL, BR), which is not the order they sit in on screen. Tab walks them
+ * the way they are drawn instead, so the selection moves around the quad.
+ */
+const CORNER_TAB_ORDER = [0, 1, 3, 2] as const;
+
+/** Labels the off-screen markers show, in corner creation order */
+const CORNER_LABELS = ['TL', 'TR', 'BL', 'BR'] as const;
+
 export interface MeshWarperConfig {
   width: number;
   height: number;
@@ -81,6 +104,11 @@ export class MeshWarper {
 
   private gridPointsEnabled: boolean = true;
   private cornerPointsEnabled: boolean = true;
+  /** Off where resizing the surface is not a thing the user is allowed to do */
+  private scaleHandleEnabled: boolean = true;
+
+  /** The handle the arrow keys move, if any. Set by clicking one, or by Tab. */
+  private selectedHandle: THREE.Mesh | null = null;
 
   private xControlPointAmount: number;
   private yControlPointAmount: number;
@@ -186,7 +214,12 @@ export class MeshWarper {
       );
       object.position.set(x, y, 0);
       object.renderOrder = RenderOrder.CONTROLS;
-      object.userData.group = 'grid';
+      object.userData.group = HANDLE_GROUP.grid;
+      // Kept so selecting a handle can recolour it and deselecting can put it back
+      object.userData.baseColor = WARP_HANDLE_STYLE.cornerColor;
+      // Unnumbered: a grid index means nothing to anyone, and off-screen grid
+      // points arrive in clumps where only "one is out there" is worth saying
+      object.userData.label = '•';
 
       this.gridObjects.push(object);
       this.dragGridControlPoints.push(object.position);
@@ -214,7 +247,7 @@ export class MeshWarper {
       new THREE.MeshBasicMaterial({ color: WARP_HANDLE_STYLE.scaleColor, transparent: true, opacity: 0.9 }),
     );
     this.scaleObject.renderOrder = RenderOrder.CONTROLS;
-    this.scaleObject.userData.group = 'scale';
+    this.scaleObject.userData.group = HANDLE_GROUP.scale;
     this.positionScaleControlPoint();
   }
 
@@ -239,7 +272,9 @@ export class MeshWarper {
       );
       object.position.set(x, y, 0);
       object.renderOrder = RenderOrder.CONTROLS;
-      object.userData.group = 'corner';
+      object.userData.group = HANDLE_GROUP.corner;
+      object.userData.baseColor = WARP_HANDLE_STYLE.gridColor;
+      object.userData.label = CORNER_LABELS[i / 2];
       object.userData.lastValidPosition = object.position.clone();
 
       this.cornerObjects.push(object);
@@ -276,6 +311,13 @@ export class MeshWarper {
       this.config.renderer.domElement,
     );
 
+    // Starting a drag also arms the keyboard on that handle: the gesture that
+    // grabs a point is the one that selects it, so there is no separate mode to
+    // enter before the arrow keys do anything.
+    this.dragControls.addEventListener('dragstart', (event) => {
+      this.setSelectedHandle(event.object as THREE.Mesh);
+    });
+
     this.dragControls.addEventListener('drag', (event) => {
       this.handleDrag(event);
     });
@@ -287,9 +329,9 @@ export class MeshWarper {
 
   private handleDrag(event: { object: THREE.Object3D<THREE.Object3DEventMap> }): void {
     const object = event.object;
-    const pointGroupName = event.object.userData.group as string;
+    const pointGroupName = event.object.userData.group as HandleGroup;
 
-    if (pointGroupName === 'scale') {
+    if (pointGroupName === HANDLE_GROUP.scale) {
       this.handleScaleDrag(object.position);
       return;
     }
@@ -298,13 +340,13 @@ export class MeshWarper {
     const dragControlCorners = this.dragCornerControlPoints.flatMap((point) => [point.x, point.y]);
 
     if (isQuadConcave(dragControlCorners)) {
-      if (object.userData.lastValidPosition && pointGroupName === 'corner') {
+      if (object.userData.lastValidPosition && pointGroupName === HANDLE_GROUP.corner) {
         object.position.copy(object.userData.lastValidPosition);
       }
       return;
     }
 
-    if (pointGroupName === 'corner') {
+    if (pointGroupName === HANDLE_GROUP.corner) {
       object.userData.lastValidPosition.copy(object.position);
     }
 
@@ -346,11 +388,11 @@ export class MeshWarper {
   perspectiveTransformControlPoints(
     controlCorners: number[],
     draggedPoint: THREE.Vector3,
-    pointGroupName: string,
+    pointGroupName: HandleGroup,
   ): void {
     const perspectiveTransformer = new PerspT(this.quadData.initalCorners, controlCorners);
 
-    if (pointGroupName === 'grid') {
+    if (pointGroupName === HANDLE_GROUP.grid) {
       const currentGridPointIndex = this.dragGridControlPoints.indexOf(draggedPoint);
       const [xInverseTransformed, yInverseTransformed] = perspectiveTransformer.transformInverse(
         draggedPoint.x,
@@ -360,7 +402,7 @@ export class MeshWarper {
       this.referenceGridControlPoints[currentGridPointIndex].setY(yInverseTransformed);
     }
 
-    if (pointGroupName === 'corner') {
+    if (pointGroupName === HANDLE_GROUP.corner) {
       for (let i = 0; i < this.referenceGridControlPoints.length; i++) {
         const intialControlPos = this.referenceGridControlPoints[i];
         const [warpedX, warpedY] = perspectiveTransformer.transform(intialControlPos.x, intialControlPos.y);
@@ -584,6 +626,11 @@ export class MeshWarper {
     this.cornerObjects.forEach((obj) => obj.scale.setScalar(cornerCubeSize));
     this.gridObjects.forEach((obj) => obj.scale.setScalar(gridControlCubeSize));
     this.scaleObject.scale.setScalar(screenScale * WARP_HANDLE_STYLE.scalePointPixelRadius);
+
+    // Applied after the uniform sizing, which runs every frame and would
+    // otherwise flatten it back. Size is what makes the selection readable on a
+    // bright test card, where the colour alone barely shows.
+    this.selectedHandle?.scale.multiplyScalar(WARP_HANDLE_STYLE.selectedScale);
   }
 
   // Visibility toggles for GUI
@@ -602,9 +649,7 @@ export class MeshWarper {
 
   public setCornerPointsVisible(visible: boolean): void {
     // The scale handle belongs to the same set: both act on the quad as a whole
-    this.scaleObject.visible = visible;
-    if (visible) this.scaleObject.layers.enable(0);
-    else this.scaleObject.layers.disable(0);
+    this.applyScaleHandleVisibility(visible && this.scaleHandleEnabled);
 
     this.cornerObjects.forEach((obj) => {
       obj.visible = visible;
@@ -616,6 +661,26 @@ export class MeshWarper {
       }
     });
     this.cornerPointsEnabled = visible;
+  }
+
+  /**
+   * Whether the surface can be resized by its handle at all.
+   *
+   * A lone surface fills the output by definition — there is nothing for it to
+   * be a different size *than*, and shrinking it just loses projector pixels.
+   * Zoom is the control that belongs to that case, and it is the view's, not the
+   * surface's.
+   */
+  public setScaleHandleEnabled(enabled: boolean): void {
+    this.scaleHandleEnabled = enabled;
+    this.applyScaleHandleVisibility(enabled && this.cornerPointsEnabled);
+  }
+
+  /** Hidden handles also leave the raycast layer, so they cannot be grabbed */
+  private applyScaleHandleVisibility(visible: boolean): void {
+    this.scaleObject.visible = visible;
+    if (visible) this.scaleObject.layers.enable(0);
+    else this.scaleObject.layers.disable(0);
   }
 
   public setOutlineVisible(visible: boolean): void {
@@ -646,6 +711,105 @@ export class MeshWarper {
       material.opacity = WARP_HANDLE_STYLE.inactiveOutlineOpacity;
       material.linewidth = WARP_HANDLE_STYLE.inactiveOutlineLineWidth;
     }
+  }
+
+  // --- handle selection and keyboard nudging --------------------------------
+  // A corner sometimes has to end up outside the window, and dragging cannot put
+  // it there: the pointer runs out of screen first, and when the controller *is*
+  // the output there is no zooming out to make room. Selecting a handle and
+  // walking it with the arrow keys is the way past the edge.
+
+  /**
+   * Arm a handle for the keyboard. The scale handle is not selectable — it takes
+   * a distance from the centre rather than a position, so nudging it by a delta
+   * would mean something different from every other handle.
+   */
+  public setSelectedHandle(handle: THREE.Mesh | null): void {
+    if (handle && handle.userData.group === HANDLE_GROUP.scale) return;
+    if (this.selectedHandle === handle) return;
+
+    this.applySelectionColor(this.selectedHandle, false);
+    this.selectedHandle = handle;
+    this.applySelectionColor(handle, true);
+  }
+
+  public getSelectedHandle(): THREE.Mesh | null {
+    return this.selectedHandle;
+  }
+
+  public clearSelectedHandle(): void {
+    this.setSelectedHandle(null);
+  }
+
+  private applySelectionColor(handle: THREE.Mesh | null, selected: boolean): void {
+    if (!handle) return;
+    const material = handle.material as THREE.MeshBasicMaterial;
+    material.color.set(selected ? WARP_HANDLE_STYLE.selectedColor : handle.userData.baseColor);
+  }
+
+  /**
+   * Step the selection through the handles with Tab, in the order they are drawn.
+   *
+   * Stays inside the group the current selection belongs to, so tabbing along a
+   * grid never jumps out to a corner; with nothing selected it starts at the
+   * corners, which is what a fresh calibration wants.
+   */
+  public selectNextHandle(step: number): boolean {
+    const handles = this.tabOrder();
+    if (!handles.length) return false;
+
+    const current = this.selectedHandle ? handles.indexOf(this.selectedHandle) : -1;
+    const next =
+      current === -1
+        ? step > 0
+          ? 0
+          : handles.length - 1
+        : (current + step + handles.length) % handles.length;
+
+    this.setSelectedHandle(handles[next]);
+    return true;
+  }
+
+  private tabOrder(): THREE.Mesh[] {
+    const corners = CORNER_TAB_ORDER.map((i) => this.cornerObjects[i]).filter((obj) => obj?.visible);
+    const grid = this.gridObjects.filter((obj) => obj.visible);
+
+    if (this.selectedHandle?.userData.group === HANDLE_GROUP.grid) return grid;
+    return corners.length ? corners : grid;
+  }
+
+  /**
+   * Move the selected handle by a world-space delta.
+   *
+   * Routed through the same handler a pointer drag uses, so the concavity guard,
+   * the homography re-solve and the outline redraw all apply exactly as they do
+   * to a drag — including silently refusing a step that would fold the quad.
+   * Nothing is persisted here; commitHandlePositions does that once the keys are
+   * released, the way dragend does after a drag.
+   */
+  public nudgeSelectedHandle(dx: number, dy: number): boolean {
+    const handle = this.selectedHandle;
+    if (!handle || !handle.visible || !this.dragControls.enabled) return false;
+
+    handle.position.x += dx;
+    handle.position.y += dy;
+    this.handleDrag({ object: handle });
+    return true;
+  }
+
+  /** Persist after a burst of nudges, as dragend does after a drag */
+  public commitHandlePositions(): void {
+    this.saveToStorage();
+  }
+
+  /** Corner handles in creation order: TL, TR, BL, BR */
+  public getCornerObjects(): THREE.Mesh[] {
+    return this.cornerObjects;
+  }
+
+  /** Grid handles. Their positions are the same refs as getGridControlPoints. */
+  public getGridControlObjects(): THREE.Mesh[] {
+    return this.gridObjects;
   }
 
   /** Visible drag handles — raycast these before the body so handles win */
@@ -705,6 +869,10 @@ export class MeshWarper {
 
     // Store current corner positions to preserve warp
     const cornerPositions = this.dragCornerControlPoints.map((p) => p.clone());
+
+    // The grid handles below are about to be disposed, and a selected one would
+    // leave the keyboard pointing at an object no longer in the scene
+    this.clearSelectedHandle();
 
     // Remove old grid objects from scene
     this.gridObjects.forEach((obj) => {
@@ -809,7 +977,7 @@ export class MeshWarper {
     } else {
       // Grid size changed: recompute grid positions from loaded corners
       const corners = this.dragCornerControlPoints.flatMap((p) => [p.x, p.y]);
-      this.perspectiveTransformControlPoints(corners, new THREE.Vector3(), 'corner');
+      this.perspectiveTransformControlPoints(corners, new THREE.Vector3(), HANDLE_GROUP.corner);
     }
 
     this.updateLine();
@@ -899,7 +1067,7 @@ export class MeshWarper {
 
     // Re-derive the grid from the new corners, as a corner drag would
     const flatCorners = this.dragCornerControlPoints.flatMap((p) => [p.x, p.y]);
-    this.perspectiveTransformControlPoints(flatCorners, new THREE.Vector3(), 'corner');
+    this.perspectiveTransformControlPoints(flatCorners, new THREE.Vector3(), HANDLE_GROUP.corner);
 
     this.updateLine();
     this.averageDimensions = this.getAverageDimensions();
@@ -934,7 +1102,7 @@ export class MeshWarper {
 
     // Re-derive the grid from the resized corners, as a corner drag would
     const corners = this.dragCornerControlPoints.flatMap((p) => [p.x, p.y]);
-    this.perspectiveTransformControlPoints(corners, new THREE.Vector3(), 'corner');
+    this.perspectiveTransformControlPoints(corners, new THREE.Vector3(), HANDLE_GROUP.corner);
 
     this.updateLine();
     this.averageDimensions = this.getAverageDimensions();
@@ -952,7 +1120,7 @@ export class MeshWarper {
     this.cornerObjects.forEach((obj) => obj.userData.lastValidPosition?.copy(obj.position));
 
     const corners = this.dragCornerControlPoints.flatMap((p) => [p.x, p.y]);
-    this.perspectiveTransformControlPoints(corners, new THREE.Vector3(), 'corner');
+    this.perspectiveTransformControlPoints(corners, new THREE.Vector3(), HANDLE_GROUP.corner);
 
     this.updateLine();
     this.averageDimensions = this.getAverageDimensions();

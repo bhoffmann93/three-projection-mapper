@@ -1,4 +1,5 @@
 import type { BindingApi, FolderApi, TabApi } from '@tweakpane/core';
+import { PANE_THEME } from './defaults';
 
 export interface TweakpaneButtonOptions {
   background?: string;
@@ -15,11 +16,11 @@ export function createTweakpaneButton(
   const btn = document.createElement('button');
   btn.textContent = label;
   btn.style.cssText = `
-    background: ${background ?? 'var(--btn-bg, hsl(230, 7%, 30%))'};
+    background: ${background ?? `var(--btn-bg, ${PANE_THEME.buttonBackground})`};
     border: none;
     border-radius: var(--bld-br, 2px);
     box-sizing: border-box;
-    color: var(--btn-fg, hsl(230, 7%, 17%));
+    color: var(--btn-fg, ${PANE_THEME.buttonForeground});
     cursor: pointer;
     display: inline-flex;
     align-items: center;

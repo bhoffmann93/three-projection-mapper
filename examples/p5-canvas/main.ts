@@ -101,7 +101,11 @@ const sketch = (s: p5) => {
     (cnv.elt as HTMLCanvasElement).style.display = 'none';
 
     canvasTexture = new THREE.CanvasTexture(cnv.elt as HTMLCanvasElement);
-    mapper = new ProjectionMapper(renderer, canvasTexture, { resolution: projectionResolution, appId: 'p5-canvas', multiSurface: false });
+    mapper = new ProjectionMapper(renderer, canvasTexture, {
+      resolution: projectionResolution,
+      appId: 'p5-canvas',
+      outputWindow: true,
+    });
     gui = new ProjectionMapperGUI(mapper, {
       title: 'Projection Mapper',
       anchor: 'left',
@@ -119,7 +123,9 @@ new p5(sketch);
 
 const hint = document.createElement('div');
 hint.style.cssText = 'position:fixed;bottom:16px;left:16px;color:rgba(255,255,255,0.5);font:12px/1.6 monospace;pointer-events:none;transition:opacity 0.3s';
-hint.innerHTML = '<span>G</span> toggle UI<br><span>T</span> test card<br><span>W</span> warp controls';
+hint.innerHTML = 
+  '<span>G</span> toggle UI<br><span>T</span> test card<br><span>W</span> warp controls' +
+  '<br><span>Tab</span> select warp point<br><span>&larr;&uarr;&darr;&rarr;</span> move warp point (<span>Shift</span> &times;10)<br><span>Esc</span> deselect warp point';
 document.body.appendChild(hint);
 
 let uiVisible = true;

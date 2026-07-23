@@ -20,6 +20,8 @@ export interface SurfacePickerConfig {
   setActiveSurface: (id: string) => void;
   /** Called after a body drag ends, so callers can persist or broadcast */
   onSurfaceMoved?: (surface: WarpSurface) => void;
+  /** A press that landed anywhere but a handle — the keyboard selection ends there */
+  onPressedAwayFromHandles?: () => void;
 }
 
 export class SurfacePicker {
@@ -105,6 +107,10 @@ export class SurfacePicker {
 
     this.raycaster.setFromCamera(this.toNDC(event), this.config.camera);
     if (this.hitsHandle()) return;
+
+    // Past this point the press is on a body or on empty space, so whatever the
+    // arrow keys were pointing at is no longer what the user is working on
+    this.config.onPressedAwayFromHandles?.();
 
     const world = this.toWorld(event);
     const surface = this.pickSurface(world);
