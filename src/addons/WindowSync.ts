@@ -48,6 +48,8 @@ export class WindowSync {
 
   /** DragControls instances that already broadcast — avoids double-attaching */
   private attachedDragControls = new WeakSet<object>();
+  /** Releases the transform listener bound to the current mapper, so a swap can rebind it. */
+  private surfaceTransformedUnsubscribe: (() => void) | null = null;
   private onProjectorReadyCallbacks: Array<() => void> = [];
   private onProjectorCloseCallbacks: Array<() => void> = [];
 
@@ -81,7 +83,7 @@ export class WindowSync {
 
     // Moving a surface's body changes its geometry without touching a handle,
     // so DragControls never reports it — the mapper does instead
-    this.mapper.onSurfaceTransformed((surfaceId) => this.broadcastSurfaceGeometry(surfaceId));
+    this.subscribeSurfaceTransformed();
 
     // Auto-reattach drag listener when grid size changes
     // (that surface's DragControls is recreated)
@@ -322,6 +324,19 @@ export class WindowSync {
   }
 
   /**
+   * Bind the transform listener to the current mapper, dropping any previous binding. Every
+   * change that reports itself as a transform rather than as a handle drag arrives this way,
+   * so a mapper swap that skipped this would leave keyboard nudges, translate, scale and
+   * setBounds updating the controller while the projector kept the old warp.
+   */
+  private subscribeSurfaceTransformed(): void {
+    this.surfaceTransformedUnsubscribe?.();
+    this.surfaceTransformedUnsubscribe = this.mapper.onSurfaceTransformed((surfaceId) =>
+      this.broadcastSurfaceGeometry(surfaceId),
+    );
+  }
+
+  /**
    * Get full state for synchronization
    */
   private getSurfaceState(surface: WarpSurface): SurfaceSyncState {
@@ -524,6 +539,7 @@ export class WindowSync {
     this.mapper = mapper;
     if (this.mode === WINDOW_SYNC_MODE.CONTROLLER) {
       this.reattachDragListeners();
+      this.subscribeSurfaceTransformed();
     } else {
       this.mapper.setControlsVisible(false);
       this.mapper.setZoom(1.0);
