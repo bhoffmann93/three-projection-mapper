@@ -68,6 +68,8 @@ export interface ProjectionMapperGUISettings {
   zoom: number;
   showCornerPoints: boolean;
   showOutline: boolean;
+  /** Polygon anchor handles, a mapper-wide toggle rather than a per-surface one */
+  showPolygonHandles: boolean;
   imageExpanded: boolean;
   masksExpanded: boolean;
 }
@@ -81,7 +83,7 @@ export class ProjectionMapperGUI {
   private settings: ProjectionMapperGUISettings;
   private savedVisibility: Pick<
     ProjectionMapperGUISettings,
-    'showWarpGrid' | 'showCornerPoints' | 'showOutline'
+    'showWarpGrid' | 'showCornerPoints' | 'showOutline' | 'showPolygonHandles'
   > | null = null;
   private warpFolder!: FolderApi;
   private surfacesFolder!: FolderApi;
@@ -91,7 +93,6 @@ export class ProjectionMapperGUI {
   private config: ProjectionMapperGUIConfig;
   private syncSettingButtons: () => void = () => {};
   private syncWarpButtons: () => void = () => {};
-  private onControlsVisibilityChange: (visible: boolean) => void = () => {};
 
   /** Edited freely, then applied on Set — resizing the canvas re-frames everything */
   private outputResolutionState = { width: 0, height: 0 };
@@ -127,6 +128,7 @@ export class ProjectionMapperGUI {
       zoom: mapper.getZoom(),
       showCornerPoints: true,
       showOutline: true,
+      showPolygonHandles: true,
       imageExpanded: true,
       masksExpanded: true,
     };
@@ -135,6 +137,7 @@ export class ProjectionMapperGUI {
     this.applySettings();
 
     // Image and masks live on the surface, so the pane seeds from the active one
+    this.polygonState.showHandles = this.settings.showPolygonHandles;
     Object.assign(this.imageState, mapper.getImageSettings());
     Object.assign(this.edgeMaskState, mapper.getEdgeMask());
     Object.assign(this.polygonState, mapper.getActiveSurface().getPolygonSettings());
@@ -178,6 +181,31 @@ export class ProjectionMapperGUI {
     const btn = folder.addButton({ title });
     buttonElement(btn).style.background = RESET_BUTTON_COLOR;
     btn.on('click', onClick);
+  }
+
+  /** Eye or crossed eye ahead of the label, the shared look of a visibility toggle */
+  private setEyeButtonContent(btn: HTMLButtonElement, visible: boolean, label: string): void {
+    if (!WARP_BUTTON_EYE_ICON.enabled) {
+      btn.replaceChildren(document.createTextNode(label));
+      return;
+    }
+    const svg = createElement(visible ? Eye : EyeOff, {
+      width: WARP_BUTTON_EYE_ICON.sizePx,
+      height: WARP_BUTTON_EYE_ICON.sizePx,
+      'stroke-width': WARP_BUTTON_EYE_ICON.strokeWidth,
+      style: `position: relative; top: ${WARP_BUTTON_EYE_ICON.verticalShiftPx}px`,
+    });
+    btn.replaceChildren(svg, document.createTextNode(` ${label}`));
+  }
+
+  private warpControlsVisible(): boolean {
+    return this.settings.showWarpGrid || this.settings.showCornerPoints || this.settings.showOutline;
+  }
+
+  private applyPolygonHandleVisibility(): void {
+    this.polygonState.showHandles = this.settings.showPolygonHandles;
+    this.mapper.setPolygonHandlesVisible(this.settings.showPolygonHandles);
+    this.syncPolyButtons();
   }
 
   private isMultiWindowMode(): boolean {
@@ -416,36 +444,24 @@ export class ProjectionMapperGUI {
     const [perspBtn, gridBtn, resetBtn] = buttons;
     resetBtn.style.background = RESET_BUTTON_COLOR;
 
-    const setEyeButtonContent = (btn: HTMLButtonElement, icon: IconNode, label: string) => {
-      if (!WARP_BUTTON_EYE_ICON.enabled) {
-        btn.replaceChildren(document.createTextNode(label));
-        return;
-      }
-      const svg = createElement(icon, {
-        width: WARP_BUTTON_EYE_ICON.sizePx,
-        height: WARP_BUTTON_EYE_ICON.sizePx,
-        'stroke-width': WARP_BUTTON_EYE_ICON.strokeWidth,
-        style: `position: relative; top: ${WARP_BUTTON_EYE_ICON.verticalShiftPx}px`,
-      });
-      btn.replaceChildren(svg, document.createTextNode(` ${label}`));
-    };
-
     this.syncWarpButtons = () => {
       perspBtn.style.opacity = this.settings.showCornerPoints ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
       gridBtn.style.opacity = this.settings.showWarpGrid ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
-      setEyeButtonContent(perspBtn, this.settings.showCornerPoints ? Eye : EyeOff, 'Persp');
-      setEyeButtonContent(gridBtn, this.settings.showWarpGrid ? Eye : EyeOff, 'Grid');
+      this.setEyeButtonContent(perspBtn, this.settings.showCornerPoints, 'Persp');
+      this.setEyeButtonContent(gridBtn, this.settings.showWarpGrid, 'Grid');
     };
     this.syncWarpButtons();
 
     warpBtnGrid.on('click', (ev) => {
       const col = ev.index[0];
       if (col === 0) {
-        // Corner handles only. The outline stays: it is the selection affordance,
-        // so hiding it would make surfaces unclickable.
+        // The outline is part of the perspective controls: it has no button of
+        // its own, and it frames the corners it is dragged by
         const enabled = !this.settings.showCornerPoints;
         this.settings.showCornerPoints = enabled;
+        this.settings.showOutline = enabled;
         this.mapper.setCornerPointsVisible(enabled);
+        this.mapper.setOutlineVisible(enabled);
         this.saveSettings();
       } else if (col === 1) {
         const show = !this.settings.showWarpGrid;
@@ -678,21 +694,10 @@ export class ProjectionMapperGUI {
         enabledBtn.style.opacity = polygonMaskState.enabled ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
         invertBtn.style.opacity = polygonMaskState.inverted ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
         controlsBtn.style.opacity = polygonMaskState.showHandles ? TOGGLE_ENABLED_OPACITY : TOGGLE_DISABLED_OPACITY;
+        this.setEyeButtonContent(controlsBtn, polygonMaskState.showHandles, 'Controls');
       };
       syncPolyButtons();
 
-      let savedPolyHandles: boolean | null = null;
-      this.onControlsVisibilityChange = (visible: boolean) => {
-        if (visible) {
-          polygonMaskState.showHandles = savedPolyHandles ?? polygonMaskState.showHandles;
-          savedPolyHandles = null;
-        } else {
-          savedPolyHandles = polygonMaskState.showHandles;
-          polygonMaskState.showHandles = false;
-        }
-        this.mapper.setPolygonHandlesVisible(polygonMaskState.showHandles);
-        syncPolyButtons();
-      };
       this.syncPolyButtons = syncPolyButtons;
 
       polyBtnGrid.on('click', (ev) => {
@@ -705,8 +710,9 @@ export class ProjectionMapperGUI {
           this.mapper.setPolygonInvert(polygonMaskState.inverted);
           broadcastPolySettings();
         } else {
-          polygonMaskState.showHandles = !polygonMaskState.showHandles;
-          this.mapper.setPolygonHandlesVisible(polygonMaskState.showHandles);
+          this.settings.showPolygonHandles = !this.settings.showPolygonHandles;
+          this.saveSettings();
+          this.applyPolygonHandleVisibility();
         }
         syncPolyButtons();
       });
@@ -740,7 +746,6 @@ export class ProjectionMapperGUI {
       polygonSubFolder?.dispose();
       polygonSubFolder = null;
       this.syncPolyButtons = () => {};
-      this.onControlsVisibilityChange = () => {};
       addBtn.hidden = false;
     };
 
@@ -782,7 +787,7 @@ export class ProjectionMapperGUI {
   }
 
   public toggleWarpUI(forceState?: boolean): void {
-    const anyVisible = this.settings.showWarpGrid || this.settings.showCornerPoints || this.settings.showOutline;
+    const anyVisible = this.warpControlsVisible() || this.settings.showPolygonHandles;
     const shouldHide = forceState !== undefined ? !forceState : anyVisible;
 
     if (shouldHide && anyVisible) {
@@ -790,26 +795,30 @@ export class ProjectionMapperGUI {
         showWarpGrid: this.settings.showWarpGrid,
         showCornerPoints: this.settings.showCornerPoints,
         showOutline: this.settings.showOutline,
+        showPolygonHandles: this.settings.showPolygonHandles,
       };
       this.settings.showWarpGrid = false;
       this.settings.showCornerPoints = false;
       this.settings.showOutline = false;
+      this.settings.showPolygonHandles = false;
     } else if (!shouldHide) {
       if (this.savedVisibility) {
         this.settings.showWarpGrid = this.savedVisibility.showWarpGrid;
         this.settings.showCornerPoints = this.savedVisibility.showCornerPoints;
         this.settings.showOutline = this.savedVisibility.showOutline;
+        this.settings.showPolygonHandles = this.savedVisibility.showPolygonHandles;
         this.savedVisibility = null;
       } else {
         this.settings.showWarpGrid = true;
         this.settings.showCornerPoints = true;
         this.settings.showOutline = true;
+        this.settings.showPolygonHandles = true;
       }
     }
 
     this.applyVisibility();
-    const controlsVisible = this.settings.showWarpGrid || this.settings.showCornerPoints || this.settings.showOutline;
-    this.onControlsVisibilityChange(controlsVisible);
+    const controlsVisible = this.warpControlsVisible();
+    this.applyPolygonHandleVisibility();
     this.syncSettingButtons();
     this.syncWarpButtons();
     this.saveSettings();
@@ -831,6 +840,7 @@ export class ProjectionMapperGUI {
     this.mapper.getWarper().setWarpMode(this.settings.warpMode);
     this.mapper.setZoom(this.settings.zoom);
     this.applyVisibility();
+    this.applyPolygonHandleVisibility();
     // Image and mask settings are restored per surface by ProjectionMapper from
     // the surface record — the pane mirrors them rather than owning them.
   }

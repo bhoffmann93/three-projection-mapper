@@ -258,7 +258,7 @@ export class WarpSurface {
   }
 
   addPolygonMask(nodes?: UVPoint[]): PolygonMask {
-    if (this.polygonMask) this.removePolygonMask();
+    this.disposePolygonMask();
 
     this.polygonMask = new PolygonMask(
       this.maskConfig.scene,
@@ -291,6 +291,13 @@ export class WarpSurface {
   }
 
   removePolygonMask(): void {
+    if (!this.polygonMask) return;
+    this.disposePolygonMask();
+    this.polygonSettings = { ...DEFAULT_POLYGON_MASK_SETTINGS };
+  }
+
+  /** Tear the mask down without touching the settings, for delete and for replace */
+  private disposePolygonMask(): void {
     if (!this.polygonMask) return;
     this.polygonMask.dispose();
     this.polygonMask.clearStorage();

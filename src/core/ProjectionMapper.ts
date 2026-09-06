@@ -748,10 +748,6 @@ export class ProjectionMapper {
         uvRect: surface.getUvRect(),
         resolution: this.storedResolutionFor(surface),
         edgeMask: surface.getEdgeMask(),
-        // Only a surface that has a mask stores mask settings. The settings object
-        // exists either way, so storing it unconditionally would hand a surface
-        // that never had a mask stale enabled/feather values the next time one is
-        // added, in place of the defaults it should start from.
         polygonMask: surface.getPolygonMask() ? surface.getPolygonSettings() : undefined,
         imageSettings: surface.getImageSettings(),
       })),
