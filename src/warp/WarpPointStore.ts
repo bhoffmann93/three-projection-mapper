@@ -58,16 +58,16 @@ export class WarpPointStore {
     return storageNamespace ? `${STORAGE_KEY}:${storageNamespace}` : STORAGE_KEY;
   }
 
-  /** Grid size persisted with a warper's points, so it can be built at that size */
+  /**
+   * Grid size persisted with a warper's points, so it can be built at that size.
+   * Goes through read() rather than parsing itself, so it is subject to the same
+   * version check — this is called before the surface exists, and a grid size
+   * from an incompatible version would shape a mesh whose points are then thrown
+   * away by that check a moment later.
+   */
   static readGridSize(storageNamespace?: string): { x: number; y: number } | null {
-    try {
-      const stored = localStorage.getItem(WarpPointStore.keyFor(storageNamespace));
-      if (!stored) return null;
-      const data: StoredControlPoints = JSON.parse(stored);
-      if (data.gridSize?.x && data.gridSize?.y) return { x: data.gridSize.x, y: data.gridSize.y };
-    } catch {
-      // ignore parse errors
-    }
+    const data = new WarpPointStore(storageNamespace).read();
+    if (data?.gridSize?.x && data.gridSize?.y) return { x: data.gridSize.x, y: data.gridSize.y };
     return null;
   }
 

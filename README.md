@@ -658,7 +658,7 @@ interface ProjectionMapperConfig {
 
 | Method                                         | Description                                 |
 | ---------------------------------------------- | ------------------------------------------- |
-| `addSurface({ id?, resolution?, uvRect? })`    | Add a surface, returns it. Needs `multiSurface: true` |
+| `addSurface({ id?, resolution?, uvRect? })`    | Add a surface and return it, or null without `multiSurface: true` |
 | `removeSurface(id)`                            | Remove a surface and its saved calibration  |
 | `getSurfaces()` / `getSurface(id)`             | The surface list, or one by id              |
 | `getActiveSurface()` / `setActiveSurface(id)`  | The selected surface                        |

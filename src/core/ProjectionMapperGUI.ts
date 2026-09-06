@@ -351,6 +351,7 @@ export class ProjectionMapperGUI {
 
       if (column === 0) {
         const surface = this.mapper.addSurface();
+        if (!surface) return;
         this.broadcast(ProjectionEventType.SURFACE_ADDED, {
           surfaceId: surface.id,
           uvRect: surface.getUvRect(),

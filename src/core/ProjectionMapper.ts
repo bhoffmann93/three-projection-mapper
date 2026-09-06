@@ -629,10 +629,17 @@ export class ProjectionMapper {
     return this.config.multiSurface;
   }
 
-  addSurface(options: { id?: string; uvRect?: UvRect; resolution?: Resolution } = {}): WarpSurface {
+  /**
+   * Add a surface, or null when this mapper cannot hold one — a single-surface
+   * mapper refuses. Null rather than the existing surface: handing back the
+   * default one looks like a successful add, and the caller's next move is
+   * usually to give "its" surface a texture, which would replace the shared
+   * input buffer on the only surface there is.
+   */
+  addSurface(options: { id?: string; uvRect?: UvRect; resolution?: Resolution } = {}): WarpSurface | null {
     if (!this.config.multiSurface) {
       console.warn('ProjectionMapper: addSurface() ignored because multiSurface is disabled');
-      return this.surfaces[0];
+      return null;
     }
     const id = options.id ?? this.nextSurfaceId();
     const existing = this.getSurface(id);
@@ -741,7 +748,11 @@ export class ProjectionMapper {
         uvRect: surface.getUvRect(),
         resolution: this.storedResolutionFor(surface),
         edgeMask: surface.getEdgeMask(),
-        polygonMask: surface.getPolygonSettings(),
+        // Only a surface that has a mask stores mask settings. The settings object
+        // exists either way, so storing it unconditionally would hand a surface
+        // that never had a mask stale enabled/feather values the next time one is
+        // added, in place of the defaults it should start from.
+        polygonMask: surface.getPolygonMask() ? surface.getPolygonSettings() : undefined,
         imageSettings: surface.getImageSettings(),
       })),
     );

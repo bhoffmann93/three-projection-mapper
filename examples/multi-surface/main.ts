@@ -101,6 +101,8 @@ const shaderSurface =
     uvRect: { offsetX: 0.5, offsetY: 0, scaleX: 0.5, scaleY: 1 },
     resolution: MULTI_SURFACE_CONFIG.regionResolution,
   });
+// addSurface returns null on a single-surface mapper, which this example is not
+if (!shaderSurface) throw new Error('multi-surface example needs multiSurface: true');
 
 if (!localStorage.getItem(LAYOUT_KEY)) {
   mapper.setUvRect(
