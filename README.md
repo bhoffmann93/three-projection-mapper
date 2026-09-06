@@ -70,7 +70,7 @@ In your animation loop, simply call mapper.render() as the final step.
 
 ```typescript
 import * as THREE from 'three';
-import { ProjectionMapper, ProjectionMapperGUI } from 'three-projection-mapping';
+import { ProjectionMapper, ProjectionMapperGUI } from 'three-projection-mapper';
 
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -519,8 +519,8 @@ export class ProjectionScene {
 ```typescript
 // controller.ts
 import * as THREE from 'three';
-import { ProjectionMapper, ProjectionMapperGUI } from 'three-projection-mapping';
-import { WindowSync, WINDOW_SYNC_MODE } from 'three-projection-mapping/addons';
+import { ProjectionMapper, ProjectionMapperGUI } from 'three-projection-mapper';
+import { WindowSync, WINDOW_SYNC_MODE } from 'three-projection-mapper/addons';
 import { ProjectionScene } from './ProjectionScene';
 
 const renderer = new THREE.WebGLRenderer();
@@ -568,8 +568,8 @@ animate();
 ```typescript
 // projector.ts
 import * as THREE from 'three';
-import { ProjectionMapper } from 'three-projection-mapping';
-import { WindowSync, WINDOW_SYNC_MODE } from 'three-projection-mapping/addons';
+import { ProjectionMapper } from 'three-projection-mapper';
+import { WindowSync, WINDOW_SYNC_MODE } from 'three-projection-mapper/addons';
 import { ProjectionScene } from './ProjectionScene';
 
 const renderer = new THREE.WebGLRenderer();
@@ -675,7 +675,7 @@ interface ProjectionMapperConfig {
 Calibration interface built on Tweakpane.
 
 ```typescript
-import { ProjectionMapperGUI } from 'three-projection-mapping';
+import { ProjectionMapperGUI } from 'three-projection-mapper';
 
 const gui = new ProjectionMapperGUI(mapper, {
   title: 'My Projection',
@@ -720,7 +720,7 @@ window.addEventListener('keydown', (e) => {
 A camera class that mirrors real projector optics, useful when your 3D scene should match what a physical projector would render.
 
 ```typescript
-import { ProjectorCamera } from 'three-projection-mapping';
+import { ProjectorCamera } from 'three-projection-mapper';
 
 const camera = new ProjectorCamera(
   1.65, // throwRatio: distance-to-width ratio (check your projector's spec sheet)
@@ -746,7 +746,7 @@ camera.position.set(0, 0.5, 2.0); // The Y position is the lens center
 Multi-window synchronization addon.
 
 ```typescript
-import { WindowSync, WINDOW_SYNC_MODE } from 'three-projection-mapping/addons';
+import { WindowSync, WINDOW_SYNC_MODE } from 'three-projection-mapper/addons';
 
 // Controller
 const sync = new WindowSync(mapper, { mode: WINDOW_SYNC_MODE.CONTROLLER });

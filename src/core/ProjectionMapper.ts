@@ -721,13 +721,25 @@ export class ProjectionMapper {
     return this.config.appId;
   }
 
+  /**
+   * Only a surface that departs from the mapper's default carries a resolution of its own. One
+   * that fills the output must not: a stored resolution is restored over whatever the mapper is
+   * rebuilt at, so the mesh would keep the aspect of a source that is already gone.
+   */
+  private storedResolutionFor(surface: WarpSurface): Resolution | undefined {
+    const own = surface.getResolution();
+    const inherited = this.config.surfaceResolution;
+    const matchesDefault = own.width === inherited.width && own.height === inherited.height;
+    return matchesDefault ? undefined : { ...own };
+  }
+
   private saveSurfaces(): void {
     this.surfaceStore.write(
       this.activeSurfaceId,
       this.surfaces.map((surface) => ({
         id: surface.id,
         uvRect: surface.getUvRect(),
-        resolution: surface.getResolution(),
+        resolution: this.storedResolutionFor(surface),
         edgeMask: surface.getEdgeMask(),
         polygonMask: surface.getPolygonSettings(),
         imageSettings: surface.getImageSettings(),
