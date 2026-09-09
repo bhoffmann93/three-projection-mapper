@@ -629,10 +629,17 @@ export class ProjectionMapper {
     return this.config.multiSurface;
   }
 
-  addSurface(options: { id?: string; uvRect?: UvRect; resolution?: Resolution } = {}): WarpSurface {
+  /**
+   * Add a surface, or null when this mapper cannot hold one — a single-surface
+   * mapper refuses. Null rather than the existing surface: handing back the
+   * default one looks like a successful add, and the caller's next move is
+   * usually to give "its" surface a texture, which would replace the shared
+   * input buffer on the only surface there is.
+   */
+  addSurface(options: { id?: string; uvRect?: UvRect; resolution?: Resolution } = {}): WarpSurface | null {
     if (!this.config.multiSurface) {
       console.warn('ProjectionMapper: addSurface() ignored because multiSurface is disabled');
-      return this.surfaces[0];
+      return null;
     }
     const id = options.id ?? this.nextSurfaceId();
     const existing = this.getSurface(id);
@@ -721,15 +728,27 @@ export class ProjectionMapper {
     return this.config.appId;
   }
 
+  /**
+   * Only a surface that departs from the mapper's default carries a resolution of its own. One
+   * that fills the output must not: a stored resolution is restored over whatever the mapper is
+   * rebuilt at, so the mesh would keep the aspect of a source that is already gone.
+   */
+  private storedResolutionFor(surface: WarpSurface): Resolution | undefined {
+    const own = surface.getResolution();
+    const inherited = this.config.surfaceResolution;
+    const matchesDefault = own.width === inherited.width && own.height === inherited.height;
+    return matchesDefault ? undefined : { ...own };
+  }
+
   private saveSurfaces(): void {
     this.surfaceStore.write(
       this.activeSurfaceId,
       this.surfaces.map((surface) => ({
         id: surface.id,
         uvRect: surface.getUvRect(),
-        resolution: surface.getResolution(),
+        resolution: this.storedResolutionFor(surface),
         edgeMask: surface.getEdgeMask(),
-        polygonMask: surface.getPolygonSettings(),
+        polygonMask: surface.getPolygonMask() ? surface.getPolygonSettings() : undefined,
         imageSettings: surface.getImageSettings(),
       })),
     );

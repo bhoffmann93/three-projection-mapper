@@ -50,6 +50,8 @@ export class WindowSync {
   private attachedDragControls = new WeakSet<object>();
   /** Releases the transform listener bound to the current mapper, so a swap can rebind it. */
   private surfaceTransformedUnsubscribe: (() => void) | null = null;
+  /** Releases the surface-list listener bound to the current mapper, likewise. */
+  private surfacesChangedUnsubscribe: (() => void) | null = null;
   private onProjectorReadyCallbacks: Array<() => void> = [];
   private onProjectorCloseCallbacks: Array<() => void> = [];
 
@@ -88,13 +90,13 @@ export class WindowSync {
     // Auto-reattach drag listener when grid size changes
     // (that surface's DragControls is recreated)
     this.eventChannel.on(ProjectionEventType.GRID_SIZE_CHANGED, () => {
-      this.reattachDragListeners();
-    });
-
-    // Local loopback from the GUI: hook the new surface's DragControls
-    this.eventChannel.on(ProjectionEventType.SURFACE_ADDED, () => {
       this.attachDragListeners();
     });
+
+    // Hook a new surface's DragControls. The mapper's own signal rather than the
+    // SURFACE_ADDED loopback, so a host calling mapper.addSurface() directly is
+    // covered too — otherwise that surface's handle drags never reach the projector
+    this.subscribeSurfacesChanged();
 
     // Handle projector ready
     this.eventChannel.on(ProjectionEventType.PROJECTOR_READY, () => {
@@ -273,6 +275,7 @@ export class WindowSync {
     if (!this.mapper.isMultiSurface()) return null;
 
     const surface = this.mapper.addSurface({ id: surfaceId, uvRect, resolution });
+    if (!surface) return null;
     surface.getWarper().setAllControlsVisible(false);
     surface.getWarper().setDragEnabled(false);
     return surface;
@@ -312,15 +315,14 @@ export class WindowSync {
   }
 
   /**
-   * Re-attach drag listeners after grid size changes
-   * (drag controls are recreated when grid size changes)
+   * Bind the surface-list listener to the current mapper, dropping any previous
+   * binding. Every surface added, however it was added, gets its DragControls
+   * hooked here — a surface the controller cannot broadcast drags for would sit
+   * on the projector frozen at the geometry it arrived with.
    */
-  private reattachDragListeners(): void {
-    if (this.mode !== WINDOW_SYNC_MODE.CONTROLLER) return;
-
-    setTimeout(() => {
-      this.attachDragListeners();
-    }, 50);
+  private subscribeSurfacesChanged(): void {
+    this.surfacesChangedUnsubscribe?.();
+    this.surfacesChangedUnsubscribe = this.mapper.onSurfacesChanged(() => this.attachDragListeners());
   }
 
   /**
@@ -415,12 +417,15 @@ export class WindowSync {
   private applyFullState(state: FullProjectionState): void {
     // 1. Apply warp surfaces
     if (state.surfaces?.length) {
-      // Remove local surfaces the controller no longer has
+      state.surfaces.forEach((surfaceState) => this.applySurfaceState(surfaceState));
+      // Remove local surfaces the controller does not have, after its own are in
+      // place: removeSurface refuses to empty the mapper, so a projector holding
+      // only surfaces the controller never sent would keep one of them otherwise,
+      // rendering a warp the controller cannot see or drive
       const syncedIds = new Set(state.surfaces.map((s) => s.id));
       for (const surface of this.mapper.getSurfaces()) {
         if (!syncedIds.has(surface.id)) this.mapper.removeSurface(surface.id);
       }
-      state.surfaces.forEach((surfaceState) => this.applySurfaceState(surfaceState));
       // The payload order is the overlap order, and surfaces created earlier by
       // SURFACE_ADDED will not already be in it
       this.mapper.setSurfaceOrder(state.surfaces.map((surfaceState) => surfaceState.id));
@@ -538,8 +543,9 @@ export class WindowSync {
   public updateMapper(mapper: ProjectionMapper): void {
     this.mapper = mapper;
     if (this.mode === WINDOW_SYNC_MODE.CONTROLLER) {
-      this.reattachDragListeners();
+      this.attachDragListeners();
       this.subscribeSurfaceTransformed();
+      this.subscribeSurfacesChanged();
     } else {
       this.mapper.setControlsVisible(false);
       this.mapper.setZoom(1.0);

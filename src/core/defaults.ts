@@ -170,9 +170,12 @@ export const WARP_HANDLE_STYLE = {
   gridPointPixelRadius: 15,
   outlineLineWidth: 4,
   cornerColor: 'hsl(23, 80%, 80%)',
-  /** Same size as a corner, complementary hue, so it reads as a different verb */
-  scalePointPixelRadius: 20,
+  /** A little larger than a corner, complementary hue, so it reads as a different verb */
+  scalePointPixelRadius: 24,
   scaleColor: 'hsl(203, 80%, 80%)',
+  /** The scale handle draws lucide's Expand rather than a box. Stroke matches the pane's icons. */
+  scaleIconStrokeWidth: 2.5,
+  scaleIconTexturePixels: 128,
   /** A single drag event cannot scale by more than this, so a flick cannot collapse a surface */
   scaleFactorLimit: 2,
   gridColor: 'orange',

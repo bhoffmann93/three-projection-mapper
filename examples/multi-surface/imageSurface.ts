@@ -43,6 +43,7 @@ export function loadImageSurface(mapper: ProjectionMapper, options: ImageSurface
       id: MULTI_SURFACE_CONFIG.imageSurfaceId,
       resolution: { width: imageTexture.image.width, height: imageTexture.image.height },
     });
+    if (!created) return; // a single-surface mapper has nowhere to put it
     mapper.setTexture(imageTexture, created.id); // only this surface
     options.onCreated?.(created);
   });
