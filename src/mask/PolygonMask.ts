@@ -54,6 +54,8 @@ export class PolygonMask {
   private outlinePositions!: Float32Array;
   private dragControls!: DragControls;
 
+  private storageKey: string;
+  private dragEnabled = true;
   private inverseTransform: ((x: number, y: number) => THREE.Vector2) | null = null;
   private lastPixelToWorld = 0;
   private ignoreNextDblClick = false;
@@ -69,6 +71,15 @@ export class PolygonMask {
     return this.nodeList;
   }
 
+  /** The default surface keeps the legacy un-namespaced key so existing masks survive */
+  static storageKeyFor(storageNamespace?: string): string {
+    return storageNamespace ? `${POLYGON_MASK_STORAGE_KEY}:${storageNamespace}` : POLYGON_MASK_STORAGE_KEY;
+  }
+
+  static hasStored(storageNamespace?: string): boolean {
+    return localStorage.getItem(PolygonMask.storageKeyFor(storageNamespace)) !== null;
+  }
+
   constructor(
     scene: THREE.Scene,
     camera: THREE.Camera,
@@ -76,12 +87,14 @@ export class PolygonMask {
     worldWidth: number,
     worldHeight: number,
     nodes?: UVPoint[],
+    storageNamespace?: string,
   ) {
     this.scene = scene;
     this.camera = camera;
     this.renderer = renderer;
     this.worldWidth = worldWidth;
     this.worldHeight = worldHeight;
+    this.storageKey = PolygonMask.storageKeyFor(storageNamespace);
 
     this.nodeList = nodes ?? this.loadFromStorage() ?? [...DEFAULT_NODES];
 
@@ -158,7 +171,14 @@ export class PolygonMask {
   private recreateDragControls(): void {
     this.dragControls.dispose();
     this.dragControls = new DragControls(this.anchorObjects, this.camera, this.renderer.domElement);
+    this.dragControls.enabled = this.dragEnabled;
     this.attachDragListeners();
+  }
+
+  /** Only the active surface's polygon accepts drags, mirroring the warp handles */
+  public setDragEnabled(enabled: boolean): void {
+    this.dragEnabled = enabled;
+    this.dragControls.enabled = enabled;
   }
 
   private insertNode(segmentIndex: number, uv: UVPoint): void {
@@ -367,6 +387,11 @@ export class PolygonMask {
     this.onChanged();
   }
 
+  /** Draggable anchors — other pointer handlers raycast these to yield priority */
+  public getAnchorObjects(): THREE.Mesh[] {
+    return this.outlineLine.visible ? this.anchorObjects : [];
+  }
+
   public setVisible(visible: boolean): void {
     for (const mesh of this.anchorObjects) mesh.visible = visible;
     this.outlineLine.visible = visible;
@@ -375,7 +400,7 @@ export class PolygonMask {
 
   private saveToStorage(): void {
     try {
-      localStorage.setItem(POLYGON_MASK_STORAGE_KEY, JSON.stringify(this.nodeList));
+      localStorage.setItem(this.storageKey, JSON.stringify(this.nodeList));
     } catch {
       /* ignore */
     }
@@ -383,7 +408,7 @@ export class PolygonMask {
 
   private loadFromStorage(): UVPoint[] | null {
     try {
-      const raw = localStorage.getItem(POLYGON_MASK_STORAGE_KEY);
+      const raw = localStorage.getItem(this.storageKey);
       if (!raw) return null;
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length >= 3) return parsed as UVPoint[];
@@ -394,7 +419,7 @@ export class PolygonMask {
   }
 
   public clearStorage(): void {
-    localStorage.removeItem(POLYGON_MASK_STORAGE_KEY);
+    localStorage.removeItem(this.storageKey);
   }
 
   public dispose(): void {

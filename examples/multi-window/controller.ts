@@ -17,7 +17,7 @@ const bufferResolution = {
   height: MUTLI_WINDOW_CONFIG.projectionResolution.height * MUTLI_WINDOW_CONFIG.bufferResOversampling,
 };
 const projectionScene = new ProjectionScene({ width: bufferResolution.width, height: bufferResolution.height });
-const mapper = new ProjectionMapper(renderer, projectionScene.getTexture());
+const mapper = new ProjectionMapper(renderer, projectionScene.getTexture(), { appId: MUTLI_WINDOW_CONFIG.appId });
 const sync = new WindowSync(mapper, { mode: WINDOW_SYNC_MODE.CONTROLLER });
 
 const gui = new ProjectionMapperGUI(mapper, {
@@ -29,7 +29,9 @@ const gui = new ProjectionMapperGUI(mapper, {
 
 const hint = document.createElement('div');
 hint.style.cssText = 'position:fixed;bottom:36px;left:16px;color:rgba(255,255,255,0.5);font:12px/1.6 monospace;pointer-events:none;transition:opacity 0.3s';
-hint.innerHTML = '<span>G</span> toggle UI<br><span>T</span> test card<br><span>W</span> warp controls<br><span>O</span> open projector';
+hint.innerHTML = 
+  '<span>G</span> toggle UI<br><span>T</span> test card<br><span>W</span> warp controls<br><span>O</span> open projector' +
+  '<br><span>Tab</span> select warp point<br><span>&larr;&uarr;&darr;&rarr;</span> move warp point (<span>Shift</span> &times;10)<br><span>Esc</span> deselect warp point';
 document.body.appendChild(hint);
 
 let uiVisible = true;

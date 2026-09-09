@@ -18,6 +18,10 @@ export default defineConfig({
     'import.meta.env.VITE_BRANCH': JSON.stringify(process.env.BRANCH_NAME || undefined), //eslint-disable-line
   },
   build: {
+    // The demo site, kept out of dist/ because that belongs to the library build.
+    // Both empty their output folder first, so sharing one would mean whichever
+    // ran last is the only one that still exists.
+    outDir: 'dist-demo',
     rollupOptions: {
       input: {
         'index': resolve(__dirname, 'index.html'),
@@ -25,6 +29,8 @@ export default defineConfig({
         'multi-window-controller': resolve(__dirname, 'examples/multi-window/controller.html'),
         'multi-window-projector': resolve(__dirname, 'examples/multi-window/projector.html'),
         'fullscreen-shader': resolve(__dirname, 'examples/fullscreen-shader/index.html'),
+        'multi-surface': resolve(__dirname, 'examples/multi-surface/index.html'),
+        'multi-surface-projector': resolve(__dirname, 'examples/multi-surface/projector.html'),
         'p5-canvas': resolve(__dirname, 'examples/p5-canvas/index.html'),
       },
     },

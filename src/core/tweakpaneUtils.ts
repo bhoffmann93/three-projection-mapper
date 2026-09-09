@@ -1,4 +1,5 @@
-import type { BindingApi, FolderApi } from '@tweakpane/core';
+import type { BindingApi, FolderApi, TabApi } from '@tweakpane/core';
+import { PANE_THEME } from './defaults';
 
 export interface TweakpaneButtonOptions {
   background?: string;
@@ -15,11 +16,11 @@ export function createTweakpaneButton(
   const btn = document.createElement('button');
   btn.textContent = label;
   btn.style.cssText = `
-    background: ${background ?? 'var(--btn-bg, hsl(230, 7%, 30%))'};
+    background: ${background ?? `var(--btn-bg, ${PANE_THEME.buttonBackground})`};
     border: none;
     border-radius: var(--bld-br, 2px);
     box-sizing: border-box;
-    color: var(--btn-fg, hsl(230, 7%, 17%));
+    color: var(--btn-fg, ${PANE_THEME.buttonForeground});
     cursor: pointer;
     display: inline-flex;
     align-items: center;
@@ -48,7 +49,12 @@ export function replaceLabelWithButton(binding: BindingApi, button: HTMLButtonEl
   label.appendChild(button);
 }
 
-export function appendButtonToListBinding(binding: BindingApi, button: HTMLButtonElement, gapPx: number, dropdownWidthPx?: number): void {
+export function appendButtonToListBinding(
+  binding: BindingApi,
+  button: HTMLButtonElement,
+  gapPx: number,
+  dropdownWidthPx?: number,
+): void {
   const label = binding.element.querySelector('.tp-lblv_l') as HTMLElement | null;
   if (label) label.style.display = 'none';
   const container = binding.element.querySelector('.tp-lblv_v') as HTMLElement;
@@ -98,8 +104,70 @@ export function setFolderEnabled(folder: FolderApi, enabled: boolean, disabledOp
   content.style.transition = 'none';
   content.style.opacity = enabled ? '' : disabledOpacity;
   content.style.pointerEvents = enabled ? '' : 'none';
-  requestAnimationFrame(() => { content.style.transition = ''; });
+  requestAnimationFrame(() => {
+    content.style.transition = '';
+  });
 
   const title = folder.element.querySelector('.tp-fldv_t') as HTMLElement | null;
   if (title) title.style.opacity = enabled ? '' : disabledOpacity;
 }
+
+const TAB_FLAT_CLASS = 'wm-tab-flat';
+let tabFlatStyleInjected = false;
+
+export const removeTabIndent = (tab: TabApi): void => {
+  if (!tabFlatStyleInjected) {
+    const style = document.createElement('style');
+    style.textContent = [
+      `.${TAB_FLAT_CLASS} .tp-tbpv_c { padding-left: 0; }`,
+      `.${TAB_FLAT_CLASS} .tp-tbpv_c > .tp-cntv { margin-left: 0; }`,
+      `.${TAB_FLAT_CLASS} .tp-tabv_i { display: none; }`,
+    ].join('\n');
+    document.head.appendChild(style);
+    tabFlatStyleInjected = true;
+  }
+  tab.element.classList.add(TAB_FLAT_CLASS);
+};
+
+interface ButtonGridContainer {
+  addBlade(params: Record<string, unknown>): unknown;
+}
+
+/**
+ * Tweakpane's buttongrid blade is untyped in the public API, so its shape is
+ * declared here rather than re-asserted at every call site.
+ */
+export interface ButtonGridBladeApi {
+  element: HTMLElement;
+  on(event: 'click', callback: (ev: { index: [number, number] }) => void): void;
+}
+
+export interface ButtonGridHandle {
+  blade: ButtonGridBladeApi;
+  buttons: HTMLButtonElement[];
+}
+
+/** Add a row of buttons and hand back the elements, which callers need to style */
+export function addButtonGrid(container: ButtonGridContainer, titles: readonly string[]): ButtonGridHandle {
+  const blade = container.addBlade({
+    view: 'buttongrid',
+    size: [titles.length, 1],
+    cells: (x: number) => ({ title: titles[x] }),
+  }) as unknown as ButtonGridBladeApi;
+
+  return {
+    blade,
+    buttons: Array.from(blade.element.querySelectorAll('button')) as HTMLButtonElement[],
+  };
+}
+
+/** The single `<button>` inside a button blade */
+export function buttonElement(button: { element: HTMLElement }): HTMLButtonElement {
+  return button.element.querySelector('button') as HTMLButtonElement;
+}
+
+/** Tweakpane wraps the pane in a positioning div that owns width and placement */
+export function paneWrapper(pane: { element: HTMLElement }): HTMLElement | null {
+  return pane.element.closest('.tp-dfwv');
+}
+

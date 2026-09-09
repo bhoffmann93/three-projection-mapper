@@ -1,5 +1,5 @@
 import { ProjectionEventType } from './EventTypes';
-import type { ImageSettings } from '../core/defaults';
+import type { ImageSettings, EdgeMaskSettings, UvRect, Resolution } from '../core/defaults';
 
 /**
  * Normalized point format (0-1 range) for resolution-independent serialization
@@ -37,6 +37,27 @@ export interface PolygonMaskSyncState {
 }
 
 /**
+ * One warp surface's state for synchronization
+ */
+export interface SurfaceSyncState {
+  id: string;
+  uvRect: UvRect;
+  /** This surface's own pixel resolution, which decides its plane aspect */
+  resolution: Resolution;
+  cornerPoints: NormalizedPoint[];
+  gridPoints: NormalizedPoint[];
+  referenceGridPoints: NormalizedPoint[];
+  gridSize: GridSize;
+  warpMode: number;
+  /** Image adjustments are calibration, so they belong to the surface */
+  imageSettings: ImageSettings;
+  /** Edge feather belongs to the surface too */
+  edgeMask: EdgeMaskSettings;
+  /** Absent means this surface has no polygon mask */
+  polygonMask?: PolygonMaskSyncState;
+}
+
+/**
  * Complete projection state for full synchronization
  */
 export interface FullProjectionState {
@@ -66,6 +87,10 @@ export interface FullProjectionState {
 
   // Polygon mask (optional — absent means no mask active)
   polygonMask?: PolygonMaskSyncState;
+
+  // All warp surfaces (optional — absent on single-surface senders; the
+  // legacy top-level warp fields always describe the first surface)
+  surfaces?: SurfaceSyncState[];
 }
 
 /**
@@ -73,10 +98,20 @@ export interface FullProjectionState {
  * Maps each event type to its specific payload shape
  */
 export interface ProjectionEventPayloads {
-  [ProjectionEventType.CORNER_POINTS_UPDATED]: { points: NormalizedPoint[] };
-  [ProjectionEventType.GRID_POINTS_UPDATED]: { points: NormalizedPoint[]; referencePoints: NormalizedPoint[] };
-  [ProjectionEventType.GRID_SIZE_CHANGED]: { gridSize: GridSize };
-  [ProjectionEventType.WARP_MODE_CHANGED]: { mode: number };
+  // surfaceId is optional for backwards compatibility — absent means the first surface
+  [ProjectionEventType.CORNER_POINTS_UPDATED]: { points: NormalizedPoint[]; surfaceId?: string };
+  [ProjectionEventType.GRID_POINTS_UPDATED]: {
+    points: NormalizedPoint[];
+    referencePoints: NormalizedPoint[];
+    surfaceId?: string;
+  };
+  [ProjectionEventType.GRID_SIZE_CHANGED]: { gridSize: GridSize; surfaceId?: string };
+  [ProjectionEventType.WARP_MODE_CHANGED]: { mode: number; surfaceId?: string };
+  [ProjectionEventType.SURFACE_ADDED]: { surfaceId: string; uvRect: UvRect; resolution?: Resolution };
+  [ProjectionEventType.SURFACE_REMOVED]: { surfaceId: string };
+  /** Front-to-back order; overlap is resolved by it, so the projector needs it too */
+  [ProjectionEventType.SURFACE_ORDER_CHANGED]: { surfaceIds: string[] };
+  [ProjectionEventType.UV_RECT_CHANGED]: { uvRect: UvRect; surfaceId?: string };
   [ProjectionEventType.SHOULD_WARP_CHANGED]: { shouldWarp: boolean };
   [ProjectionEventType.TESTCARD_TOGGLED]: { show: boolean };
   [ProjectionEventType.WHITE_OUT_TOGGLED]: { show: boolean };
@@ -88,9 +123,15 @@ export interface ProjectionEventPayloads {
   [ProjectionEventType.PROJECTOR_READY]: {};
   [ProjectionEventType.REQUEST_FULL_STATE]: {};
   [ProjectionEventType.FULL_STATE_SYNC]: { state: FullProjectionState };
-  [ProjectionEventType.IMAGE_SETTINGS_CHANGED]: { settings: ImageSettings };
-  [ProjectionEventType.POLYGON_MASK_NODES_CHANGED]: { nodes: { u: number; v: number }[] };
-  [ProjectionEventType.POLYGON_MASK_SETTINGS_CHANGED]: { enabled: boolean; inverted: boolean; feather: number };
-  [ProjectionEventType.POLYGON_MASK_REMOVED]: {};
-  [ProjectionEventType.RESET_WARP]: {};
+  [ProjectionEventType.IMAGE_SETTINGS_CHANGED]: { settings: ImageSettings; surfaceId?: string };
+  [ProjectionEventType.EDGE_MASK_CHANGED]: { enabled: boolean; feather: number; surfaceId?: string };
+  [ProjectionEventType.POLYGON_MASK_NODES_CHANGED]: { nodes: { u: number; v: number }[]; surfaceId?: string };
+  [ProjectionEventType.POLYGON_MASK_SETTINGS_CHANGED]: {
+    enabled: boolean;
+    inverted: boolean;
+    feather: number;
+    surfaceId?: string;
+  };
+  [ProjectionEventType.POLYGON_MASK_REMOVED]: { surfaceId?: string };
+  [ProjectionEventType.RESET_WARP]: { surfaceId?: string };
 }

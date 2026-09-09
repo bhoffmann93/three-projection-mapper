@@ -19,13 +19,17 @@ varying vec2 vUv;
 
 uniform mat3 uHomography;
 uniform vec2 uFlatPlaneSize;
+uniform vec2 uWarpPlaneSize;
+uniform vec2 uSurfaceCenter;
 uniform bool uShouldWarp;
 
 void main() {
     vUv = uv;
     if(!uShouldWarp) {
-        // No warp active: render as a flat plane matching the unwarped content plane
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        // Match warp.vert's bypass exactly: an axis-aligned rectangle at the
+        // surface's centre, so the mask stays on the content instead of
+        // collapsing to the origin while the mesh sits elsewhere.
+        gl_Position = projectionMatrix * viewMatrix * vec4(uSurfaceCenter + (uv - 0.5) * uWarpPlaneSize, 0.0, 1.0);
         return;
     }
     vec2 flatWorld = (uv - 0.5) * uFlatPlaneSize; // remap uv [0,1] → three.js world space centered at origin, e.g. [-8.89, 8.89] x [-5, 5] for 16:9

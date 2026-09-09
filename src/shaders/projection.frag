@@ -13,7 +13,9 @@ varying vec2 vUv;
 uniform bool uShouldWarp;
 
 uniform sampler2D uBuffer;
-uniform vec2 uBufferResolution;
+uniform vec2 uSurfaceResolution;
+uniform vec2 uUvRectOffset;
+uniform vec2 uUvRectScale;
 uniform vec2 uWarpPlaneSize;
 uniform float uTime;
 uniform bool uShowTestCard;
@@ -258,9 +260,11 @@ void main() {
 
     //test card always gets displayed at full res (render res)
     if (uShowTestCard) {
-        color = testCard(vUv, uShouldWarp ? uWarpPlaneSize : uBufferResolution, uTime);
+        color = testCard(vUv, uShouldWarp ? uWarpPlaneSize : uSurfaceResolution, uTime);
     } else {
-        color = texture2D(uBuffer, vUv).rgb;
+        //uv rect crop only applies to content sampling — test card,
+        //control lines and border lines stay per-surface screen furniture
+        color = texture2D(uBuffer, uUvRectOffset + vUv * uUvRectScale).rgb;
     }
 
     // color = vec3(checkerboard(vUv, vec2(7.0, 4.0))); //for development tests
