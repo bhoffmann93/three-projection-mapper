@@ -12,7 +12,7 @@ the marker selects that handle so the arrow keys can walk it home.
 Grid points count, not just corners: dragging a corner pulls the whole grid
 through the homography with it, so a corner heading off screen takes grid points
 along, and they need markers just as much. Markers that would pile up on the same
-spot collapse to one, or a corner leaving would strand a dozen chips on top of
+spot collapse to one, or a corner leaving would strand a dozen badges on top of
 each other.
 
 DOM rather than scene objects: this is controller chrome that must stay legible
@@ -149,8 +149,8 @@ export class OffscreenHandleMarkers {
     marker.style.top = `${at.y}px`;
     marker.style.color = color;
 
-    // Just outside the chip's own edge in whichever direction the handle lies,
-    // measured rather than assumed because the chip is as wide as its label
+    // Just outside the badge's own edge in whichever direction the handle lies,
+    // measured rather than assumed because the badge is as wide as its label
     const gap = OFFSCREEN_MARKER.arrowGapPixels;
     const offsetX = Math.cos(angle) * (marker.offsetWidth / 2 + gap);
     const offsetY = Math.sin(angle) * (marker.offsetHeight / 2 + gap);

@@ -12,6 +12,7 @@ receives original flat UV (they are baked into mesh geometry and passed from the
 */
 
 import * as THREE from 'three';
+import { Expand } from 'lucide';
 import { DragControls } from 'three/examples/jsm/controls/DragControls.js';
 //@ts-ignore
 import { Line2 } from 'three/addons/lines/Line2.js';
@@ -22,6 +23,7 @@ import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import PerspT from '../utils/perspective';
 import { isQuadConcave, isPointInQuad, scaleQuadAboutCenter } from './geometry';
 import { clamp } from '../utils/math';
+import { createIconBadgeTexture, BADGE_FILL } from '../utils/iconTexture';
 import { RenderOrder } from '../core/RenderOrder';
 import { MESH_WARP_GRID_SIZE, WARP_HANDLE_STYLE } from '../core/defaults';
 import { WarpMaterial, WARP_MODE } from './WarpMaterial';
@@ -243,11 +245,21 @@ export class MeshWarper {
    */
   private createScaleControlPoint(): void {
     this.scaleObject = new THREE.Mesh(
-      new THREE.BoxGeometry(),
-      new THREE.MeshBasicMaterial({ color: WARP_HANDLE_STYLE.scaleColor, transparent: true, opacity: 0.9 }),
+      new THREE.PlaneGeometry(1, 1),
+      new THREE.MeshBasicMaterial({
+        map: createIconBadgeTexture(Expand, {
+          color: WARP_HANDLE_STYLE.scaleColor,
+          strokeWidth: WARP_HANDLE_STYLE.scaleIconStrokeWidth,
+          sizePixels: WARP_HANDLE_STYLE.scaleIconTexturePixels,
+        }),
+        transparent: true,
+        color: 0xffffff, // the badge carries its own colours
+        depthTest: false,
+      }),
     );
-    this.scaleObject.renderOrder = RenderOrder.CONTROLS;
+    this.scaleObject.renderOrder = RenderOrder.CONTROLS_BADGE;
     this.scaleObject.userData.group = HANDLE_GROUP.scale;
+    this.scaleObject.userData.baseColor = 0xffffff;
     this.positionScaleControlPoint();
   }
 
@@ -625,7 +637,8 @@ export class MeshWarper {
 
     this.cornerObjects.forEach((obj) => obj.scale.setScalar(cornerCubeSize));
     this.gridObjects.forEach((obj) => obj.scale.setScalar(gridControlCubeSize));
-    this.scaleObject.scale.setScalar(screenScale * WARP_HANDLE_STYLE.scalePointPixelRadius);
+    // Divided by the fill, so the badge itself is the stated size
+    this.scaleObject.scale.setScalar((screenScale * WARP_HANDLE_STYLE.scalePointPixelRadius) / BADGE_FILL);
 
     // Applied after the uniform sizing, which runs every frame and would
     // otherwise flatten it back. Size is what makes the selection readable on a
