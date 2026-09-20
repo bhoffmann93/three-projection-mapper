@@ -8,6 +8,17 @@ export const SURFACE_FOLDER_TITLE = {
   plural: 'Surfaces',
 } as const;
 
+/** Fold state of the pane and its folders until the user folds one, which is then remembered */
+export const GUI_INITIAL_EXPANDED = {
+  pane: true,
+  output: false,
+  surfaces: true,
+  image: true,
+  masks: true,
+  polygonMask: true,
+  warp: true,
+} as const satisfies Record<string, boolean>;
+
 /** Slider definitions for the per-surface image folder, in display order */
 export const IMAGE_CONTROLS = [
   { key: 'shadows', label: 'Blacks', min: 0, max: 0.99, step: 0.001 },
