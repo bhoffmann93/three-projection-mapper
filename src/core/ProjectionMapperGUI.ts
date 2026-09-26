@@ -31,6 +31,7 @@ import {
   TWEAKPANE_TRANSPARENCY,
   SURFACE_FOLDER_TITLE,
   IMAGE_CONTROLS,
+  GUI_INITIAL_EXPANDED,
 } from './gui.config';
 import {
   createTweakpaneButton,
@@ -52,6 +53,7 @@ export interface ProjectionMapperGUIConfig {
   eventChannel?: EventChannel; // Optional: enables event broadcasting
   windowManager?: WindowManager; // Optional: enables projector window button
   enableWhiteOut?: boolean; // Optional: adds a full-screen white-out toggle button
+  expanded?: boolean; // Optional: initial pane fold state, until the user folds it themselves
 }
 
 /**
@@ -70,9 +72,18 @@ export interface ProjectionMapperGUISettings {
   showOutline: boolean;
   /** Polygon anchor handles, a mapper-wide toggle rather than a per-surface one */
   showPolygonHandles: boolean;
+  paneExpanded: boolean;
+  outputExpanded: boolean;
+  surfacesExpanded: boolean;
   imageExpanded: boolean;
   masksExpanded: boolean;
+  polygonMaskExpanded: boolean;
+  warpExpanded: boolean;
 }
+
+type ExpandedSettingKey = {
+  [K in keyof ProjectionMapperGUISettings]: K extends `${string}Expanded` ? K : never;
+}[keyof ProjectionMapperGUISettings];
 
 export { GUI_STORAGE_KEY, DEFAULT_IMAGE_SETTINGS } from './defaults';
 export type { ImageSettings } from './defaults';
@@ -129,8 +140,13 @@ export class ProjectionMapperGUI {
       showCornerPoints: true,
       showOutline: true,
       showPolygonHandles: true,
-      imageExpanded: true,
-      masksExpanded: true,
+      paneExpanded: config.expanded ?? GUI_INITIAL_EXPANDED.pane,
+      outputExpanded: GUI_INITIAL_EXPANDED.output,
+      surfacesExpanded: GUI_INITIAL_EXPANDED.surfaces,
+      imageExpanded: GUI_INITIAL_EXPANDED.image,
+      masksExpanded: GUI_INITIAL_EXPANDED.masks,
+      polygonMaskExpanded: GUI_INITIAL_EXPANDED.polygonMask,
+      warpExpanded: GUI_INITIAL_EXPANDED.warp,
     };
 
     this.loadSettings();
@@ -161,7 +177,8 @@ export class ProjectionMapperGUI {
     // watches for it and the readout follows rather than waiting to be asked
     mapper.onBufferResolutionChanged(() => this.refreshBufferResolution());
 
-    this.pane = new Pane({ title });
+    this.pane = new Pane({ title, expanded: this.settings.paneExpanded });
+    this.persistFold(this.pane, 'paneExpanded');
     this.pane.element.style.opacity = TWEAKPANE_TRANSPARENCY;
     this.pane.registerPlugin(EssentialsPlugin);
 
@@ -175,6 +192,18 @@ export class ProjectionMapperGUI {
     }
 
     this.initPane();
+  }
+
+  /**
+   * Remembers a folder's fold state across reloads. Reads the folder itself rather
+   * than the event, because fold events from nested folders bubble up to parents.
+   */
+  private persistFold(folder: FolderApi, key: ExpandedSettingKey): void {
+    folder.on('fold', () => {
+      if (this.settings[key] === folder.expanded) return;
+      this.settings[key] = folder.expanded;
+      this.saveSettings();
+    });
   }
 
   private addResetButton(folder: FolderApi, title: string, onClick: () => void): void {
@@ -325,7 +354,8 @@ export class ProjectionMapperGUI {
    * re-frames every surface at once and is a set-once decision.
    */
   private initOutputResolution(page: PaneContainer): void {
-    const folder = page.addFolder({ title: 'Output', expanded: false });
+    const folder = page.addFolder({ title: 'Output', expanded: this.settings.outputExpanded });
+    this.persistFold(folder, 'outputExpanded');
     Object.assign(this.outputResolutionState, this.mapper.getResolution());
 
     folder.addBinding(this.outputResolutionState, 'width', { label: 'Width', min: 1, step: 1 });
@@ -340,7 +370,11 @@ export class ProjectionMapperGUI {
   }
 
   private initSurfacesFolder(page: PaneContainer): void {
-    this.surfacesFolder = page.addFolder({ title: SURFACE_FOLDER_TITLE.singular, expanded: true });
+    this.surfacesFolder = page.addFolder({
+      title: SURFACE_FOLDER_TITLE.singular,
+      expanded: this.settings.surfacesExpanded,
+    });
+    this.persistFold(this.surfacesFolder, 'surfacesExpanded');
 
     // One row: add, then move the selected surface through the overlap order,
     // which is the same shape as the effect stack's move controls. Remove sits
@@ -399,7 +433,8 @@ export class ProjectionMapperGUI {
   }
 
   private initWarpFolder(page: PaneContainer): void {
-    this.warpFolder = page.addFolder({ title: 'Warp', expanded: true });
+    this.warpFolder = page.addFolder({ title: 'Warp', expanded: this.settings.warpExpanded });
+    this.persistFold(this.warpFolder, 'warpExpanded');
 
     const warpModeBlade = this.warpFolder.addBlade({
       view: 'list',
@@ -501,11 +536,7 @@ export class ProjectionMapperGUI {
   /** Image adjustments are calibration, so they belong to the selected surface */
   private initImageFolder(page: PaneContainer): void {
     const imageFolder = page.addFolder({ title: 'Image', expanded: this.settings.imageExpanded });
-
-    imageFolder.on('fold', () => {
-      this.settings.imageExpanded = imageFolder.expanded;
-      this.saveSettings();
-    });
+    this.persistFold(imageFolder, 'imageExpanded');
 
     const applyImage = (settings: Partial<ImageSettings>) => {
       this.mapper.setImageSettings(settings);
@@ -596,11 +627,7 @@ export class ProjectionMapperGUI {
   /** Masks belong to the active surface; every write here is scoped to it */
   private initMasksFolder(page: PaneContainer): void {
     const masksFolder = page.addFolder({ title: 'Masks', expanded: this.settings.masksExpanded });
-
-    masksFolder.on('fold', () => {
-      this.settings.masksExpanded = masksFolder.expanded;
-      this.saveSettings();
-    });
+    this.persistFold(masksFolder, 'masksExpanded');
 
     const broadcastEdgeMask = () => {
       this.broadcast(ProjectionEventType.EDGE_MASK_CHANGED, {
@@ -681,7 +708,8 @@ export class ProjectionMapperGUI {
 
     const showPolygonSubFolder = () => {
       if (polygonSubFolder) return;
-      polygonSubFolder = masksFolder.addFolder({ title: 'Polygon Mask', expanded: true });
+      polygonSubFolder = masksFolder.addFolder({ title: 'Polygon Mask', expanded: this.settings.polygonMaskExpanded });
+      this.persistFold(polygonSubFolder, 'polygonMaskExpanded');
 
       const { blade: polyBtnGrid, buttons: polyButtons } = addButtonGrid(polygonSubFolder, [
         'Enabled',
@@ -883,6 +911,10 @@ export class ProjectionMapperGUI {
 
   collapse(): void {
     this.pane.expanded = false;
+  }
+
+  expand(): void {
+    this.pane.expanded = true;
   }
 
   /**
