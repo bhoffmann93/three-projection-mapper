@@ -16,6 +16,7 @@
  */
 
 varying vec2 vUv;
+varying vec2 vWorldPos; //warped world position, where the output space polygon mask is evaluated
 
 uniform vec3 uCorners[4]; //World Space TL TR BL BR
 uniform vec3 uControlPoint;
@@ -131,6 +132,7 @@ void main() {
         // the mesh is a flat plane there, and all placement lives in uCorners.
         vec2 center = (uCorners[0].xy + uCorners[1].xy + uCorners[2].xy + uCorners[3].xy) * 0.25;
         vec2 flatPos = (vUv - 0.5) * uWarpPlaneSize;
+        vWorldPos = center + flatPos;
         gl_Position = projectionMatrix * viewMatrix * vec4(center + flatPos, 0.0, 1.0);
         return;
     }
@@ -152,5 +154,6 @@ void main() {
     // The vertex position is computed in world space directly from the homography,
     // bypassing the mesh geometry. modelViewMatrix would incorrectly apply the
     // mesh's modelMatrix on top, so viewMatrix is used instead.
+    vWorldPos = vertexPos;
     gl_Position = projectionMatrix * viewMatrix * vec4(vec3(vertexPos, 0.0), 1.0);
 }

@@ -3,8 +3,8 @@ WarpSurface
 -----------
 One independently warped surface in a ProjectionMapper output. Owns a MeshWarper
 (warp mesh, material, control points, drag handles), the rectangle of the shared
-input texture it samples (uv rect), and its own masks — an edge feather MaskPlane
-plus an optional PolygonMask, both following this surface's perspective.
+input texture it samples (uv rect), and its own masks — an edge feather and an
+optional PolygonMask, evaluated in the surface's content shader via SurfaceMask.
 Warp points, polygon nodes and the surface record persist under a storage
 namespace derived from the id. ProjectionMapper owns the surface list; all
 surfaces share one scene, camera, renderer and input texture.
@@ -13,8 +13,8 @@ surfaces share one scene, camera, renderer and input texture.
 import * as THREE from 'three';
 import { MeshWarper, MeshWarperConfig } from './MeshWarper';
 import type { OutlineState } from './MeshWarper';
-import { MaskPlane } from '../mask/MaskPlane';
-import { PolygonMask, type UVPoint } from '../mask/PolygonMask';
+import { SurfaceMask } from '../mask/SurfaceMask';
+import { PolygonMask, DEFAULT_POLYGON_NODES, type UVPoint } from '../mask/PolygonMask';
 import {
   DEFAULT_UV_RECT,
   DEFAULT_EDGE_MASK,
@@ -26,7 +26,6 @@ import type { UvRect, EdgeMaskSettings, PolygonMaskSettings, ImageSettings, Reso
 export interface WarpSurfaceMaskConfig {
   worldWidth: number;
   worldHeight: number;
-  segments: number;
   scene: THREE.Scene;
   camera: THREE.Camera;
   renderer: THREE.WebGLRenderer;
@@ -52,7 +51,7 @@ export class WarpSurface {
   private appId?: string;
 
   private warper: MeshWarper;
-  private maskPlane: MaskPlane;
+  private mask: SurfaceMask;
   private polygonMask: PolygonMask | null = null;
   private maskConfig: WarpSurfaceMaskConfig;
 
@@ -91,22 +90,17 @@ export class WarpSurface {
     this.edgeMask = { ...DEFAULT_EDGE_MASK, ...config.edgeMask };
     this.polygonSettings = { ...DEFAULT_POLYGON_MASK_SETTINGS, ...config.polygonMask };
 
+    this.mask = new SurfaceMask(config.mask.worldWidth, config.mask.worldHeight);
+    this.mask.setFeatherMask(this.edgeMask.maskEnabled, this.edgeMask.feather);
+
     this.warper = new MeshWarper({
       ...config.warper,
+      maskUniforms: this.mask.uniforms,
       imageSettings: config.imageSettings,
       resolution: config.resolution,
       storageNamespace: WarpSurface.storageNamespace(config.id, config.appId),
     });
     this.warper.setUvRect(this.uvRect.offsetX, this.uvRect.offsetY, this.uvRect.scaleX, this.uvRect.scaleY);
-
-    this.maskPlane = new MaskPlane({
-      worldWidth: config.mask.worldWidth,
-      worldHeight: config.mask.worldHeight,
-      segments: config.mask.segments,
-      scene: config.mask.scene,
-      warpPlaneSizeRef: this.warper.getWarpPlaneSizeUniform(),
-    });
-    this.maskPlane.setFeatherMask(this.edgeMask.maskEnabled, this.edgeMask.feather);
   }
 
   getWarper(): MeshWarper {
@@ -152,8 +146,8 @@ export class WarpSurface {
     return this.warper.getResolution();
   }
 
-  getMaskPlane(): MaskPlane {
-    return this.maskPlane;
+  getMask(): SurfaceMask {
+    return this.mask;
   }
 
   private namespace(): string | undefined {
@@ -241,7 +235,7 @@ export class WarpSurface {
 
   setEdgeFeather(enabled: boolean, amount: number = this.edgeMask.feather): void {
     this.edgeMask = { maskEnabled: enabled, feather: amount };
-    this.maskPlane.setFeatherMask(enabled, amount);
+    this.mask.setFeatherMask(enabled, amount);
   }
 
   getEdgeMask(): EdgeMaskSettings {
@@ -260,6 +254,14 @@ export class WarpSurface {
   addPolygonMask(nodes?: UVPoint[]): PolygonMask {
     this.disposePolygonMask();
 
+    // The mask is in output space, so a fresh one starts on this surface, not the output centre
+    if (!nodes && !PolygonMask.hasStored(this.namespace())) {
+      const center = this.warper.getCenter();
+      const du = center.x / this.maskConfig.worldWidth;
+      const dv = center.y / this.maskConfig.worldHeight;
+      nodes = DEFAULT_POLYGON_NODES.map(({ u, v }) => ({ u: u + du, v: v + dv }));
+    }
+
     this.polygonMask = new PolygonMask(
       this.maskConfig.scene,
       this.maskConfig.camera,
@@ -270,14 +272,15 @@ export class WarpSurface {
       this.namespace(),
     );
     this.polygonMask.onChanged = () => {
-      this.maskPlane.setPolygonNodes(this.polygonMask!.nodes);
+      this.mask.setPolygonNodes(this.polygonMask!.nodes);
       this.onPolygonNodesChanged();
     };
+    this.polygonMask.migrateFromCornerSpace((x, y) => this.warper.applyPerspectiveTransform(x, y));
 
-    this.maskPlane.setPolygonMaskEnabled(this.polygonSettings.enabled);
-    this.maskPlane.setPolygonInvert(this.polygonSettings.inverted);
-    this.maskPlane.setPolygonFeather(this.polygonSettings.feather);
-    this.maskPlane.setPolygonNodes(this.polygonMask.nodes);
+    this.mask.setPolygonMaskEnabled(this.polygonSettings.enabled);
+    this.mask.setPolygonInvert(this.polygonSettings.inverted);
+    this.mask.setPolygonFeather(this.polygonSettings.feather);
+    this.mask.setPolygonNodes(this.polygonMask.nodes);
 
     this.applyPolygonInteractivity();
     this.onPolygonNodesChanged();
@@ -302,8 +305,8 @@ export class WarpSurface {
     this.polygonMask.dispose();
     this.polygonMask.clearStorage();
     this.polygonMask = null;
-    this.maskPlane.setPolygonMaskEnabled(false);
-    this.maskPlane.setPolygonNodes([]);
+    this.mask.setPolygonMaskEnabled(false);
+    this.mask.setPolygonNodes([]);
   }
 
   getPolygonMask(): PolygonMask | null {
@@ -312,17 +315,17 @@ export class WarpSurface {
 
   setPolygonMaskEnabled(enabled: boolean): void {
     this.polygonSettings.enabled = enabled;
-    this.maskPlane.setPolygonMaskEnabled(enabled);
+    this.mask.setPolygonMaskEnabled(enabled);
   }
 
   setPolygonInvert(inverted: boolean): void {
     this.polygonSettings.inverted = inverted;
-    this.maskPlane.setPolygonInvert(inverted);
+    this.mask.setPolygonInvert(inverted);
   }
 
   setPolygonFeather(feather: number): void {
     this.polygonSettings.feather = feather;
-    this.maskPlane.setPolygonFeather(feather);
+    this.mask.setPolygonFeather(feather);
   }
 
   getPolygonSettings(): PolygonMaskSettings {
@@ -366,27 +369,14 @@ export class WarpSurface {
 
   setShouldWarp(enabled: boolean): void {
     this.warper.setShouldWarp(enabled);
-    this.maskPlane.setShouldWarp(enabled);
   }
 
   // --- per-frame ------------------------------------------------------------
 
-  /** Keep this surface's masks and handles glued to its current perspective */
+  /** Keep handles a constant screen size; the polygon itself is fixed in output space */
   syncMasks(pixelToWorld: number): void {
     this.warper.updateControlPointsScale(pixelToWorld);
-    this.maskPlane.syncPerspective(this.warper.getPerspectiveCoeffs());
-
-    // With warp off both mesh and mask fall back to a flat rect at this centre
-    const center = this.warper.getCenter();
-    this.maskPlane.setSurfaceCenter(center.x, center.y);
-
-    if (this.polygonMask) {
-      this.polygonMask.updateTransformedPositions(
-        (x, y) => this.warper.applyPerspectiveTransform(x, y),
-        (x, y) => this.warper.applyInversePerspectiveTransform(x, y),
-      );
-      this.polygonMask.updateControlPointsScale(pixelToWorld);
-    }
+    this.polygonMask?.updateControlPointsScale(pixelToWorld);
   }
 
   // --- lifecycle ------------------------------------------------------------
@@ -399,7 +389,6 @@ export class WarpSurface {
 
   dispose(): void {
     this.polygonMask?.dispose();
-    this.maskPlane.dispose();
     this.warper.dispose();
   }
 }

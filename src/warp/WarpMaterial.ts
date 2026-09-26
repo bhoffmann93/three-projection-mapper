@@ -15,7 +15,7 @@ shader without any upload here.
 
 import * as THREE from 'three';
 import meshWarpVertexShader from '../shaders/warp.vert';
-import { DEFAULT_UV_RECT, DEFAULT_IMAGE_SETTINGS } from '../core/defaults';
+import { DEFAULT_UV_RECT, DEFAULT_IMAGE_SETTINGS, MAX_POLYGON_POINTS } from '../core/defaults';
 import type { UvRect, ImageSettings, Resolution } from '../core/defaults';
 
 export enum WARP_MODE {
@@ -34,6 +34,8 @@ export interface WarpMaterialConfig {
   globalDefines: Record<string, unknown>;
   bufferTexture: THREE.Texture;
   imageSettings?: ImageSettings;
+  /** Mask uniforms owned by the surface, evaluated in the content shader */
+  maskUniforms?: Record<string, { value: unknown }>;
 }
 
 export class WarpMaterial {
@@ -70,10 +72,13 @@ export class WarpMaterial {
       defines: {
         CONTROL_POINT_AMOUNT: config.gridControlPoints.x * config.gridControlPoints.y,
         ...config.globalDefines,
+        MAX_POLYGON_POINTS, //projection.frag's polygon mask array size
       },
       // Surface uniforms last: uBuffer deliberately shadows the shared one, so a
       // surface can be given its own media without leaving the shared buffer
-      uniforms: { ...config.globalUniforms, ...surfaceUniforms },
+      uniforms: { ...config.globalUniforms, ...config.maskUniforms, ...surfaceUniforms },
+      // Masked pixels fade to transparent, so a surface underneath stays visible
+      transparent: true,
     });
     this.material.side = THREE.FrontSide;
   }
@@ -90,11 +95,6 @@ export class WarpMaterial {
   /** The warped quad's measured size, which masks and the test card follow */
   setWarpPlaneSize(width: number, height: number): void {
     this.material.uniforms.uWarpPlaneSize.value.set(width, height);
-  }
-
-  /** Shared with MaskPlane so the mask follows the warped quad's dimensions */
-  getWarpPlaneSizeUniform(): { value: THREE.Vector2 } {
-    return this.material.uniforms.uWarpPlaneSize as { value: THREE.Vector2 };
   }
 
   setBufferTexture(texture: THREE.Texture): void {

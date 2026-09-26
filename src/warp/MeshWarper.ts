@@ -78,6 +78,8 @@ export interface MeshWarperConfig {
   imageSettings?: ImageSettings;
   /** Suffixes the localStorage key so multiple warpers persist independently */
   storageNamespace?: string;
+  /** Mask uniforms merged into this warper's material (see SurfaceMask) */
+  maskUniforms?: Record<string, { value: unknown }>;
 }
 
 export class MeshWarper {
@@ -162,6 +164,7 @@ export class MeshWarper {
       globalDefines: this.config.globalDefines,
       bufferTexture: this.config.bufferTexture,
       imageSettings: this.config.imageSettings,
+      maskUniforms: this.config.maskUniforms,
     });
   }
 
@@ -1177,10 +1180,5 @@ export class MeshWarper {
 
   public getDragControls(): DragControls {
     return this.dragControls;
-  }
-
-  /** Shared with MaskPlane so the mask follows the warped quad's dimensions */
-  public getWarpPlaneSizeUniform(): { value: THREE.Vector2 } {
-    return this.warpMaterial.getWarpPlaneSizeUniform();
   }
 }

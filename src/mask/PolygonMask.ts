@@ -1,22 +1,10 @@
 /*
 PolygonMask
 -----------
-A closed polygon mask with draggable anchor points. The mask is defined in UV space (0–1)
-and evaluated as a signed distance field (SDF) in the fragment shader — it clips the texture,
-not the screen geometry. The mask shape is therefore independent of the perspective warp.
-
-Node ground truth is stored in UV space. Anchor spheres are displayed in world space,
-repositioned each frame by applying the current perspective homography (corner warp only,
-not the grid warp) to the flat UV→world position. This keeps handles visually glued to
-the warped image without distorting the mask shape itself.
-
-On drag: the dragged world position is inverse-transformed back to flat space before
-converting to UV. This means storing UV = worldToUV(T⁻¹(draggedPos)). On the next frame,
-updateTransformedPositions computes T(uvToWorld(UV)) = T(T⁻¹(draggedPos)) = draggedPos,
-so there is no conflict between DragControls and the per-frame repositioning.
-
-UV space (ground truth) → T (perspective homography) → World space (sphere display)
-Fragment shader receives flat vUv → sdPolygon SDF → smoothstep mask → applied to color
+A closed polygon mask for blacking out light leaks. It is fixed in output space, so
+calibrating corners or grid points slides content under it but never moves it. Nodes
+are UV of the flat plane centred on the output, world = (uv - 0.5) * planeSize, and
+the shader evaluates them per fragment of this surface only (see SurfaceMask).
 
 Editing:
   Click on an outline edge  → insert new node at that position
@@ -34,7 +22,15 @@ export interface UVPoint {
 
 export const POLYGON_MASK_STORAGE_KEY = 'polygon-mask';
 
-const DEFAULT_NODES: UVPoint[] = [
+/** Stored masks name their space. Legacy masks are a bare node array relative to the corners */
+export const POLYGON_MASK_SPACE = { output: 'output' } as const;
+
+interface StoredPolygonMask {
+  space: typeof POLYGON_MASK_SPACE.output;
+  nodes: UVPoint[];
+}
+
+export const DEFAULT_POLYGON_NODES: readonly UVPoint[] = [
   { u: 0.25, v: 0.25 },
   { u: 0.75, v: 0.25 },
   { u: 0.75, v: 0.75 },
@@ -56,7 +52,8 @@ export class PolygonMask {
 
   private storageKey: string;
   private dragEnabled = true;
-  private inverseTransform: ((x: number, y: number) => THREE.Vector2) | null = null;
+  /** Loaded from the legacy format, whose nodes were relative to the corner perspective */
+  private loadedCornerSpace = false;
   private lastPixelToWorld = 0;
   private ignoreNextDblClick = false;
   private lastDragMoveTime = 0;
@@ -96,7 +93,7 @@ export class PolygonMask {
     this.worldHeight = worldHeight;
     this.storageKey = PolygonMask.storageKeyFor(storageNamespace);
 
-    this.nodeList = nodes ?? this.loadFromStorage() ?? [...DEFAULT_NODES];
+    this.nodeList = nodes ?? this.loadFromStorage() ?? [...DEFAULT_POLYGON_NODES];
 
     this.buildObjects();
     this.initDragControls();
@@ -294,10 +291,7 @@ export class PolygonMask {
       if (!result) return;
 
       const { segmentIndex, worldPt } = result;
-      const flat = this.inverseTransform
-        ? this.inverseTransform(worldPt.x, worldPt.y)
-        : new THREE.Vector2(worldPt.x, worldPt.y);
-      this.insertNode(segmentIndex, this.worldToUV(flat.x, flat.y));
+      this.insertNode(segmentIndex, this.worldToUV(worldPt.x, worldPt.y));
     };
 
     this.boundDblClickHandler = (event: MouseEvent) => {
@@ -334,29 +328,27 @@ export class PolygonMask {
     const nodeIndex = this.anchorObjects.indexOf(obj);
     if (nodeIndex === -1) return;
 
-    const wx = obj.position.x;
-    const wy = obj.position.y;
-
-    const flat = this.inverseTransform ? this.inverseTransform(wx, wy) : new THREE.Vector2(wx, wy);
-
-    this.nodeList[nodeIndex] = this.worldToUV(flat.x, flat.y);
+    this.nodeList[nodeIndex] = this.worldToUV(obj.position.x, obj.position.y);
     this.updateOutline();
     this.saveToStorage();
     this.onChanged();
   }
 
-  public updateTransformedPositions(
-    transform: (x: number, y: number) => THREE.Vector2,
-    inverse: (x: number, y: number) => THREE.Vector2,
-  ): void {
-    this.inverseTransform = inverse;
-
-    for (let i = 0; i < this.nodeList.length; i++) {
-      const flat = this.uvToWorld(this.nodeList[i]);
+  /**
+   * One-time upgrade of a mask saved while nodes were relative to the corner
+   * perspective: map each node through that perspective so it stays where it was
+   * drawn. A no-op for masks already in output space.
+   */
+  public migrateFromCornerSpace(transform: (x: number, y: number) => THREE.Vector2): void {
+    if (!this.loadedCornerSpace) return;
+    this.loadedCornerSpace = false;
+    const migrated = this.nodeList.map((node) => {
+      const flat = this.uvToWorld(node);
       const warped = transform(flat.x, flat.y);
-      this.anchorObjects[i].position.set(warped.x, warped.y, 0);
-    }
-    this.updateOutline();
+      return this.worldToUV(warped.x, warped.y);
+    });
+    this.setNodes(migrated);
+    this.saveToStorage();
   }
 
   public updateControlPointsScale(pixelToWorld: number): void {
@@ -400,7 +392,8 @@ export class PolygonMask {
 
   private saveToStorage(): void {
     try {
-      localStorage.setItem(this.storageKey, JSON.stringify(this.nodeList));
+      const stored: StoredPolygonMask = { space: POLYGON_MASK_SPACE.output, nodes: this.nodeList };
+      localStorage.setItem(this.storageKey, JSON.stringify(stored));
     } catch {
       /* ignore */
     }
@@ -411,7 +404,13 @@ export class PolygonMask {
       const raw = localStorage.getItem(this.storageKey);
       if (!raw) return null;
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length >= 3) return parsed as UVPoint[];
+      if (Array.isArray(parsed) && parsed.length >= 3) {
+        this.loadedCornerSpace = true;
+        return parsed as UVPoint[];
+      }
+      if (parsed?.space === POLYGON_MASK_SPACE.output && Array.isArray(parsed.nodes) && parsed.nodes.length >= 3) {
+        return parsed.nodes as UVPoint[];
+      }
     } catch {
       /* ignore */
     }
