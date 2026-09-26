@@ -16,7 +16,7 @@
  */
 
 varying vec2 vUv;
-varying vec2 vWorldPos; //warped world position, which the polygon mask maps back to flat space
+varying vec2 vWorldPos; //warped world position, where the output-space polygon mask is evaluated
 
 uniform vec3 uCorners[4]; //World Space TL TR BL BR
 uniform vec3 uControlPoint;

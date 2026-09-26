@@ -33,7 +33,6 @@ uniform float uSaturation;
 uniform float uHue;
 
 // Masks (SurfaceMask)
-uniform mat3 uInverseHomography;
 uniform vec2 uFlatPlaneSize;
 uniform bool uMaskEnabled;
 uniform float uFeather;
@@ -322,15 +321,11 @@ float sdPolygon(vec2 p, float aspect) {
     return s * sqrt(d);
 }
 
-// The polygon lives in flat UV under the corner homography only, like its handles.
-// Mapping the warped world position back per fragment keeps it exactly projective,
-// and gives UVs outside 0–1 wherever the grid warp pushes the mesh past the quad.
+// The polygon is fixed in output space so it masks light leaks independent of the
+// warp: its uv is the fragment's world position over the flat plane, centred on the
+// output. Outside 0–1 wherever the mesh reaches past that plane.
 vec2 polygonMaskUv() {
-    if (!uShouldWarp)
-        return vUv; //bypass draws a flat rect, so flat uv is the content uv
-    vec3 h = uInverseHomography * vec3(vWorldPos, 1.0);
-    vec2 flatWorld = h.xy / h.z;
-    return flatWorld / uFlatPlaneSize + 0.5;
+    return vWorldPos / uFlatPlaneSize + 0.5;
 }
 
 float maskReveal() {

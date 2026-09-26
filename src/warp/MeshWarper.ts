@@ -595,12 +595,6 @@ export class MeshWarper {
     return new PerspT(this.quadData.initalCorners, currentCorners).coeffs;
   }
 
-  /** Inverse of getPerspectiveCoeffs: warped world space back to the flat plane */
-  public getInversePerspectiveCoeffs(): number[] {
-    const currentCorners = this.dragCornerControlPoints.flatMap((p) => [p.x, p.y]);
-    return new PerspT(this.quadData.initalCorners, currentCorners).coeffsInv;
-  }
-
   public dispose(): void {
     this.planeGeometry.dispose();
     this.warpMaterial.dispose(); // never happened before the material had an owner

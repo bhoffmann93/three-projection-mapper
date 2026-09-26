@@ -1,23 +1,22 @@
 /*
 PolygonMask
 -----------
-A closed polygon mask with draggable anchor points. The mask is defined in UV space (0–1,
-nodes may sit outside it) and evaluated as a signed distance field (SDF) in the surface's
-content shader. The mask shape follows the corner perspective but not the grid warp.
+A closed polygon mask with draggable anchor points, for blacking out light leaks and
+spill. It is fixed in output space: moving corners or grid points slides the content
+underneath it but never moves the mask, so a leak stays covered while you calibrate.
 
-Node ground truth is stored in UV space. Anchor spheres are displayed in world space,
-repositioned each frame by applying the current perspective homography (corner warp only,
-not the grid warp) to the flat UV→world position. This keeps handles visually glued to
-the warped image without distorting the mask shape itself.
+Nodes are stored as UV (0–1) of the surface's flat plane centred on the output, i.e.
+world = (uv - 0.5) * planeSize. They may sit anywhere, including off the surface.
+Anchor spheres sit at exactly that world position, so a drag writes straight back
+to UV with no transform in between.
 
-On drag: the dragged world position is inverse-transformed back to flat space before
-converting to UV. This means storing UV = worldToUV(T⁻¹(draggedPos)). On the next frame,
-updateTransformedPositions computes T(uvToWorld(UV)) = T(T⁻¹(draggedPos)) = draggedPos,
-so there is no conflict between DragControls and the per-frame repositioning.
+The mask is evaluated as a signed distance field (SDF) in the surface's content shader
+from each fragment's world position (see SurfaceMask), so it covers every pixel the
+warped mesh draws and only this surface's pixels.
 
-UV space (ground truth) → T (perspective homography) → World space (sphere display)
-Fragment shader: warped world pos → T⁻¹ → flat UV → sdPolygon SDF → smoothstep → alpha
-(see SurfaceMask)
+Masks saved before the mask became output-space were relative to the corner
+perspective. They load flagged as such and WarpSurface maps them through the current
+homography once (migrateFromCornerSpace), so an existing calibration does not jump.
 
 Editing:
   Click on an outline edge  → insert new node at that position
@@ -35,7 +34,7 @@ export interface UVPoint {
 
 export const POLYGON_MASK_STORAGE_KEY = 'polygon-mask';
 
-const DEFAULT_NODES: UVPoint[] = [
+export const DEFAULT_POLYGON_NODES: readonly UVPoint[] = [
   { u: 0.25, v: 0.25 },
   { u: 0.75, v: 0.25 },
   { u: 0.75, v: 0.75 },
@@ -57,7 +56,8 @@ export class PolygonMask {
 
   private storageKey: string;
   private dragEnabled = true;
-  private inverseTransform: ((x: number, y: number) => THREE.Vector2) | null = null;
+  /** Loaded from the legacy format, whose nodes were relative to the corner perspective */
+  private loadedCornerSpace = false;
   private lastPixelToWorld = 0;
   private ignoreNextDblClick = false;
   private lastDragMoveTime = 0;
@@ -97,7 +97,7 @@ export class PolygonMask {
     this.worldHeight = worldHeight;
     this.storageKey = PolygonMask.storageKeyFor(storageNamespace);
 
-    this.nodeList = nodes ?? this.loadFromStorage() ?? [...DEFAULT_NODES];
+    this.nodeList = nodes ?? this.loadFromStorage() ?? [...DEFAULT_POLYGON_NODES];
 
     this.buildObjects();
     this.initDragControls();
@@ -295,10 +295,7 @@ export class PolygonMask {
       if (!result) return;
 
       const { segmentIndex, worldPt } = result;
-      const flat = this.inverseTransform
-        ? this.inverseTransform(worldPt.x, worldPt.y)
-        : new THREE.Vector2(worldPt.x, worldPt.y);
-      this.insertNode(segmentIndex, this.worldToUV(flat.x, flat.y));
+      this.insertNode(segmentIndex, this.worldToUV(worldPt.x, worldPt.y));
     };
 
     this.boundDblClickHandler = (event: MouseEvent) => {
@@ -335,29 +332,27 @@ export class PolygonMask {
     const nodeIndex = this.anchorObjects.indexOf(obj);
     if (nodeIndex === -1) return;
 
-    const wx = obj.position.x;
-    const wy = obj.position.y;
-
-    const flat = this.inverseTransform ? this.inverseTransform(wx, wy) : new THREE.Vector2(wx, wy);
-
-    this.nodeList[nodeIndex] = this.worldToUV(flat.x, flat.y);
+    this.nodeList[nodeIndex] = this.worldToUV(obj.position.x, obj.position.y);
     this.updateOutline();
     this.saveToStorage();
     this.onChanged();
   }
 
-  public updateTransformedPositions(
-    transform: (x: number, y: number) => THREE.Vector2,
-    inverse: (x: number, y: number) => THREE.Vector2,
-  ): void {
-    this.inverseTransform = inverse;
-
-    for (let i = 0; i < this.nodeList.length; i++) {
-      const flat = this.uvToWorld(this.nodeList[i]);
+  /**
+   * One-time upgrade of a mask saved while nodes were relative to the corner
+   * perspective: map each node through that perspective so it stays where it was
+   * drawn. A no-op for masks already in output space.
+   */
+  public migrateFromCornerSpace(transform: (x: number, y: number) => THREE.Vector2): void {
+    if (!this.loadedCornerSpace) return;
+    this.loadedCornerSpace = false;
+    const migrated = this.nodeList.map((node) => {
+      const flat = this.uvToWorld(node);
       const warped = transform(flat.x, flat.y);
-      this.anchorObjects[i].position.set(warped.x, warped.y, 0);
-    }
-    this.updateOutline();
+      return this.worldToUV(warped.x, warped.y);
+    });
+    this.setNodes(migrated);
+    this.saveToStorage();
   }
 
   public updateControlPointsScale(pixelToWorld: number): void {
@@ -401,7 +396,7 @@ export class PolygonMask {
 
   private saveToStorage(): void {
     try {
-      localStorage.setItem(this.storageKey, JSON.stringify(this.nodeList));
+      localStorage.setItem(this.storageKey, JSON.stringify({ space: 'output', nodes: this.nodeList }));
     } catch {
       /* ignore */
     }
@@ -412,7 +407,14 @@ export class PolygonMask {
       const raw = localStorage.getItem(this.storageKey);
       if (!raw) return null;
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length >= 3) return parsed as UVPoint[];
+      // A bare array is the legacy corner-relative format
+      if (Array.isArray(parsed) && parsed.length >= 3) {
+        this.loadedCornerSpace = true;
+        return parsed as UVPoint[];
+      }
+      if (parsed?.space === 'output' && Array.isArray(parsed.nodes) && parsed.nodes.length >= 3) {
+        return parsed.nodes as UVPoint[];
+      }
     } catch {
       /* ignore */
     }

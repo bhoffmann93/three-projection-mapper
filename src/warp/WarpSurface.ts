@@ -14,7 +14,7 @@ import * as THREE from 'three';
 import { MeshWarper, MeshWarperConfig } from './MeshWarper';
 import type { OutlineState } from './MeshWarper';
 import { SurfaceMask } from '../mask/SurfaceMask';
-import { PolygonMask, type UVPoint } from '../mask/PolygonMask';
+import { PolygonMask, DEFAULT_POLYGON_NODES, type UVPoint } from '../mask/PolygonMask';
 import {
   DEFAULT_UV_RECT,
   DEFAULT_EDGE_MASK,
@@ -254,6 +254,14 @@ export class WarpSurface {
   addPolygonMask(nodes?: UVPoint[]): PolygonMask {
     this.disposePolygonMask();
 
+    // The mask is in output space, so a fresh one starts on this surface, not the output centre
+    if (!nodes && !PolygonMask.hasStored(this.namespace())) {
+      const center = this.warper.getCenter();
+      const du = center.x / this.maskConfig.worldWidth;
+      const dv = center.y / this.maskConfig.worldHeight;
+      nodes = DEFAULT_POLYGON_NODES.map(({ u, v }) => ({ u: u + du, v: v + dv }));
+    }
+
     this.polygonMask = new PolygonMask(
       this.maskConfig.scene,
       this.maskConfig.camera,
@@ -267,6 +275,7 @@ export class WarpSurface {
       this.mask.setPolygonNodes(this.polygonMask!.nodes);
       this.onPolygonNodesChanged();
     };
+    this.polygonMask.migrateFromCornerSpace((x, y) => this.warper.applyPerspectiveTransform(x, y));
 
     this.mask.setPolygonMaskEnabled(this.polygonSettings.enabled);
     this.mask.setPolygonInvert(this.polygonSettings.inverted);
@@ -364,18 +373,10 @@ export class WarpSurface {
 
   // --- per-frame ------------------------------------------------------------
 
-  /** Keep this surface's masks and handles glued to its current perspective */
+  /** Keep handles a constant screen size; the polygon itself is fixed in output space */
   syncMasks(pixelToWorld: number): void {
     this.warper.updateControlPointsScale(pixelToWorld);
-    this.mask.syncInversePerspective(this.warper.getInversePerspectiveCoeffs());
-
-    if (this.polygonMask) {
-      this.polygonMask.updateTransformedPositions(
-        (x, y) => this.warper.applyPerspectiveTransform(x, y),
-        (x, y) => this.warper.applyInversePerspectiveTransform(x, y),
-      );
-      this.polygonMask.updateControlPointsScale(pixelToWorld);
-    }
+    this.polygonMask?.updateControlPointsScale(pixelToWorld);
   }
 
   // --- lifecycle ------------------------------------------------------------

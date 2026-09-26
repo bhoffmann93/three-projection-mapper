@@ -10,9 +10,10 @@ one surface no longer blacks out another surface underneath it.
 
 The two masks live in different spaces:
   Edge feather → content vUv, so it follows the grid warp along the image edges.
-  Polygon      → flat UV under the corner homography only, matching the polygon
-                 handles. The fragment shader gets there by running the warped
-                 world position back through the inverse homography.
+  Polygon      → output space, fixed while corners and grid points move, so it keeps
+                 covering a light leak during calibration. The fragment shader reads
+                 it from the fragment's world position, which also reaches past the
+                 corner quad wherever the grid warp pushes the mesh.
 */
 
 import * as THREE from 'three';
@@ -22,7 +23,6 @@ import type { UVPoint } from './PolygonMask';
 export class SurfaceMask {
   /** Merged into the surface's WarpMaterial uniforms by reference */
   readonly uniforms = {
-    uInverseHomography: { value: new THREE.Matrix3() },
     uFlatPlaneSize: { value: new THREE.Vector2() },
     uMaskEnabled: { value: false },
     uFeather: { value: 0 },
@@ -35,18 +35,6 @@ export class SurfaceMask {
 
   constructor(flatWidth: number, flatHeight: number) {
     this.uniforms.uFlatPlaneSize.value.set(flatWidth, flatHeight);
-  }
-
-  // coeffsInv is the 9-element inverse PerspT homography array (warped → flat):
-  // | c[0] c[1] c[2] |
-  // | c[3] c[4] c[5] |
-  // | c[6] c[7]  1   |
-  syncInversePerspective(coeffsInv: number[]): void {
-    this.uniforms.uInverseHomography.value.set(
-      coeffsInv[0], coeffsInv[1], coeffsInv[2],
-      coeffsInv[3], coeffsInv[4], coeffsInv[5],
-      coeffsInv[6], coeffsInv[7], 1,
-    );
   }
 
   setFeatherMask(enabled: boolean, amount: number): void {

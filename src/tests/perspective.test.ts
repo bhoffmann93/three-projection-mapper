@@ -102,30 +102,3 @@ describe('PerspT (Perspective Transform)', () => {
     expect(originalY).toBeCloseTo(inputY, 4);
   });
 });
-
-// The polygon mask maps warped world positions back to flat space in the shader
-// with coeffsInv, so it has to undo coeffs exactly — including outside the quad,
-// where the grid warp can push the mesh.
-describe('PerspT inverse coefficients', () => {
-  const applyCoeffs = (c: number[], x: number, y: number): [number, number] => {
-    const w = c[6] * x + c[7] * y + 1;
-    return [(c[0] * x + c[1] * y + c[2]) / w, (c[3] * x + c[4] * y + c[5]) / w];
-  };
-
-  const WARPED = [-10, 110, 115, 95, 5, -5, 90, 10];
-
-  it('round-trips points inside and outside the quad', () => {
-    const transformer = new PerspT(SQUARE_SRC, WARPED);
-    for (const [x, y] of [
-      [50, 50],
-      [0, 0],
-      [-20, 40],
-      [130, -15],
-    ]) {
-      const [wx, wy] = applyCoeffs(transformer.coeffs, x, y);
-      const [fx, fy] = applyCoeffs(transformer.coeffsInv, wx, wy);
-      expect(fx).toBeCloseTo(x, 4);
-      expect(fy).toBeCloseTo(y, 4);
-    }
-  });
-});
