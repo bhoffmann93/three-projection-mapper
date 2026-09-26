@@ -6,6 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Three.js Projection Mapping is a library for adding projection mapping capabilities to Three.js projects. It provides interactive warp grid control with bicubic interpolation for smooth perspective correction.
 
+## Design Principles
+
+Follow `DESIGN_PRINCIPLES.md` for code style, comments, constants, storage and shaders.
+
 ## Commands
 
 ```bash

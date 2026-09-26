@@ -1,19 +1,9 @@
 /*
 SurfaceMask
 -----------
-The mask uniforms of one surface — edge feather and polygon — evaluated inside the
-surface's own content shader (projection.frag) rather than on a separate overlay.
-
-Evaluating in the content shader means every pixel the warped mesh draws is masked,
-including ones the grid warp pushes outside the corner quad, and a masked pixel of
-one surface no longer blacks out another surface underneath it.
-
-The two masks live in different spaces:
-  Edge feather → content vUv, so it follows the grid warp along the image edges.
-  Polygon      → output space, fixed while corners and grid points move, so it keeps
-                 covering a light leak during calibration. The fragment shader reads
-                 it from the fragment's world position, which also reaches past the
-                 corner quad wherever the grid warp pushes the mesh.
+The mask uniforms of one surface, evaluated in its own content shader so every pixel the
+warped mesh draws is masked and a masked pixel never covers another surface. The edge
+feather reads content uv and follows the warp. The polygon reads output space and does not.
 */
 
 import * as THREE from 'three';

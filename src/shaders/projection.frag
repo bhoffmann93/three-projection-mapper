@@ -266,7 +266,7 @@ vec3 imageAdjust(vec3 color) {
     return clamp(color, 0.0, 1.0);
 }
 
-// --- masks -----------------------------------------------------------------
+// Masks
 
 float smootherstep(float edge0, float edge1, float x) {
     x = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
@@ -287,15 +287,18 @@ float gaussianRect(in vec2 p, in vec2 b, in float w) {
     return u * v / 4.0;
 }
 
+const float MAX_EDGE_FEATHER = 0.25; //softness at feather 1, in plane heights
+const float EDGE_FEATHER_INSET = 1.5; //pulls the blur inside the edge so the border reaches black
+
 float gaussianRectMask(vec2 uv, vec2 res, float soft) {
     float aspect = res.x / res.y;
     vec2 p = (uv - 0.5) * vec2(aspect, 1.0);
     vec2 baseSize = vec2(aspect, 1.0) * 0.5;
-    vec2 insetSize = baseSize - (soft * 1.5);
+    vec2 insetSize = baseSize - (soft * EDGE_FEATHER_INSET);
     return gaussianRect(p, insetSize, soft);
 }
 
-// Polygon SDF — MIT Inigo Quilez (adapted for GLSL ES 1.0 fixed-size uniform array)
+// Polygon SDF, MIT Inigo Quilez (adapted for GLSL ES 1.0 fixed-size uniform array)
 // https://www.shadertoy.com/view/wdBXRW
 // Adapted for aspect ratio correction so smoothstep (feather) is uniform
 float sdPolygon(vec2 p, float aspect) {
@@ -321,25 +324,23 @@ float sdPolygon(vec2 p, float aspect) {
     return s * sqrt(d);
 }
 
-// The polygon is fixed in output space so it masks light leaks independent of the
-// warp: its uv is the fragment's world position over the flat plane, centred on the
-// output. Outside 0–1 wherever the mesh reaches past that plane.
-vec2 polygonMaskUv() {
-    return vWorldPos / uFlatPlaneSize + 0.5;
+// Output space, so the polygon stays on a light leak while the warp moves the content
+vec2 outputPlaneUv(vec2 worldPos, vec2 flatPlaneSize) {
+    return worldPos / flatPlaneSize + 0.5;
 }
 
-float maskReveal() {
+float maskReveal(vec2 contentUv, vec2 outputUv) {
     float reveal = 1.0;
 
-    //edge feather follows the content (and so the grid warp)
-    if (uMaskEnabled) {
-        float soft = mix(0.0, 0.25, uFeather);
-        reveal *= gaussianRectMask(vUv, uWarpPlaneSize, soft);
+    //at zero feather the rect is the content edge itself, so it would mask nothing
+    if (uMaskEnabled && uFeather > 0.0) {
+        float soft = mix(0.0, MAX_EDGE_FEATHER, uFeather);
+        reveal *= gaussianRectMask(contentUv, uWarpPlaneSize, soft);
     }
 
     if (uPolygonMaskEnabled && uPolygonPointCount >= 3) {
-        float aspect = uWarpPlaneSize.x / uWarpPlaneSize.y;
-        float dist = sdPolygon(polygonMaskUv(), aspect);
+        float aspect = uFlatPlaneSize.x / uFlatPlaneSize.y; //output uv is of the flat plane
+        float dist = sdPolygon(outputUv, aspect);
         float fw = fwidth(dist);
         float polyMask = 1.0 - smootherstep(-(uPolygonFeather + fw), fw + uPolygonFeather, dist);
         reveal *= uPolygonInvert ? 1.0 - polyMask : polyMask;
@@ -378,5 +379,5 @@ void main() {
 
     color = clamp(color, 0.0, 1.0);
 
-    gl_FragColor = vec4(color, maskReveal());
+    gl_FragColor = vec4(color, maskReveal(vUv, outputPlaneUv(vWorldPos, uFlatPlaneSize)));
 }

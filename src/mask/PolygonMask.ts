@@ -1,22 +1,10 @@
 /*
 PolygonMask
 -----------
-A closed polygon mask with draggable anchor points, for blacking out light leaks and
-spill. It is fixed in output space: moving corners or grid points slides the content
-underneath it but never moves the mask, so a leak stays covered while you calibrate.
-
-Nodes are stored as UV (0–1) of the surface's flat plane centred on the output, i.e.
-world = (uv - 0.5) * planeSize. They may sit anywhere, including off the surface.
-Anchor spheres sit at exactly that world position, so a drag writes straight back
-to UV with no transform in between.
-
-The mask is evaluated as a signed distance field (SDF) in the surface's content shader
-from each fragment's world position (see SurfaceMask), so it covers every pixel the
-warped mesh draws and only this surface's pixels.
-
-Masks saved before the mask became output-space were relative to the corner
-perspective. They load flagged as such and WarpSurface maps them through the current
-homography once (migrateFromCornerSpace), so an existing calibration does not jump.
+A closed polygon mask for blacking out light leaks. It is fixed in output space, so
+calibrating corners or grid points slides content under it but never moves it. Nodes
+are UV of the flat plane centred on the output, world = (uv - 0.5) * planeSize, and
+the shader evaluates them per fragment of this surface only (see SurfaceMask).
 
 Editing:
   Click on an outline edge  → insert new node at that position
@@ -33,6 +21,14 @@ export interface UVPoint {
 }
 
 export const POLYGON_MASK_STORAGE_KEY = 'polygon-mask';
+
+/** Stored masks name their space. Legacy masks are a bare node array relative to the corners */
+export const POLYGON_MASK_SPACE = { output: 'output' } as const;
+
+interface StoredPolygonMask {
+  space: typeof POLYGON_MASK_SPACE.output;
+  nodes: UVPoint[];
+}
 
 export const DEFAULT_POLYGON_NODES: readonly UVPoint[] = [
   { u: 0.25, v: 0.25 },
@@ -396,7 +392,8 @@ export class PolygonMask {
 
   private saveToStorage(): void {
     try {
-      localStorage.setItem(this.storageKey, JSON.stringify({ space: 'output', nodes: this.nodeList }));
+      const stored: StoredPolygonMask = { space: POLYGON_MASK_SPACE.output, nodes: this.nodeList };
+      localStorage.setItem(this.storageKey, JSON.stringify(stored));
     } catch {
       /* ignore */
     }
@@ -407,12 +404,11 @@ export class PolygonMask {
       const raw = localStorage.getItem(this.storageKey);
       if (!raw) return null;
       const parsed = JSON.parse(raw);
-      // A bare array is the legacy corner-relative format
       if (Array.isArray(parsed) && parsed.length >= 3) {
         this.loadedCornerSpace = true;
         return parsed as UVPoint[];
       }
-      if (parsed?.space === 'output' && Array.isArray(parsed.nodes) && parsed.nodes.length >= 3) {
+      if (parsed?.space === POLYGON_MASK_SPACE.output && Array.isArray(parsed.nodes) && parsed.nodes.length >= 3) {
         return parsed.nodes as UVPoint[];
       }
     } catch {
