@@ -1,9 +1,9 @@
 /*
 PolygonMask
 -----------
-A closed polygon mask with draggable anchor points. The mask is defined in UV space (0–1)
-and evaluated as a signed distance field (SDF) in the fragment shader — it clips the texture,
-not the screen geometry. The mask shape is therefore independent of the perspective warp.
+A closed polygon mask with draggable anchor points. The mask is defined in UV space (0–1,
+nodes may sit outside it) and evaluated as a signed distance field (SDF) in the surface's
+content shader. The mask shape follows the corner perspective but not the grid warp.
 
 Node ground truth is stored in UV space. Anchor spheres are displayed in world space,
 repositioned each frame by applying the current perspective homography (corner warp only,
@@ -16,7 +16,8 @@ updateTransformedPositions computes T(uvToWorld(UV)) = T(T⁻¹(draggedPos)) = d
 so there is no conflict between DragControls and the per-frame repositioning.
 
 UV space (ground truth) → T (perspective homography) → World space (sphere display)
-Fragment shader receives flat vUv → sdPolygon SDF → smoothstep mask → applied to color
+Fragment shader: warped world pos → T⁻¹ → flat UV → sdPolygon SDF → smoothstep → alpha
+(see SurfaceMask)
 
 Editing:
   Click on an outline edge  → insert new node at that position

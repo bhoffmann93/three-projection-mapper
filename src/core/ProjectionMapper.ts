@@ -480,7 +480,6 @@ export class ProjectionMapper {
       mask: {
         worldWidth: plane.width,
         worldHeight: plane.height,
-        segments: this.config.segments,
         scene: this.scene,
         camera: this.camera,
         renderer: this.renderer,

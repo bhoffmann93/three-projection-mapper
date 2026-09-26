@@ -10,6 +10,7 @@
  */
 
 varying vec2 vUv;
+varying vec2 vWorldPos;
 uniform bool uShouldWarp;
 
 uniform sampler2D uBuffer;
@@ -30,6 +31,17 @@ uniform float uGamma;
 uniform float uContrast;
 uniform float uSaturation;
 uniform float uHue;
+
+// Masks (SurfaceMask)
+uniform mat3 uInverseHomography;
+uniform vec2 uFlatPlaneSize;
+uniform bool uMaskEnabled;
+uniform float uFeather;
+uniform bool uPolygonMaskEnabled;
+uniform bool uPolygonInvert;
+uniform int uPolygonPointCount;
+uniform vec2 uPolygonPoints[MAX_POLYGON_POINTS];
+uniform float uPolygonFeather;
 
 #define PI 3.14159265359
 #define TAU 6.28318530718
@@ -255,6 +267,92 @@ vec3 imageAdjust(vec3 color) {
     return clamp(color, 0.0, 1.0);
 }
 
+// --- masks -----------------------------------------------------------------
+
+float smootherstep(float edge0, float edge1, float x) {
+    x = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
+    return x * x * x * (x * (x * 6.0 - 15.0) + 10.0);
+}
+
+// Gaussian Filtered Rectangle
+// Mathematically based on the Error Function (erf) approximation.
+// Reference: https://www.shadertoy.com/view/NsVSWy
+// More Information: https://raphlinus.github.io/graphics/2020/04/21/blurred-rounded-rects.html
+float erf(in float x) {
+    return sign(x) * sqrt(1.0 - exp2(-1.787776 * x * x));
+}
+
+float gaussianRect(in vec2 p, in vec2 b, in float w) {
+    float u = erf((p.x + b.x) / w) - erf((p.x - b.x) / w);
+    float v = erf((p.y + b.y) / w) - erf((p.y - b.y) / w);
+    return u * v / 4.0;
+}
+
+float gaussianRectMask(vec2 uv, vec2 res, float soft) {
+    float aspect = res.x / res.y;
+    vec2 p = (uv - 0.5) * vec2(aspect, 1.0);
+    vec2 baseSize = vec2(aspect, 1.0) * 0.5;
+    vec2 insetSize = baseSize - (soft * 1.5);
+    return gaussianRect(p, insetSize, soft);
+}
+
+// Polygon SDF — MIT Inigo Quilez (adapted for GLSL ES 1.0 fixed-size uniform array)
+// https://www.shadertoy.com/view/wdBXRW
+// Adapted for aspect ratio correction so smoothstep (feather) is uniform
+float sdPolygon(vec2 p, float aspect) {
+    p = p * vec2(aspect, 1.0);
+    vec2 p0 = uPolygonPoints[0] * vec2(aspect, 1.0);
+    float d = dot(p - p0, p - p0);
+    float s = 1.0;
+    int j = uPolygonPointCount - 1;
+    for(int i = 0; i < MAX_POLYGON_POINTS; i++) {
+        if(i >= uPolygonPointCount)
+            break;
+        vec2 vi = uPolygonPoints[i] * vec2(aspect, 1.0);
+        vec2 vj = uPolygonPoints[j] * vec2(aspect, 1.0);
+        vec2 e = vj - vi;
+        vec2 w = p - vi;
+        vec2 b = w - e * clamp(dot(w, e) / dot(e, e), 0.0, 1.0);
+        d = min(d, dot(b, b));
+        bvec3 cond = bvec3(p.y >= vi.y, p.y < vj.y, e.x * w.y > e.y * w.x);
+        if(all(cond) || all(not(cond)))
+            s = -s;
+        j = i;
+    }
+    return s * sqrt(d);
+}
+
+// The polygon lives in flat UV under the corner homography only, like its handles.
+// Mapping the warped world position back per fragment keeps it exactly projective,
+// and gives UVs outside 0–1 wherever the grid warp pushes the mesh past the quad.
+vec2 polygonMaskUv() {
+    if (!uShouldWarp)
+        return vUv; //bypass draws a flat rect, so flat uv is the content uv
+    vec3 h = uInverseHomography * vec3(vWorldPos, 1.0);
+    vec2 flatWorld = h.xy / h.z;
+    return flatWorld / uFlatPlaneSize + 0.5;
+}
+
+float maskReveal() {
+    float reveal = 1.0;
+
+    //edge feather follows the content (and so the grid warp)
+    if (uMaskEnabled) {
+        float soft = mix(0.0, 0.25, uFeather);
+        reveal *= gaussianRectMask(vUv, uWarpPlaneSize, soft);
+    }
+
+    if (uPolygonMaskEnabled && uPolygonPointCount >= 3) {
+        float aspect = uWarpPlaneSize.x / uWarpPlaneSize.y;
+        float dist = sdPolygon(polygonMaskUv(), aspect);
+        float fw = fwidth(dist);
+        float polyMask = 1.0 - smootherstep(-(uPolygonFeather + fw), fw + uPolygonFeather, dist);
+        reveal *= uPolygonInvert ? 1.0 - polyMask : polyMask;
+    }
+
+    return reveal;
+}
+
 void main() {
     vec3 color;
 
@@ -285,5 +383,5 @@ void main() {
 
     color = clamp(color, 0.0, 1.0);
 
-    gl_FragColor = vec4(color, 1.0);
+    gl_FragColor = vec4(color, maskReveal());
 }
