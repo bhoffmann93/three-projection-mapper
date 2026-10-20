@@ -166,8 +166,168 @@ export function buttonElement(button: { element: HTMLElement }): HTMLButtonEleme
   return button.element.querySelector('button') as HTMLButtonElement;
 }
 
-/** Tweakpane wraps the pane in a positioning div that owns width and placement */
-export function paneWrapper(pane: { element: HTMLElement }): HTMLElement | null {
-  return pane.element.closest('.tp-dfwv');
+
+
+const injectedStyleClasses = new Set<string>();
+
+const injectStyleOnce = (styleClass: string, rules: readonly string[]): void => {
+  if (injectedStyleClasses.has(styleClass)) return;
+  const style = document.createElement('style');
+  style.textContent = rules.join('\n');
+  document.head.appendChild(style);
+  injectedStyleClasses.add(styleClass);
+};
+
+const TWEAKPANE_THEME_VARIABLE_PREFIX = '--tp-';
+
+/** Sets Tweakpane's theming variables on a pane's root, each keyed by its name after the --tp- prefix. */
+export const applyPaneTheme = (pane: { readonly element: HTMLElement }, theme: Readonly<Record<string, string>>): void => {
+  for (const [name, value] of Object.entries(theme)) {
+    pane.element.style.setProperty(`${TWEAKPANE_THEME_VARIABLE_PREFIX}${name}`, value);
+  }
+};
+
+export interface PanePosition {
+  readonly x: number;
+  readonly y: number;
 }
 
+//how far the pointer travels on a title before a press becomes a drag rather than a fold
+const PANE_DRAG_THRESHOLD_PX = 3;
+const PANE_TITLE_SELECTOR = '.tp-rotv_b';
+
+//only the title has to stay on screen, a tall pane may hang below the window and still be caught
+const clampToViewport = (position: PanePosition, container: HTMLElement, title: HTMLElement): PanePosition => ({
+  x: Math.min(Math.max(0, position.x), Math.max(0, window.innerWidth - container.offsetWidth)),
+  y: Math.min(Math.max(0, position.y), Math.max(0, window.innerHeight - title.offsetHeight)),
+});
+
+//caps the pane at the window below where it sits, so a scrolling pane keeps its last rows reachable
+const fitPaneBelow = (paneElement: HTMLElement, container: HTMLElement): void => {
+  paneElement.style.maxHeight = `${window.innerHeight - container.offsetTop}px`;
+};
+
+const placeAt = (paneElement: HTMLElement, container: HTMLElement, position: PanePosition): void => {
+  container.style.left = `${position.x}px`;
+  container.style.top = `${position.y}px`;
+  fitPaneBelow(paneElement, container);
+};
+
+//the side a pane was left nearest to and its gap to it, so a resize keeps it there instead of pushing it off screen
+interface PaneSideAnchor {
+  readonly fromRight: boolean;
+  readonly gapX: number;
+}
+
+const anchorToNearestSide = (container: HTMLElement): PaneSideAnchor => {
+  const left = container.offsetLeft;
+  const right = window.innerWidth - left - container.offsetWidth;
+  const fromRight = right < left;
+  return { fromRight, gapX: Math.max(0, fromRight ? right : left) };
+};
+
+const positionFromAnchor = (anchor: PaneSideAnchor, container: HTMLElement): PanePosition => ({
+  x: anchor.fromRight ? window.innerWidth - container.offsetWidth - anchor.gapX : anchor.gapX,
+  y: container.offsetTop,
+});
+
+/**
+ * Tweakpane mounts every pane in one top right wrapper unless it is handed a container, so a pane
+ * that sits and moves on its own needs this one.
+ */
+export const createFloatingPaneContainer = (widthPx: number, zIndex: number): HTMLElement => {
+  const container = document.createElement('div');
+  container.style.cssText = `position: fixed; width: ${widthPx}px; z-index: ${zIndex};`;
+  document.body.appendChild(container);
+  return container;
+};
+
+/**
+ * Moves the pane's container by dragging its title bar. A press that never travels past the
+ * threshold is left alone, so the title still folds the pane on a plain click. The pane is capped
+ * at the window below where it sits. Returns a function that removes the window listener.
+ */
+export const makePaneDraggable = (
+  pane: { readonly element: HTMLElement },
+  container: HTMLElement,
+  position: PanePosition,
+  onMoved: (position: PanePosition) => void,
+): (() => void) => {
+  const title = pane.element.querySelector<HTMLElement>(PANE_TITLE_SELECTOR);
+  if (!title) throw new Error('Tweakpane pane has no title bar element, its DOM structure changed');
+
+  placeAt(pane.element, container, clampToViewport(position, container, title));
+  title.style.cursor = 'grab';
+  let anchor = anchorToNearestSide(container);
+
+  const onResize = (): void => {
+    placeAt(pane.element, container, clampToViewport(positionFromAnchor(anchor, container), container, title));
+  };
+  window.addEventListener('resize', onResize);
+
+  let drag: { startX: number; startY: number; origin: PanePosition; moved: boolean } | null = null;
+  let swallowNextClick = false;
+
+  title.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    //capturing the pointer would retarget the click of a button placed in the title to the title
+    if (event.target instanceof Element && event.target.closest('button') !== title) return;
+    drag = {
+      startX: event.clientX,
+      startY: event.clientY,
+      origin: { x: container.offsetLeft, y: container.offsetTop },
+      moved: false,
+    };
+    title.setPointerCapture(event.pointerId);
+  });
+
+  title.addEventListener('pointermove', (event) => {
+    if (!drag) return;
+    const deltaX = event.clientX - drag.startX;
+    const deltaY = event.clientY - drag.startY;
+    if (!drag.moved && Math.hypot(deltaX, deltaY) < PANE_DRAG_THRESHOLD_PX) return;
+    drag.moved = true;
+    placeAt(
+      pane.element,
+      container,
+      clampToViewport({ x: drag.origin.x + deltaX, y: drag.origin.y + deltaY }, container, title),
+    );
+  });
+
+  title.addEventListener('pointerup', () => {
+    if (!drag) return;
+    const moved = drag.moved;
+    drag = null;
+    if (!moved) return;
+    swallowNextClick = true;
+    anchor = anchorToNearestSide(container);
+    onMoved({ x: container.offsetLeft, y: container.offsetTop });
+  });
+
+  //capture on the container runs before the title's own click handler, which is what folds the pane
+  container.addEventListener(
+    'click',
+    (event) => {
+      if (!swallowNextClick) return;
+      swallowNextClick = false;
+      event.stopPropagation();
+    },
+    true,
+  );
+
+  return () => window.removeEventListener('resize', onResize);
+};
+
+const PANE_SCROLL_CLASS = 'pm-pane-scroll';
+//above the pane's own rows, which the held title scrolls over
+const PANE_STICKY_TITLE_Z_INDEX = 1;
+
+/** Scrolls a pane taller than its space vertically only, with no scrollbar shown and its title held in view. */
+export const makePaneScrollable = (pane: { readonly element: HTMLElement }): void => {
+  injectStyleOnce(PANE_SCROLL_CLASS, [
+    `.${PANE_SCROLL_CLASS} { overflow-x: hidden; overflow-y: auto; scrollbar-width: none; }`,
+    `.${PANE_SCROLL_CLASS}::-webkit-scrollbar { display: none; }`,
+    `.${PANE_SCROLL_CLASS} > ${PANE_TITLE_SELECTOR} { position: sticky; top: 0; z-index: ${PANE_STICKY_TITLE_Z_INDEX}; }`,
+  ]);
+  pane.element.classList.add(PANE_SCROLL_CLASS);
+};

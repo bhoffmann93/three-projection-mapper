@@ -2,6 +2,14 @@ import type { ImageSettings } from './defaults';
 
 export const TWEAKPANE_TRANSPARENCY = '0.9';
 
+/** The floating pane, which starts in the top corner its anchor names until it is dragged */
+export const PANE_LAYOUT = {
+  widthPx: 240,
+  cornerMarginPx: 8,
+  //tweakpane's own z-index for the wrapper it places panes in
+  zIndex: 1000,
+} as const;
+
 /** Titles the surface folder by count, so it reads honestly with one surface */
 export const SURFACE_FOLDER_TITLE = {
   singular: 'Surface',

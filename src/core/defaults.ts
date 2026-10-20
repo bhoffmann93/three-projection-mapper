@@ -239,20 +239,41 @@ export const OFFSCREEN_MARKER = {
   fontWeight: '500',
 } as const;
 
+/** Tweakpane's Iceberg preset from its theming docs, keyed by the variable name after its --tp- prefix. */
+export const TWEAKPANE_THEME = {
+  'base-background-color': 'hsla(230, 20%, 11%, 1)',
+  'base-shadow-color': 'hsla(0, 0%, 0%, 0.2)',
+  'button-background-color': 'hsla(230, 10%, 80%, 1)',
+  'button-background-color-active': 'hsla(230, 10%, 95%, 1)',
+  'button-background-color-focus': 'hsla(230, 10%, 90%, 1)',
+  'button-background-color-hover': 'hsla(230, 10%, 85%, 1)',
+  'button-foreground-color': 'hsla(230, 20%, 11%, 1)',
+  'container-background-color': 'hsla(230, 25%, 16%, 1)',
+  'container-background-color-active': 'hsla(230, 25%, 31%, 1)',
+  'container-background-color-focus': 'hsla(230, 25%, 26%, 1)',
+  'container-background-color-hover': 'hsla(230, 25%, 21%, 1)',
+  'container-foreground-color': 'hsla(230, 10%, 80%, 1)',
+  'groove-foreground-color': 'hsla(230, 20%, 8%, 1)',
+  'input-background-color': 'hsla(230, 20%, 8%, 1)',
+  'input-background-color-active': 'hsla(230, 28%, 23%, 1)',
+  'input-background-color-focus': 'hsla(230, 28%, 18%, 1)',
+  'input-background-color-hover': 'hsla(230, 20%, 13%, 1)',
+  'input-foreground-color': 'hsla(230, 10%, 80%, 1)',
+  'label-foreground-color': 'hsla(230, 12%, 48%, 1)',
+  'monitor-background-color': 'hsla(230, 20%, 8%, 1)',
+  'monitor-foreground-color': 'hsla(230, 12%, 48%, 1)',
+} as const satisfies Record<string, string>;
+
 /**
- * Tweakpane's own default theme values, so chrome drawn outside the pane still
- * reads as part of it.
- *
- * Mirrored rather than referenced: Tweakpane declares its custom properties on
- * the pane element itself, so `var(--tp-base-background-color)` resolves to
- * nothing anywhere else in the document. Anything inside the pane should still
- * use the variables, with these as the fallback — see tweakpaneUtils.
+ * The pane theme's values, so chrome drawn outside the pane still reads as part of it.
+ * Mirrored because Tweakpane declares its custom properties on the pane element itself,
+ * so they resolve to nothing elsewhere in the document. Inside the pane, use the variables.
  */
 export const PANE_THEME = {
-  background: 'hsl(230, 7%, 17%)',
-  foreground: 'hsl(230, 7%, 75%)',
-  buttonBackground: 'hsl(230, 7%, 30%)',
-  buttonForeground: 'hsl(230, 7%, 17%)',
+  background: TWEAKPANE_THEME['base-background-color'],
+  foreground: TWEAKPANE_THEME['container-foreground-color'],
+  buttonBackground: TWEAKPANE_THEME['button-background-color'],
+  buttonForeground: TWEAKPANE_THEME['button-foreground-color'],
   shadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
   fontFamily: "'Roboto Mono', 'Source Code Pro', Menlo, Courier, monospace",
 } as const;

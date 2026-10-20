@@ -12,6 +12,7 @@ import {
   SHOW_ACES_TOGGLE,
   ZOOM_RANGE,
   scopedStorageKey,
+  TWEAKPANE_THEME,
 } from './defaults';
 import type { ImageSettings } from './defaults';
 import { WARP_MODE } from '../warp/MeshWarper';
@@ -32,14 +33,19 @@ import {
   SURFACE_FOLDER_TITLE,
   IMAGE_CONTROLS,
   GUI_INITIAL_EXPANDED,
+  PANE_LAYOUT,
 } from './gui.config';
 import {
   createTweakpaneButton,
   replaceLabelWithButton,
   addButtonGrid,
   buttonElement,
-  paneWrapper,
+  applyPaneTheme,
+  createFloatingPaneContainer,
+  makePaneDraggable,
+  makePaneScrollable,
   type ButtonGridBladeApi,
+  type PanePosition,
 } from './tweakpaneUtils';
 
 export type GUIAnchor = 'left' | 'right';
@@ -79,6 +85,8 @@ export interface ProjectionMapperGUISettings {
   masksExpanded: boolean;
   polygonMaskExpanded: boolean;
   warpExpanded: boolean;
+  /** Where the pane was last dragged to, null until it is moved from its anchor corner */
+  panePosition: PanePosition | null;
 }
 
 type ExpandedSettingKey = {
@@ -104,6 +112,8 @@ export class ProjectionMapperGUI {
   private config: ProjectionMapperGUIConfig;
   private syncSettingButtons: () => void = () => {};
   private syncWarpButtons: () => void = () => {};
+  private readonly paneContainer: HTMLElement;
+  private readonly disposeDrag: () => void;
 
   /** Edited freely, then applied on Set — resizing the canvas re-frames everything */
   private outputResolutionState = { width: 0, height: 0 };
@@ -147,6 +157,7 @@ export class ProjectionMapperGUI {
       masksExpanded: GUI_INITIAL_EXPANDED.masks,
       polygonMaskExpanded: GUI_INITIAL_EXPANDED.polygonMask,
       warpExpanded: GUI_INITIAL_EXPANDED.warp,
+      panePosition: null,
     };
 
     this.loadSettings();
@@ -177,21 +188,30 @@ export class ProjectionMapperGUI {
     // watches for it and the readout follows rather than waiting to be asked
     mapper.onBufferResolutionChanged(() => this.refreshBufferResolution());
 
-    this.pane = new Pane({ title, expanded: this.settings.paneExpanded });
+    this.paneContainer = createFloatingPaneContainer(PANE_LAYOUT.widthPx, PANE_LAYOUT.zIndex);
+    this.pane = new Pane({ container: this.paneContainer, title, expanded: this.settings.paneExpanded });
     this.persistFold(this.pane, 'paneExpanded');
     this.pane.element.style.opacity = TWEAKPANE_TRANSPARENCY;
+    applyPaneTheme(this.pane, TWEAKPANE_THEME);
     this.pane.registerPlugin(EssentialsPlugin);
-
-    const wrapper = paneWrapper(this.pane);
-    if (wrapper) {
-      wrapper.style.width = '240px';
-      if (anchor === 'left') {
-        wrapper.style.right = 'auto';
-        wrapper.style.left = '8px';
-      }
-    }
+    makePaneScrollable(this.pane);
+    this.disposeDrag = makePaneDraggable(
+      this.pane,
+      this.paneContainer,
+      this.settings.panePosition ?? ProjectionMapperGUI.anchorCorner(anchor),
+      (position) => {
+        this.settings.panePosition = position;
+        this.saveSettings();
+      },
+    );
 
     this.initPane();
+  }
+
+  private static anchorCorner(anchor: GUIAnchor): PanePosition {
+    const margin = PANE_LAYOUT.cornerMarginPx;
+    const x = anchor === 'left' ? margin : window.innerWidth - PANE_LAYOUT.widthPx - margin;
+    return { x, y: margin };
   }
 
   /**
@@ -906,7 +926,9 @@ export class ProjectionMapperGUI {
   }
 
   dispose(): void {
+    this.disposeDrag();
     this.pane.dispose();
+    this.paneContainer.remove();
   }
 
   collapse(): void {
