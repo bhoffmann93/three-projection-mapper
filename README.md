@@ -88,6 +88,7 @@ const oversampling = 1.5;
 const renderTarget = new THREE.WebGLRenderTarget(projectorRes.width * oversampling, projectorRes.height * oversampling);
 
 const mapper = new ProjectionMapper(renderer, renderTarget.texture);
+// anchor picks the starting corner. Drag the title bar to move the pane, its position is remembered
 const gui = new ProjectionMapperGUI(mapper, { title: 'Projection Mapper', anchor: 'left' });
 
 function animate() {
