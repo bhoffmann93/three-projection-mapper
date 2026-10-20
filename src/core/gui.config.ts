@@ -6,7 +6,7 @@ export const TWEAKPANE_TRANSPARENCY = '0.9';
 export const PANE_LAYOUT = {
   widthPx: 240,
   cornerMarginPx: 8,
-  //tweakpane's own z-index for the wrapper it places panes in
+  // Tweakpane's own z-index for the wrapper it places panes in
   zIndex: 1000,
 } as const;
 

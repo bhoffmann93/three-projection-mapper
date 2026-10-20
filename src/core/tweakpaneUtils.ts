@@ -112,23 +112,6 @@ export function setFolderEnabled(folder: FolderApi, enabled: boolean, disabledOp
   if (title) title.style.opacity = enabled ? '' : disabledOpacity;
 }
 
-const TAB_FLAT_CLASS = 'wm-tab-flat';
-let tabFlatStyleInjected = false;
-
-export const removeTabIndent = (tab: TabApi): void => {
-  if (!tabFlatStyleInjected) {
-    const style = document.createElement('style');
-    style.textContent = [
-      `.${TAB_FLAT_CLASS} .tp-tbpv_c { padding-left: 0; }`,
-      `.${TAB_FLAT_CLASS} .tp-tbpv_c > .tp-cntv { margin-left: 0; }`,
-      `.${TAB_FLAT_CLASS} .tp-tabv_i { display: none; }`,
-    ].join('\n');
-    document.head.appendChild(style);
-    tabFlatStyleInjected = true;
-  }
-  tab.element.classList.add(TAB_FLAT_CLASS);
-};
-
 interface ButtonGridContainer {
   addBlade(params: Record<string, unknown>): unknown;
 }
@@ -178,6 +161,17 @@ const injectStyleOnce = (styleClass: string, rules: readonly string[]): void => 
   injectedStyleClasses.add(styleClass);
 };
 
+const TAB_FLAT_CLASS = 'wm-tab-flat';
+
+export const removeTabIndent = (tab: TabApi): void => {
+  injectStyleOnce(TAB_FLAT_CLASS, [
+    `.${TAB_FLAT_CLASS} .tp-tbpv_c { padding-left: 0; }`,
+    `.${TAB_FLAT_CLASS} .tp-tbpv_c > .tp-cntv { margin-left: 0; }`,
+    `.${TAB_FLAT_CLASS} .tp-tabv_i { display: none; }`,
+  ]);
+  tab.element.classList.add(TAB_FLAT_CLASS);
+};
+
 const TWEAKPANE_THEME_VARIABLE_PREFIX = '--tp-';
 
 /** Sets Tweakpane's theming variables on a pane's root, each keyed by its name after the --tp- prefix. */
@@ -192,17 +186,17 @@ export interface PanePosition {
   readonly y: number;
 }
 
-//how far the pointer travels on a title before a press becomes a drag rather than a fold
+// How far the pointer travels on a title before a press becomes a drag rather than a fold
 const PANE_DRAG_THRESHOLD_PX = 3;
 const PANE_TITLE_SELECTOR = '.tp-rotv_b';
 
-//only the title has to stay on screen, a tall pane may hang below the window and still be caught
+// Only the title has to stay on screen, a tall pane may hang below the window and still be caught
 const clampToViewport = (position: PanePosition, container: HTMLElement, title: HTMLElement): PanePosition => ({
   x: Math.min(Math.max(0, position.x), Math.max(0, window.innerWidth - container.offsetWidth)),
   y: Math.min(Math.max(0, position.y), Math.max(0, window.innerHeight - title.offsetHeight)),
 });
 
-//caps the pane at the window below where it sits, so a scrolling pane keeps its last rows reachable
+// Caps the pane at the window below where it sits, so a scrolling pane keeps its last rows reachable
 const fitPaneBelow = (paneElement: HTMLElement, container: HTMLElement): void => {
   paneElement.style.maxHeight = `${window.innerHeight - container.offsetTop}px`;
 };
@@ -213,21 +207,21 @@ const placeAt = (paneElement: HTMLElement, container: HTMLElement, position: Pan
   fitPaneBelow(paneElement, container);
 };
 
-//the side a pane was left nearest to and its gap to it, so a resize keeps it there instead of pushing it off screen
-interface PaneSideAnchor {
+// The side a pane was left nearest to and its gap to it, so a resize keeps it there instead of pushing it off screen
+interface PaneSideGap {
   readonly fromRight: boolean;
   readonly gapX: number;
 }
 
-const anchorToNearestSide = (container: HTMLElement): PaneSideAnchor => {
+const gapToNearestSide = (container: HTMLElement): PaneSideGap => {
   const left = container.offsetLeft;
   const right = window.innerWidth - left - container.offsetWidth;
   const fromRight = right < left;
   return { fromRight, gapX: Math.max(0, fromRight ? right : left) };
 };
 
-const positionFromAnchor = (anchor: PaneSideAnchor, container: HTMLElement): PanePosition => ({
-  x: anchor.fromRight ? window.innerWidth - container.offsetWidth - anchor.gapX : anchor.gapX,
+const positionFromSideGap = (sideGap: PaneSideGap, container: HTMLElement): PanePosition => ({
+  x: sideGap.fromRight ? window.innerWidth - container.offsetWidth - sideGap.gapX : sideGap.gapX,
   y: container.offsetTop,
 });
 
@@ -258,10 +252,10 @@ export const makePaneDraggable = (
 
   placeAt(pane.element, container, clampToViewport(position, container, title));
   title.style.cursor = 'grab';
-  let anchor = anchorToNearestSide(container);
+  let sideGap = gapToNearestSide(container);
 
   const onResize = (): void => {
-    placeAt(pane.element, container, clampToViewport(positionFromAnchor(anchor, container), container, title));
+    placeAt(pane.element, container, clampToViewport(positionFromSideGap(sideGap, container), container, title));
   };
   window.addEventListener('resize', onResize);
 
@@ -270,7 +264,7 @@ export const makePaneDraggable = (
 
   title.addEventListener('pointerdown', (event) => {
     if (event.button !== 0) return;
-    //capturing the pointer would retarget the click of a button placed in the title to the title
+    // Capturing the pointer would retarget the click of a button placed in the title to the title
     if (event.target instanceof Element && event.target.closest('button') !== title) return;
     drag = {
       startX: event.clientX,
@@ -300,11 +294,11 @@ export const makePaneDraggable = (
     drag = null;
     if (!moved) return;
     swallowNextClick = true;
-    anchor = anchorToNearestSide(container);
+    sideGap = gapToNearestSide(container);
     onMoved({ x: container.offsetLeft, y: container.offsetTop });
   });
 
-  //capture on the container runs before the title's own click handler, which is what folds the pane
+  // Capture on the container runs before the title's own click handler, which is what folds the pane
   container.addEventListener(
     'click',
     (event) => {
@@ -319,7 +313,7 @@ export const makePaneDraggable = (
 };
 
 const PANE_SCROLL_CLASS = 'pm-pane-scroll';
-//above the pane's own rows, which the held title scrolls over
+// Above the pane's own rows, which the held title scrolls over
 const PANE_STICKY_TITLE_Z_INDEX = 1;
 
 /** Scrolls a pane taller than its space vertically only, with no scrollbar shown and its title held in view. */
